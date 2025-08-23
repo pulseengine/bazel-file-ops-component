@@ -22,7 +22,7 @@ on:
         - comparison
 
 env:
-  BAZEL_VERSION: "7.4.1"
+  BAZEL_VERSION: "latest"
 
 jobs:
   # Performance benchmarking

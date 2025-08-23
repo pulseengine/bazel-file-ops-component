@@ -9,7 +9,7 @@ on:
     types: [published]
 
 env:
-  BAZEL_VERSION: "7.4.1"
+  BAZEL_VERSION: "latest"
   RUST_VERSION: "1.82.0"
   TINYGO_VERSION: "0.38.0"
   NODE_VERSION: "20.18.0"

@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  BAZEL_VERSION: "7.4.1"
+  BAZEL_VERSION: "latest"
   WASM_TOOLS_VERSION: "1.217.0"
 
 jobs:
