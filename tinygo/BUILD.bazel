@@ -5,7 +5,9 @@ with WIT interface bindings for secure, sandboxed file operations.
 """
 
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
-load("@rules_wasm_component//go:defs.bzl", "go_wasm_component_library")
+load("@rules_wasm_component//go:defs.bzl", "go_wasm_component")
+load("@rules_wasm_component//wasm:defs.bzl", "wasm_keygen", "wasm_sign", "wasm_verify")
+load("@rules_wasm_component//wkg:oci_signing.bzl", "wasm_component_signed_oci_image")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -35,7 +37,7 @@ go_binary(
 )
 
 # TinyGo WebAssembly Component
-go_wasm_component_library(
+go_wasm_component(
     name = "file_ops_component",
     srcs = [
         "main.go",
@@ -45,12 +47,10 @@ go_wasm_component_library(
         "workspace.go",
         "wit_bindings.go",
     ],
-    wit_file = "//wit:file-operations.wit",
-    deps = [":file_ops_lib"],
-    # TinyGo specific configuration
-    compiler = "tinygo",
-    target = "wasm32-wasi", 
-    optimization = "2",
+    go_mod = "go.mod",
+    wit = "//wit:file-operations",
+    world = "file-operations-world",
+    optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
 )
 
@@ -93,9 +93,64 @@ go_test(
     tags = ["benchmark"],
 )
 
-# Export for toolchain use
+# Generate signing keys for component security
+wasm_keygen(
+    name = "component_signing_keys",
+    openssh_format = True,  # Compatible with GitHub SSH keys
+    tags = ["manual"],  # Generated on demand
+)
+
+# Sign the WebAssembly component
+wasm_sign(
+    name = "file_ops_component_signed",
+    component = ":file_ops_component",
+    keys = ":component_signing_keys",
+    detached = False,  # Embed signature in component
+    tags = ["manual"],
+)
+
+# Verify component signature
+wasm_verify(
+    name = "verify_file_ops_signature",
+    signed_component = ":file_ops_component_signed",
+    keys = ":component_signing_keys",
+    tags = ["manual"],
+)
+
+# Create signed OCI image for registry publishing
+wasm_component_signed_oci_image(
+    name = "file_ops_oci_signed",
+    component = ":file_ops_component",
+    sign_component = True,
+    component_signing_keys = ":component_signing_keys",
+    registry = "ghcr.io",
+    namespace = "pulseengine",
+    package_name = "bazel-file-ops-component-tinygo",
+    tags = ["manual"],
+)
+
+# Legacy aliases for backward compatibility
 alias(
     name = "file_ops",
     actual = ":file_ops_component",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "file_ops_tinygo", 
+    actual = ":file_ops_component",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "file_ops_component_wasm",
+    actual = ":file_ops_component",
+    visibility = ["//visibility:public"],
+)
+
+# Signed component aliases
+alias(
+    name = "file_ops_signed",
+    actual = ":file_ops_component_signed",
     visibility = ["//visibility:public"],
 )

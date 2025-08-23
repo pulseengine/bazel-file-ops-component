@@ -67,6 +67,14 @@ jobs:
       run: |
         bazel build //tinygo:file_ops_component_wasm
         
+    - name: Build Signed WebAssembly Component
+      run: |
+        # Generate signing keys and build signed component
+        bazel build //tinygo:component_signing_keys //tinygo:file_ops_component_signed
+        
+        # Verify the signature
+        bazel build //tinygo:verify_file_ops_signature
+        
     - name: Validate WebAssembly Component
       run: |
         # Install wasm-tools if not available
@@ -75,9 +83,13 @@ jobs:
           sudo mv wasm-tools*/wasm-tools /usr/local/bin/ || mv wasm-tools*/wasm-tools.exe /usr/local/bin/
         fi
         
-        # Validate the generated WebAssembly component
+        # Validate the unsigned WebAssembly component
         wasm-tools validate bazel-bin/tinygo/file_ops_component_wasm.wasm
         wasm-tools component wit bazel-bin/tinygo/file_ops_component_wasm.wasm
+        
+        # Validate the signed WebAssembly component
+        wasm-tools validate bazel-bin/tinygo/file_ops_component_signed.wasm
+        wasm-tools component wit bazel-bin/tinygo/file_ops_component_signed.wasm
 
     - name: Upload TinyGo Artifacts
       uses: actions/upload-artifact@v4
@@ -86,6 +98,8 @@ jobs:
         path: |
           bazel-bin/tinygo/file_ops_tinygo*
           bazel-bin/tinygo/file_ops_component_wasm.wasm
+          bazel-bin/tinygo/file_ops_component_signed.wasm
+          bazel-bin/tinygo/component_signing_keys*
         retention-days: 7
 
   # Build and test Rust implementation

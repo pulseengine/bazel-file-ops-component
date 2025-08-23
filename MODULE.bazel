@@ -26,8 +26,14 @@ bazel_dep(name = "rules_go", version = "0.50.1")
 bazel_dep(name = "aspect_rules_js", version = "2.1.0")
 bazel_dep(name = "aspect_rules_ts", version = "3.2.1")
 
-# TinyGo toolchain for WebAssembly components
+# TinyGo toolchain for WebAssembly components  
 bazel_dep(name = "rules_wasm_component", version = "0.1.0")
+
+# Local development override - use local rules_wasm_component
+local_path_override(
+    module_name = "rules_wasm_component",
+    path = "/Users/r/git/rules_wasm_component",
+)
 
 # Rust toolchain setup
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
