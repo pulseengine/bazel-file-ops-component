@@ -22,18 +22,18 @@ bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "rules_rust", version = "0.53.0")
 bazel_dep(name = "rules_go", version = "0.50.1")
 
-# Documentation site dependencies  
+# Documentation site dependencies
 bazel_dep(name = "aspect_rules_js", version = "2.1.0")
 bazel_dep(name = "aspect_rules_ts", version = "3.2.1")
 
-# TinyGo toolchain for WebAssembly components  
+# TinyGo toolchain for WebAssembly components
 bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 
-# Local development override - use local rules_wasm_component
-local_path_override(
-    module_name = "rules_wasm_component",
-    path = "/Users/r/git/rules_wasm_component",
-)
+# Local development override - use local rules_wasm_component (disabled for CI)
+# local_path_override(
+#     module_name = "rules_wasm_component",
+#     path = "/Users/r/git/rules_wasm_component",
+# )
 
 # Rust toolchain setup
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
@@ -44,34 +44,28 @@ register_toolchains("@rust_toolchains//:all")
 
 # Rust dependencies
 crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
-
 crate.spec(
     package = "anyhow",
     version = "1.0",
 )
-
 crate.spec(
+    features = ["derive"],
     package = "serde",
     version = "1.0",
-    features = ["derive"],
 )
-
 crate.spec(
     package = "serde_json",
     version = "1.0",
 )
-
 crate.spec(
+    features = ["component-model"],
     package = "wasmtime",
     version = "25.0",
-    features = ["component-model"],
 )
-
 crate.spec(
     package = "wit-bindgen",
     version = "0.30",
 )
-
 crate.from_specs()
 use_repo(crate, "crates")
 

@@ -14,7 +14,7 @@ string_flag(
     build_setting_default = "auto",
     values = [
         "auto",
-        "tinygo", 
+        "tinygo",
         "rust",
     ],
 )
@@ -27,7 +27,7 @@ config_setting(
 )
 
 config_setting(
-    name = "use_rust", 
+    name = "use_rust",
     flag_values = {
         ":implementation": "rust",
     },
@@ -61,7 +61,7 @@ config_setting(
 config_setting(
     name = "strict_security",
     flag_values = {
-        ":security_level": "strict", 
+        ":security_level": "strict",
     },
 )
 
