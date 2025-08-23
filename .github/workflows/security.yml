@@ -192,7 +192,7 @@ jobs:
 
     - name: Create Pull Request for Dependency Updates
       if: env.GO_DEPS_UPDATED == 'true' || env.RUST_DEPS_UPDATED == 'true'
-      uses: peter-evans/create-pull-request@v6
+      uses: peter-evans/create-pull-request@v7
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         commit-message: 'chore: update dependencies'
