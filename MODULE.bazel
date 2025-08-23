@@ -36,6 +36,13 @@ git_override(
     commit = "068802420bacf902c3ff993874b6a01ee9a3ac55",  # Latest commit from main branch
 )
 
+# Git repository override for rules_rust - WASI Preview 2 support required
+git_override(
+    module_name = "rules_rust",
+    commit = "7d7d3ac00ad013c94e7a9d0db0732c20ffe8eab7",  # WASI Preview 2 support
+    remote = "https://github.com/bazelbuild/rules_rust.git",
+)
+
 # Local development override - use local rules_wasm_component (disabled for CI)
 # local_path_override(
 #     module_name = "rules_wasm_component",
