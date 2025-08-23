@@ -240,7 +240,7 @@ jobs:
         go-version: '1.23'
 
     - name: Generate SLSA Provenance for Go
-      uses: slsa-framework/slsa-github-generator/.github/workflows/generator_go_slsa3.yml@v2.0.0
+      uses: slsa-framework/slsa-github-generator/.github/workflows/generator_go_slsa3.yml@v2.1.0
       with:
         go-version-file: "tinygo/go.mod"
         config-file: ".slsa-goreleaser.yml"
