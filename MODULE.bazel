@@ -87,15 +87,8 @@ use_repo(crate, "crates")
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.23.0")
 
-# TinyGo toolchain setup
-tinygo = use_extension("@rules_wasm_component//toolchains:tinygo.bzl", "tinygo_toolchain")
-tinygo.toolchain(
-    name = "tinygo",
-    version = "0.38.0",
-)
-use_repo(tinygo, "tinygo_toolchain")
-
-register_toolchains("@tinygo_toolchain//:all")
+# TinyGo toolchain setup - using rules_wasm_component native setup
+# Note: TinyGo toolchain is registered automatically by rules_wasm_component
 
 # Node.js setup for documentation
 node = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm", dev_dependency = True)
