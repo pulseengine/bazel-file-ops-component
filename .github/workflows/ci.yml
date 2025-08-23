@@ -33,7 +33,6 @@ jobs:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
         repository-cache: true
-        bazelisk-version: ${{ env.BAZEL_VERSION }}
 
     - name: Setup Go
       uses: actions/setup-go@v5
@@ -120,7 +119,6 @@ jobs:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
         repository-cache: true
-        bazelisk-version: ${{ env.BAZEL_VERSION }}
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -198,7 +196,6 @@ jobs:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
         repository-cache: true
-        bazelisk-version: ${{ env.BAZEL_VERSION }}
 
     - name: Setup Go
       uses: actions/setup-go@v5
@@ -260,7 +257,6 @@ jobs:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
         repository-cache: true
-        bazelisk-version: ${{ env.BAZEL_VERSION }}
 
     - name: Setup Go
       uses: actions/setup-go@v5
@@ -414,7 +410,6 @@ jobs:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
         repository-cache: true
-        bazelisk-version: ${{ env.BAZEL_VERSION }}
 
     - name: Run Performance Tests
       run: |
