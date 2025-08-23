@@ -1,0 +1,28 @@
+{
+  "workspace_dir": "/tmp/test_workspace",
+  "operations": [
+    {
+      "type": "mkdir",
+      "path": "src"
+    },
+    {
+      "type": "mkdir", 
+      "path": "include"
+    },
+    {
+      "type": "copy_file",
+      "src_path": "/test/source/main.cpp",
+      "dest_path": "src/main.cpp"
+    },
+    {
+      "type": "copy_file",
+      "src_path": "/test/headers/types.h",
+      "dest_path": "include/types.h"
+    },
+    {
+      "type": "copy_directory_contents",
+      "src_path": "/test/libs",
+      "dest_path": "lib"
+    }
+  ]
+}

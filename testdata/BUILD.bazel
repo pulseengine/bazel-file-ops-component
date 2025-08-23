@@ -1,0 +1,18 @@
+"""Test data for file operations component tests"""
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "test_configs",
+    srcs = glob(["*.json"]),
+)
+
+filegroup(
+    name = "test_files",
+    srcs = glob(["files/*"]),
+)
+
+filegroup(
+    name = "integration_configs",
+    srcs = glob(["integration/*"]),
+)
