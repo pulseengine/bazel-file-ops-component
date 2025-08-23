@@ -16,7 +16,7 @@ go_library(
     name = "file_ops_lib",
     srcs = [
         "json_bridge.go",
-        "operations.go", 
+        "operations.go",
         "security.go",
         "workspace.go",
     ],
@@ -30,67 +30,59 @@ go_library(
 go_binary(
     name = "file_ops_cli",
     srcs = ["main.go"],
-    deps = [":file_ops_lib"],
+    goarch = "amd64",
     # Build for host platform for testing
     goos = "linux",
-    goarch = "amd64",
+    deps = [":file_ops_lib"],
 )
 
 # TinyGo WebAssembly Component
 go_wasm_component(
     name = "file_ops_component",
     srcs = [
+        "json_bridge.go",
         "main.go",
-        "json_bridge.go", 
         "operations.go",
         "security.go",
-        "workspace.go",
         "wit_bindings.go",
+        "workspace.go",
     ],
     go_mod = "go.mod",
-    wit = "//wit:file-operations",
-    world = "file-operations-world",
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
+    wit = "//wit:file-operations",
+    world = "file-operations-world",
 )
 
 # Test suite
 go_test(
     name = "file_ops_test",
     srcs = [
-        "operations_test.go",
         "json_bridge_test.go",
+        "operations_test.go",
         "security_test.go",
         "workspace_test.go",
-    ],
-    deps = [
-        ":file_ops_lib",
-        "@org_golang_x_testing//fstest",
     ],
     data = [
         "//testdata:test_configs",
         "//testdata:test_files",
     ],
+    deps = [
+        ":file_ops_lib",
+        "@org_golang_x_testing//fstest",
+    ],
 )
 
 # Integration tests with WASM component
-sh_test(
-    name = "integration_test", 
-    srcs = ["integration_test.sh"],
-    data = [
-        ":file_ops_component",
-        "//testdata:integration_configs",
-    ],
-    tags = ["integration"],
-)
+# Note: sh_test is deprecated, replaced with Go-based integration tests in //testdata:integration_tests
 
 # Performance benchmarks
 go_test(
     name = "benchmark_test",
-    srcs = ["benchmark_test.go"], 
-    deps = [":file_ops_lib"],
+    srcs = ["benchmark_test.go"],
     args = ["-bench=."],
     tags = ["benchmark"],
+    deps = [":file_ops_lib"],
 )
 
 # Generate signing keys for component security
@@ -104,28 +96,28 @@ wasm_keygen(
 wasm_sign(
     name = "file_ops_component_signed",
     component = ":file_ops_component",
-    keys = ":component_signing_keys",
     detached = False,  # Embed signature in component
+    keys = ":component_signing_keys",
     tags = ["manual"],
 )
 
 # Verify component signature
 wasm_verify(
     name = "verify_file_ops_signature",
-    signed_component = ":file_ops_component_signed",
     keys = ":component_signing_keys",
+    signed_component = ":file_ops_component_signed",
     tags = ["manual"],
 )
 
 # Create signed OCI image for registry publishing
 wasm_component_signed_oci_image(
     name = "file_ops_oci_signed",
-    component = ":file_ops_component",
-    sign_component = True,
-    component_signing_keys = ":component_signing_keys",
-    registry = "ghcr.io",
-    namespace = "pulseengine",
     package_name = "bazel-file-ops-component-tinygo",
+    component = ":file_ops_component",
+    component_signing_keys = ":component_signing_keys",
+    namespace = "pulseengine",
+    registry = "ghcr.io",
+    sign_component = True,
     tags = ["manual"],
 )
 
@@ -137,7 +129,7 @@ alias(
 )
 
 alias(
-    name = "file_ops_tinygo", 
+    name = "file_ops_tinygo",
     actual = ":file_ops_component",
     visibility = ["//visibility:public"],
 )
