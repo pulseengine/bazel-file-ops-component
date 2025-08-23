@@ -64,7 +64,7 @@ jobs:
       run: |
         # Install hyperfine for benchmarking
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/latest/download/hyperfine_1.18.0_amd64.deb
+          curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
           sudo dpkg -i hyperfine.deb
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           brew install hyperfine
@@ -325,7 +325,7 @@ jobs:
 
     - name: Install Hyperfine
       run: |
-        curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/latest/download/hyperfine_1.18.0_amd64.deb
+        curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
         sudo dpkg -i hyperfine.deb
 
     - name: Benchmark Baseline Performance
