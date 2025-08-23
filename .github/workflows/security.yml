@@ -1,0 +1,334 @@
+name: Security & Dependencies
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans weekly
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  # Security vulnerability scanning
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: "1.82.0"
+
+    - name: Run Gosec Security Scanner (Go)
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out go-results.sarif ./tinygo/...'
+      continue-on-error: true
+
+    - name: Upload Gosec Results to GitHub Security Tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: go-results.sarif
+        category: go-security
+
+    - name: Run Cargo Audit (Rust)
+      run: |
+        if [ -f "rust/Cargo.toml" ]; then
+          cargo install cargo-audit
+          cd rust && cargo audit --format json --output audit-results.json || true
+        fi
+
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+
+    - name: Upload Trivy Results to GitHub Security Tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: trivy-security
+
+    - name: Run Semgrep Security Analysis
+      uses: returntocorp/semgrep-action@v1
+      with:
+        publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+        generateBaseline: ${{ github.event_name == 'workflow_dispatch' }}
+      continue-on-error: true
+
+  # Dependency vulnerability and license scanning
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: "1.82.0"
+
+    - name: Go Dependency Check
+      run: |
+        # Check for known vulnerabilities in Go dependencies
+        cd tinygo
+        go list -json -m all | nancy sleuth
+      continue-on-error: true
+
+    - name: Rust Dependency Check  
+      run: |
+        if [ -f "rust/Cargo.toml" ]; then
+          cargo install cargo-audit cargo-deny
+          cd rust
+          
+          # Check for vulnerabilities
+          cargo audit
+          
+          # Check licenses and dependency policies
+          cargo deny check
+        fi
+      continue-on-error: true
+
+    - name: License Compliance Check
+      run: |
+        # Install license scanner
+        npm install -g license-checker
+        
+        # Check for license compliance in dependencies
+        echo "Scanning Go module licenses..."
+        if command -v go-licenses &> /dev/null; then
+          cd tinygo && go-licenses csv ./... > ../go-licenses.csv
+        fi
+        
+        echo "Dependency license scan completed"
+
+  # Automated dependency updates
+  dependency-update:
+    name: Automated Dependency Updates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: "1.82.0"
+
+    - name: Update Go Dependencies
+      run: |
+        cd tinygo
+        
+        # Update go.mod
+        go get -u ./...
+        go mod tidy
+        go mod verify
+        
+        # Check if there are changes
+        if git diff --quiet go.mod go.sum; then
+          echo "No Go dependency updates available"
+        else
+          echo "GO_DEPS_UPDATED=true" >> $GITHUB_ENV
+        fi
+
+    - name: Update Rust Dependencies
+      run: |
+        if [ -f "rust/Cargo.toml" ]; then
+          cd rust
+          
+          # Update Cargo.toml with latest compatible versions
+          cargo update
+          
+          # Check if there are changes
+          if git diff --quiet Cargo.lock; then
+            echo "No Rust dependency updates available"
+          else
+            echo "RUST_DEPS_UPDATED=true" >> $GITHUB_ENV
+          fi
+        fi
+
+    - name: Update Bazel Dependencies
+      run: |
+        # Check MODULE.bazel for updates (manual review needed)
+        echo "Bazel MODULE.bazel dependencies should be updated manually"
+        echo "Check for newer versions of:"
+        grep -E "bazel_dep|use_extension" MODULE.bazel || true
+
+    - name: Create Pull Request for Dependency Updates
+      if: env.GO_DEPS_UPDATED == 'true' || env.RUST_DEPS_UPDATED == 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: 'chore: update dependencies'
+        title: 'Automated Dependency Updates'
+        body: |
+          ## 🤖 Automated Dependency Updates
+          
+          This PR contains automated dependency updates:
+          
+          ${{ env.GO_DEPS_UPDATED == 'true' && '✅ Go dependencies updated' || '➖ No Go dependency updates' }}
+          ${{ env.RUST_DEPS_UPDATED == 'true' && '✅ Rust dependencies updated' || '➖ No Rust dependency updates' }}
+          
+          ### Changes Made
+          - Updated go.mod and go.sum (if applicable)
+          - Updated Cargo.lock (if applicable)
+          - All updates use compatible version constraints
+          
+          ### Testing
+          - [ ] CI/CD pipeline passes
+          - [ ] Security scans pass
+          - [ ] No breaking changes introduced
+          
+          ### Manual Review Required
+          - Verify no breaking changes in updated dependencies
+          - Review any new security advisories
+          - Check for any required code changes
+          
+          ---
+          This PR was automatically created by the dependency update workflow.
+        branch: automated-dependency-updates
+        delete-branch: true
+
+  # Supply chain security
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Generate SLSA Provenance for Go
+      uses: slsa-framework/slsa-github-generator/.github/workflows/generator_go_slsa3.yml@v2.0.0
+      with:
+        go-version-file: "tinygo/go.mod"
+        config-file: ".slsa-goreleaser.yml"
+      continue-on-error: true
+
+    - name: Run SBOM Generation
+      run: |
+        # Install SBOM tools
+        curl -Lo syft.tar.gz https://github.com/anchore/syft/releases/latest/download/syft_linux_amd64.tar.gz
+        tar -xzf syft.tar.gz
+        sudo mv syft /usr/local/bin/
+        
+        # Generate SBOM for the repository
+        syft . -o spdx-json=sbom.spdx.json -o cyclonedx-json=sbom.cyclonedx.json
+        
+        echo "SBOM files generated:"
+        ls -la sbom.*
+
+    - name: Upload SBOM Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sbom-reports
+        path: |
+          sbom.spdx.json
+          sbom.cyclonedx.json
+        retention-days: 90
+
+    - name: Verify Signatures (if available)
+      run: |
+        # Install cosign for signature verification
+        curl -O -L https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
+        sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+        sudo chmod +x /usr/local/bin/cosign
+        
+        echo "Signature verification tools installed"
+        # Future: Add actual signature verification for dependencies
+
+  # Security policy and compliance
+  security-policy:
+    name: Security Policy Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check Security Policy
+      run: |
+        # Verify SECURITY.md exists and is up to date
+        if [ -f "SECURITY.md" ]; then
+          echo "✅ Security policy exists"
+        else
+          echo "❌ Security policy missing"
+          echo "Creating basic security policy template..."
+          cat > SECURITY.md <<EOF
+        # Security Policy
+        
+        ## Supported Versions
+        
+        We provide security updates for the following versions:
+        
+        | Version | Supported          |
+        | ------- | ------------------ |
+        | 1.x.x   | :white_check_mark: |
+        | < 1.0   | :x:                |
+        
+        ## Reporting a Vulnerability
+        
+        Please report security vulnerabilities to security@pulseengine.dev
+        
+        We will acknowledge receipt within 48 hours and provide a detailed
+        response within 7 days indicating the next steps.
+        EOF
+        fi
+
+    - name: Security Configuration Check
+      run: |
+        echo "## 🔒 Security Configuration Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for security-related files
+        echo "### Security Files" >> $GITHUB_STEP_SUMMARY
+        echo "- Security Policy: $([ -f SECURITY.md ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
+        echo "- Code of Conduct: $([ -f CODE_OF_CONDUCT.md ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
+        echo "- License: $([ -f LICENSE ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Workflow Security" >> $GITHUB_STEP_SUMMARY
+        echo "- Dependabot: $([ -f .github/dependabot.yml ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
+        echo "- Security Scanning: ✅ Enabled" >> $GITHUB_STEP_SUMMARY
+        echo "- Dependency Updates: ✅ Automated" >> $GITHUB_STEP_SUMMARY

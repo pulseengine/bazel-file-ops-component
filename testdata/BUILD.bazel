@@ -1,6 +1,11 @@
 """Test data for file operations component tests"""
 
+load(":integration_tests.bzl", "file_ops_integration_tests")
+
 package(default_visibility = ["//visibility:public"])
+
+# Define all integration tests
+file_ops_integration_tests()
 
 filegroup(
     name = "test_configs",

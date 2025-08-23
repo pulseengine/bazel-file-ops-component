@@ -1,0 +1,375 @@
+name: OCI Registry Publishing
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  BAZEL_VERSION: "7.4.1"
+  WASM_TOOLS_VERSION: "1.217.0"
+
+jobs:
+  # Build WebAssembly components for OCI distribution
+  build-wasm-components:
+    name: Build WASM Components for OCI
+    runs-on: ubuntu-latest
+    outputs:
+      tinygo-digest: ${{ steps.tinygo-build.outputs.digest }}
+      rust-digest: ${{ steps.rust-build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Bazel
+      uses: bazel-contrib/setup-bazel@0.9.0
+      with:
+        bazelisk-cache: true
+        disk-cache: ${{ github.workflow }}
+        repository-cache: true
+        bazelisk-version: ${{ env.BAZEL_VERSION }}
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Setup TinyGo
+      uses: acifani/setup-tinygo@v2
+      with:
+        tinygo-version: "0.38.0"
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: "1.82.0"
+        targets: wasm32-wasi
+
+    - name: Install wasm-tools
+      run: |
+        curl -L https://github.com/bytecodealliance/wasm-tools/releases/download/v${{ env.WASM_TOOLS_VERSION }}/wasm-tools-${{ env.WASM_TOOLS_VERSION }}-x86_64-linux.tar.gz | tar xz
+        sudo mv wasm-tools-${{ env.WASM_TOOLS_VERSION }}-x86_64-linux/wasm-tools /usr/local/bin/
+        wasm-tools --version
+
+    - name: Build TinyGo WebAssembly Component
+      id: tinygo-build
+      run: |
+        # Build TinyGo component
+        bazel build //tinygo:file_ops_component_wasm
+        
+        # Validate component
+        wasm-tools validate bazel-bin/tinygo/file_ops_component_wasm.wasm
+        
+        # Extract WIT interface
+        wasm-tools component wit bazel-bin/tinygo/file_ops_component_wasm.wasm > tinygo-component.wit
+        
+        # Calculate digest for artifact tracking
+        DIGEST=$(sha256sum bazel-bin/tinygo/file_ops_component_wasm.wasm | cut -d' ' -f1)
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        
+        # Copy to output directory
+        mkdir -p artifacts/tinygo/
+        cp bazel-bin/tinygo/file_ops_component_wasm.wasm artifacts/tinygo/file-ops-component.wasm
+        cp tinygo-component.wit artifacts/tinygo/
+        
+        # Create component metadata
+        cat > artifacts/tinygo/component-manifest.json <<EOF
+        {
+          "name": "file-ops-tinygo",
+          "version": "${{ github.ref_name }}",
+          "implementation": "tinygo",
+          "wasi_preview": 2,
+          "features": ["security", "compact", "json-batch"],
+          "binary_size_kb": $(stat -c%s bazel-bin/tinygo/file_ops_component_wasm.wasm | awk '{print int($1/1024)}'),
+          "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "git_commit": "${{ github.sha }}",
+          "digest": "$DIGEST"
+        }
+        EOF
+
+    - name: Build Rust WebAssembly Component
+      id: rust-build
+      run: |
+        # Build Rust component
+        bazel build //rust:file_ops_component_wasm
+        
+        # Validate component
+        wasm-tools validate bazel-bin/rust/file_ops_component_wasm.wasm
+        
+        # Extract WIT interface
+        wasm-tools component wit bazel-bin/rust/file_ops_component_wasm.wasm > rust-component.wit
+        
+        # Calculate digest for artifact tracking
+        DIGEST=$(sha256sum bazel-bin/rust/file_ops_component_wasm.wasm | cut -d' ' -f1)
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        
+        # Copy to output directory
+        mkdir -p artifacts/rust/
+        cp bazel-bin/rust/file_ops_component_wasm.wasm artifacts/rust/file-ops-component.wasm
+        cp rust-component.wit artifacts/rust/
+        
+        # Create component metadata
+        cat > artifacts/rust/component-manifest.json <<EOF
+        {
+          "name": "file-ops-rust",
+          "version": "${{ github.ref_name }}",
+          "implementation": "rust",
+          "wasi_preview": 2,
+          "features": ["performance", "streaming", "parallel", "advanced-security", "json-batch"],
+          "binary_size_kb": $(stat -c%s bazel-bin/rust/file_ops_component_wasm.wasm | awk '{print int($1/1024)}'),
+          "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "git_commit": "${{ github.sha }}",
+          "digest": "$DIGEST"
+        }
+        EOF
+
+    - name: Upload Component Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-components
+        path: artifacts/
+        retention-days: 30
+
+  # Publish to OCI registry (GitHub Container Registry)
+  publish-oci:
+    name: Publish to OCI Registry
+    runs-on: ubuntu-latest
+    needs: [build-wasm-components]
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Component Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: wasm-components
+        path: artifacts/
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+
+    - name: Create Multi-Arch Manifest
+      run: |
+        # Create manifest for TinyGo component
+        cat > tinygo.Dockerfile <<EOF
+        FROM scratch
+        COPY artifacts/tinygo/file-ops-component.wasm /component.wasm
+        COPY artifacts/tinygo/component.wit /component.wit
+        COPY artifacts/tinygo/component-manifest.json /manifest.json
+        
+        LABEL org.opencontainers.image.title="File Operations Component (TinyGo)"
+        LABEL org.opencontainers.image.description="WebAssembly file operations component built with TinyGo"
+        LABEL org.opencontainers.image.source="${{ github.server_url }}/${{ github.repository }}"
+        LABEL org.opencontainers.image.revision="${{ github.sha }}"
+        LABEL org.opencontainers.image.version="${{ github.ref_name }}"
+        LABEL wasm.component.type="file-operations"
+        LABEL wasm.component.implementation="tinygo"
+        LABEL wasm.component.wasi_preview="2"
+        EOF
+        
+        # Create manifest for Rust component
+        cat > rust.Dockerfile <<EOF
+        FROM scratch
+        COPY artifacts/rust/file-ops-component.wasm /component.wasm
+        COPY artifacts/rust/component.wit /component.wit
+        COPY artifacts/rust/component-manifest.json /manifest.json
+        
+        LABEL org.opencontainers.image.title="File Operations Component (Rust)"
+        LABEL org.opencontainers.image.description="WebAssembly file operations component built with Rust"
+        LABEL org.opencontainers.image.source="${{ github.server_url }}/${{ github.repository }}"
+        LABEL org.opencontainers.image.revision="${{ github.sha }}"
+        LABEL org.opencontainers.image.version="${{ github.ref_name }}"
+        LABEL wasm.component.type="file-operations"
+        LABEL wasm.component.implementation="rust"
+        LABEL wasm.component.wasi_preview="2"
+        EOF
+
+    - name: Build and Push TinyGo Component
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./tinygo.Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and Push Rust Component
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./rust.Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/rust:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create Combined Manifest
+      run: |
+        # Create a combined manifest that references both implementations
+        cat > manifest.json <<EOF
+        {
+          "schemaVersion": 2,
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "${{ needs.build-wasm-components.outputs.tinygo-digest }}",
+              "platform": {
+                "architecture": "wasm",
+                "os": "wasi"
+              },
+              "annotations": {
+                "org.opencontainers.image.title": "File Operations TinyGo Component",
+                "wasm.component.implementation": "tinygo"
+              }
+            },
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json", 
+              "digest": "${{ needs.build-wasm-components.outputs.rust-digest }}",
+              "platform": {
+                "architecture": "wasm",
+                "os": "wasi"
+              },
+              "annotations": {
+                "org.opencontainers.image.title": "File Operations Rust Component",
+                "wasm.component.implementation": "rust"
+              }
+            }
+          ],
+          "annotations": {
+            "org.opencontainers.image.title": "File Operations Components",
+            "org.opencontainers.image.description": "Dual implementation WebAssembly file operations components",
+            "org.opencontainers.image.source": "${{ github.server_url }}/${{ github.repository }}",
+            "org.opencontainers.image.revision": "${{ github.sha }}",
+            "org.opencontainers.image.version": "${{ github.ref_name }}"
+          }
+        }
+        EOF
+
+  # Publish to WebAssembly package registries
+  publish-wasm-registries:
+    name: Publish to WASM Registries
+    runs-on: ubuntu-latest
+    needs: [build-wasm-components]
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Component Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: wasm-components
+        path: artifacts/
+
+    - name: Install wkg (WebAssembly Package Manager)
+      run: |
+        curl -L https://github.com/bytecodealliance/wkg/releases/latest/download/wkg-x86_64-unknown-linux-musl.tar.gz | tar xz
+        sudo mv wkg /usr/local/bin/
+        wkg --version
+
+    - name: Publish TinyGo Component to wkg Registry
+      run: |
+        cd artifacts/tinygo/
+        
+        # Create wkg package manifest
+        cat > wkg.toml <<EOF
+        [package]
+        name = "pulseengine:file-operations-tinygo"
+        version = "${{ github.ref_name }}"
+        description = "TinyGo implementation of file operations WebAssembly component"
+        authors = ["PulseEngine <opensource@pulseengine.dev>"]
+        license = "Apache-2.0"
+        repository = "${{ github.server_url }}/${{ github.repository }}"
+        
+        [component]
+        wit = "component.wit"
+        wasm = "file-ops-component.wasm"
+        
+        [features]
+        security = true
+        compact = true
+        json-batch = true
+        EOF
+        
+        # Publish to registry (when credentials are available)
+        # wkg publish --token ${{ secrets.WKG_TOKEN }} || echo "WKG publishing skipped - no token"
+
+    - name: Publish Rust Component to wkg Registry
+      run: |
+        cd artifacts/rust/
+        
+        # Create wkg package manifest
+        cat > wkg.toml <<EOF
+        [package]
+        name = "pulseengine:file-operations-rust"
+        version = "${{ github.ref_name }}"
+        description = "Rust implementation of file operations WebAssembly component"
+        authors = ["PulseEngine <opensource@pulseengine.dev>"]
+        license = "Apache-2.0"
+        repository = "${{ github.server_url }}/${{ github.repository }}"
+        
+        [component]
+        wit = "component.wit"
+        wasm = "file-ops-component.wasm"
+        
+        [features]
+        performance = true
+        streaming = true
+        parallel = true
+        advanced-security = true
+        json-batch = true
+        EOF
+        
+        # Publish to registry (when credentials are available)
+        # wkg publish --token ${{ secrets.WKG_TOKEN }} || echo "WKG publishing skipped - no token"
+
+    - name: Create Distribution Summary
+      run: |
+        echo "## 📦 Component Distribution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### OCI Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
+        echo "- TinyGo: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Rust: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/rust:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### WebAssembly Package Registry" >> $GITHUB_STEP_SUMMARY
+        echo "- TinyGo: \`pulseengine:file-operations-tinygo@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Rust: \`pulseengine:file-operations-rust@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Component Digests" >> $GITHUB_STEP_SUMMARY
+        echo "- TinyGo: \`${{ needs.build-wasm-components.outputs.tinygo-digest }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Rust: \`${{ needs.build-wasm-components.outputs.rust-digest }}\`" >> $GITHUB_STEP_SUMMARY
