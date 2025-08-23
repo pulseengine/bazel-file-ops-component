@@ -1,0 +1,35 @@
+"""WIT interface definitions for file operations component"""
+
+package(default_visibility = ["//visibility:public"])
+
+# Export WIT interface files
+filegroup(
+    name = "wit_files",
+    srcs = ["file-operations.wit"],
+    visibility = ["//visibility:public"],
+)
+
+# Alias for easier reference
+alias(
+    name = "file-operations.wit",
+    actual = "file-operations.wit",
+    visibility = ["//visibility:public"],
+)
+
+# Generate documentation from WIT interface
+# This will be used by the documentation system
+genrule(
+    name = "wit_docs",
+    srcs = [":wit_files"],
+    outs = ["wit_interface.md"],
+    cmd = """
+    echo "# WIT Interface Documentation" > $@
+    echo "" >> $@
+    echo "Generated from: $(location :file-operations.wit)" >> $@
+    echo "" >> $@
+    echo '```wit' >> $@
+    cat $(location :file-operations.wit) >> $@
+    echo '```' >> $@
+    """,
+    visibility = ["//docs-site:__pkg__"],
+)

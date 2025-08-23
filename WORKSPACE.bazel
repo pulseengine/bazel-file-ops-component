@@ -1,0 +1,10 @@
+"""WORKSPACE configuration for bazel-file-ops-component
+
+This workspace provides universal file operations for Bazel build systems
+via WebAssembly components with enhanced security and cross-platform support.
+"""
+
+workspace(name = "bazel_file_ops_component")
+
+# This file is maintained for compatibility but all dependencies
+# are managed through MODULE.bazel for bzlmod support

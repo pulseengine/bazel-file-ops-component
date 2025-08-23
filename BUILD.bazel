@@ -1,0 +1,104 @@
+"""Root BUILD file for bazel-file-ops-component
+
+This package provides the main entry points and configurations for
+the file operations WebAssembly components.
+"""
+
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
+package(default_visibility = ["//visibility:public"])
+
+# Configuration flags for component selection
+string_flag(
+    name = "implementation",
+    build_setting_default = "auto",
+    values = [
+        "auto",
+        "tinygo", 
+        "rust",
+    ],
+)
+
+config_setting(
+    name = "use_tinygo",
+    flag_values = {
+        ":implementation": "tinygo",
+    },
+)
+
+config_setting(
+    name = "use_rust", 
+    flag_values = {
+        ":implementation": "rust",
+    },
+)
+
+config_setting(
+    name = "use_auto",
+    flag_values = {
+        ":implementation": "auto",
+    },
+)
+
+# Security level configuration
+string_flag(
+    name = "security_level",
+    build_setting_default = "standard",
+    values = [
+        "standard",
+        "high",
+        "strict",
+    ],
+)
+
+config_setting(
+    name = "high_security",
+    flag_values = {
+        ":security_level": "high",
+    },
+)
+
+config_setting(
+    name = "strict_security",
+    flag_values = {
+        ":security_level": "strict", 
+    },
+)
+
+# Main component aliases that select implementation
+alias(
+    name = "file_ops_component",
+    actual = select({
+        ":use_tinygo": "//tinygo:file_ops_component",
+        ":use_rust": "//rust:file_ops_component",
+        "//conditions:default": "//tinygo:file_ops_component",  # Default to TinyGo
+    }),
+)
+
+# Toolchain registration
+toolchain_type(
+    name = "file_ops_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# Export WIT interface
+filegroup(
+    name = "wit_interface",
+    srcs = ["//wit:file-operations.wit"],
+    visibility = ["//visibility:public"],
+)
+
+# Export examples for documentation
+filegroup(
+    name = "examples",
+    srcs = [
+        "//examples:all_examples",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# License file
+exports_files([
+    "LICENSE",
+    "README.md",
+])

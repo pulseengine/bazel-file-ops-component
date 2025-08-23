@@ -1,0 +1,22 @@
+{
+  "name": "bazel-file-ops-component-docs",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Documentation site for Bazel File Operations Component",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.28.4",
+    "astro": "^4.16.5",
+    "astro-mermaid": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "typescript": "^5.6.2"
+  }
+}
