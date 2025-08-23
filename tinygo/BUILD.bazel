@@ -50,7 +50,7 @@ go_wasm_component(
     go_mod = "go.mod",
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
-    wit = "//wit:file-operations",
+    wit = "//wit:file-operations.wit",
     world = "file-operations-world",
 )
 
