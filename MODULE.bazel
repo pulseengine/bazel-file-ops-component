@@ -56,6 +56,9 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
+# Register C++ toolchains for platform compatibility
+register_toolchains("@bazel_tools//tools/cpp:all")
+
 # Rust dependencies
 crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 crate.spec(
