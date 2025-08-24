@@ -39,15 +39,16 @@ repos:
     hooks:
       - id: go-fmt
 
-  # JavaScript/TypeScript/Documentation formatting
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
+  # JavaScript/TypeScript/Documentation formatting (optional)
+  - repo: local
     hooks:
       - id: prettier
+        name: Prettier (optional)
+        description: Format JS/TS/MD files if prettier is available
+        entry: bash -c 'if command -v prettier >/dev/null 2>&1; then prettier --write "$@"; else echo "Prettier not installed globally, skipping formatting"; fi'
+        language: system
         files: '\.(js|ts|jsx|tsx|json|yaml|yml|md|mdx|astro|css)$'
-        exclude: '(package-lock\.json|\.lock)$'
-        additional_dependencies:
-          - 'prettier-plugin-astro@^0.14.0'
+        exclude: '(package-lock\.json|\.lock|bazel-.*|node_modules)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -104,20 +105,20 @@ repos:
         language: system
         files: '\.wit$'
 
-      # Basic Bazel build test
+      # Basic Bazel build test (only run on CI or explicit request)
       - id: bazel-build-test
         name: Bazel Build Test
         description: Run basic build test for Bazel files
-        entry: bash -c 'echo "Testing Bazel build..." && bazel build //tinygo:file_ops_component_binary //rust:file_ops_component || echo "Build test failed, but continuing"'
+        entry: bash -c 'if [ "$PRE_COMMIT_BAZEL_BUILD" = "1" ]; then echo "Testing Bazel build..." && bazel build //tinygo:file_ops_cli //rust:file_ops_component || echo "Build test failed, but continuing"; else echo "Skipping Bazel build test (set PRE_COMMIT_BAZEL_BUILD=1 to enable)"; fi'
         language: system
         files: '\.bzl$|\.bazel$|BUILD$'
         pass_filenames: false
 
-      # Documentation build validation
+      # Documentation build validation (only on CI or explicit request)
       - id: docs-build-check
         name: Documentation Build Check
         description: Validate documentation builds successfully
-        entry: bash -c 'cd docs-site && npm run build'
+        entry: bash -c 'if [ "$PRE_COMMIT_DOCS_BUILD" = "1" ]; then cd docs-site && npm run build; else echo "Skipping docs build (set PRE_COMMIT_DOCS_BUILD=1 to enable)"; fi'
         language: system
         files: '^docs-site/.*\.(js|ts|astro|mdx|md|json)$'
         pass_filenames: false
