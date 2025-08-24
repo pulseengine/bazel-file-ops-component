@@ -24,7 +24,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Setup Bazel
       uses: bazel-contrib/setup-bazel@0.9.0
@@ -164,7 +164,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download Component Artifacts
       uses: actions/download-artifact@v4
@@ -348,7 +348,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download Component Artifacts
       uses: actions/download-artifact@v4
