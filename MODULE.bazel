@@ -58,8 +58,8 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-# Register C++ toolchains for platform compatibility
-register_toolchains("@bazel_tools//tools/cpp:all")
+# Note: C++ toolchains are provided by rules_cc and WASI SDK
+# Using WASI SDK toolchains for WebAssembly C++ compilation
 
 # WASI SDK toolchain for WebAssembly C++ components
 wasi_sdk = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasi_sdk")
