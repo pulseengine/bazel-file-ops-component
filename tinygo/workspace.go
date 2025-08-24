@@ -12,21 +12,21 @@ import (
 
 // WorkspaceConfig represents configuration for workspace preparation
 type WorkspaceConfig struct {
-	WorkDir        string         `json:"work_dir"`
-	Sources        []FileSpec     `json:"sources"`
-	Headers        []FileSpec     `json:"headers"`
-	BindingsDir    *string        `json:"bindings_dir,omitempty"`
-	Dependencies   []FileSpec     `json:"dependencies"`
-	WorkspaceType  WorkspaceType  `json:"workspace_type"`
+	WorkDir        string          `json:"work_dir"`
+	Sources        []FileSpec      `json:"sources"`
+	Headers        []FileSpec      `json:"headers"`
+	BindingsDir    *string         `json:"bindings_dir,omitempty"`
+	Dependencies   []FileSpec      `json:"dependencies"`
+	WorkspaceType  WorkspaceType   `json:"workspace_type"`
 	SecurityConfig *SecurityConfig `json:"security_config,omitempty"`
 }
 
 // FileSpec represents a file specification with source and destination
 type FileSpec struct {
-	Source            string `json:"source"`
-	Destination       *string `json:"destination,omitempty"`
-	PreservePermissions bool  `json:"preserve_permissions"`
-	PreserveStructure  bool   `json:"preserve_structure"`
+	Source              string  `json:"source"`
+	Destination         *string `json:"destination,omitempty"`
+	PreservePermissions bool    `json:"preserve_permissions"`
+	PreserveStructure   bool    `json:"preserve_structure"`
 }
 
 // WorkspaceType represents different types of workspaces

@@ -48,7 +48,7 @@ build:dev --strip=never
 build:dev --copt=-O0
 build:dev --copt=-g
 
-# Release settings  
+# Release settings
 build:release --compilation_mode=opt
 build:release --strip=always
 build:release --copt=-O3

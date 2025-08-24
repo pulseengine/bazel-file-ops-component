@@ -26,7 +26,7 @@ type JSONOperation struct {
 
 // JSONBatchResponse represents the response from batch operations
 type JSONBatchResponse struct {
-	Success bool                `json:"success"`
+	Success bool                  `json:"success"`
 	Results []JSONOperationResult `json:"results"`
 }
 
@@ -40,7 +40,7 @@ type JSONOperationResult struct {
 func TestWITInterfaceConsistency(t *testing.T) {
 	witSource := os.Getenv("WIT_SOURCE")
 	componentWasm := os.Getenv("COMPONENT_WASM")
-	
+
 	if witSource == "" || componentWasm == "" {
 		t.Skip("WIT_SOURCE and COMPONENT_WASM environment variables required")
 	}
@@ -85,7 +85,7 @@ func TestWITInterfaceConsistency(t *testing.T) {
 	essentialFunctions := []string{
 		"copy-file",
 		"move-file",
-		"delete-file", 
+		"delete-file",
 		"create-directory",
 		"list-directory",
 		"process-json-batch",

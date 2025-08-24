@@ -1,0 +1,855 @@
+---
+title: Examples
+description: Real-world examples and use cases for Bazel File Operations Component
+---
+
+import { Code, Tabs, TabItem, Card, CardGrid, FileTree } from '@astrojs/starlight/components';
+
+## Complete Examples
+
+This page showcases real-world usage patterns and complete examples for integrating the Bazel File Operations Component into your build systems.
+
+## Basic File Operations
+
+### Simple File Copy
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+file_ops_action(
+    name = "copy_config",
+    srcs = ["config.json"],
+    outs = ["workspace/config.json"],
+    operations = [
+        {
+            "operation": "copy_file",
+            "src": "config.json",
+            "dest": "workspace/config.json",
+            "preserve_metadata": True,
+        },
+    ],
+)
+```
+</TabItem>
+<TabItem label="config.json">
+```json
+{
+  "app_name": "MyApplication",
+  "version": "1.0.0",
+  "environment": "production"
+}
+```
+</TabItem>
+</Tabs>
+
+### Directory Structure Setup
+
+```python
+file_ops_action(
+    name = "setup_project_structure",
+    operations = [
+        {"operation": "create_directory", "path": "workspace/src"},
+        {"operation": "create_directory", "path": "workspace/include"},
+        {"operation": "create_directory", "path": "workspace/test"},
+        {"operation": "create_directory", "path": "workspace/build"},
+        {"operation": "create_directory", "path": "workspace/docs"},
+    ],
+)
+```
+
+## C++ Project Examples
+
+### C++ Library Workspace
+
+<FileTree>
+- cpp_project/
+  - BUILD.bazel
+  - src/
+    - library.cpp
+    - library.h
+  - test/
+    - test_library.cpp
+  - CMakeLists.txt
+</FileTree>
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Prepare C++ workspace
+file_ops_action(
+    name = "prepare_cpp_workspace",
+    srcs = glob(["src/**/*.cpp", "src/**/*.h", "test/**/*.cpp"]),
+    operations = [
+        # Create directory structure
+        {"operation": "create_directory", "path": "cpp_build/src"},
+        {"operation": "create_directory", "path": "cpp_build/include"},
+        {"operation": "create_directory", "path": "cpp_build/test"},
+
+        # Copy source files
+        {
+            "operation": "copy_directory",
+            "src": "src/",
+            "dest": "cpp_build/include/",
+            "include_patterns": ["*.h"],
+        },
+        {
+            "operation": "copy_directory",
+            "src": "src/",
+            "dest": "cpp_build/src/",
+            "include_patterns": ["*.cpp"],
+        },
+
+        # Copy test files
+        {
+            "operation": "copy_directory",
+            "src": "test/",
+            "dest": "cpp_build/test/",
+            "include_patterns": ["*.cpp"],
+        },
+    ],
+)
+
+cc_library(
+    name = "my_library",
+    srcs = [":prepare_cpp_workspace"],
+    hdrs = [":prepare_cpp_workspace"],
+    includes = ["cpp_build/include"],
+)
+
+cc_test(
+    name = "library_test",
+    srcs = [":prepare_cpp_workspace"],
+    deps = [":my_library"],
+)
+```
+</TabItem>
+<TabItem label="src/library.h">
+```cpp
+#ifndef LIBRARY_H
+#define LIBRARY_H
+
+class Library {
+public:
+    static int add(int a, int b);
+    static int multiply(int a, int b);
+};
+
+#endif // LIBRARY_H
+```
+</TabItem>
+<TabItem label="src/library.cpp">
+```cpp
+#include "library.h"
+
+int Library::add(int a, int b) {
+    return a + b;
+}
+
+int Library::multiply(int a, int b) {
+    return a * b;
+}
+```
+</TabItem>
+</Tabs>
+
+### Cross-Platform C++ Build
+
+```python
+file_ops_action(
+    name = "setup_cross_platform_cpp",
+    operations = [
+        # Base structure
+        {"operation": "create_directory", "path": "cross_build/common"},
+        {"operation": "create_directory", "path": "cross_build/platform"},
+
+        # Copy common files
+        {"operation": "copy_directory", "src": "src/common/", "dest": "cross_build/common/"},
+
+        # Platform-specific files (conditional based on target platform)
+        {"operation": "copy_file", "src": "src/platform/unix.cpp", "dest": "cross_build/platform/platform.cpp"},
+        {"operation": "copy_file", "src": "src/platform/unix.h", "dest": "cross_build/platform/platform.h"},
+    ] + select({
+        "@platforms//os:windows": [
+            {"operation": "copy_file", "src": "src/platform/windows.cpp", "dest": "cross_build/platform/platform.cpp"},
+            {"operation": "copy_file", "src": "src/platform/windows.h", "dest": "cross_build/platform/platform.h"},
+        ],
+        "//conditions:default": [],
+    }),
+)
+```
+
+## Rust Project Examples
+
+### Cargo Workspace Setup
+
+<FileTree>
+- rust_project/
+  - BUILD.bazel
+  - Cargo.toml
+  - src/
+    - main.rs
+    - lib.rs
+  - tests/
+    - integration_test.rs
+</FileTree>
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Prepare Rust workspace with proper structure
+file_ops_action(
+    name = "prepare_rust_workspace",
+    srcs = [
+        "Cargo.toml",
+        "src/main.rs",
+        "src/lib.rs",
+        "tests/integration_test.rs",
+    ],
+    operations = [
+        # Create Cargo workspace structure
+        {"operation": "create_directory", "path": "rust_build/src"},
+        {"operation": "create_directory", "path": "rust_build/tests"},
+        {"operation": "create_directory", "path": "rust_build/target"},
+
+        # Copy Cargo configuration
+        {"operation": "copy_file", "src": "Cargo.toml", "dest": "rust_build/Cargo.toml"},
+
+        # Copy source files
+        {"operation": "copy_directory", "src": "src/", "dest": "rust_build/src/"},
+
+        # Copy test files
+        {"operation": "copy_directory", "src": "tests/", "dest": "rust_build/tests/"},
+    ],
+    implementation = "rust",  # Use Rust implementation for Rust projects
+    security_level = "standard",
+)
+
+rust_binary(
+    name = "rust_app",
+    srcs = [":prepare_rust_workspace"],
+    crate_root = "rust_build/src/main.rs",
+    edition = "2021",
+)
+
+rust_library(
+    name = "rust_lib",
+    srcs = [":prepare_rust_workspace"],
+    crate_root = "rust_build/src/lib.rs",
+    edition = "2021",
+)
+```
+</TabItem>
+<TabItem label="Cargo.toml">
+```toml
+[package]
+name = "my_rust_project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+
+[dev-dependencies]
+criterion = "0.5"
+```
+</TabItem>
+<TabItem label="src/main.rs">
+```rust
+use my_rust_project::greet;
+
+fn main() {
+    println!("{}", greet("World"));
+}
+```
+</TabItem>
+</Tabs>
+
+## Go Project Examples
+
+### Go Module Workspace
+
+<FileTree>
+- go_project/
+  - BUILD.bazel
+  - go.mod
+  - go.sum
+  - cmd/
+    - server/
+      - main.go
+  - pkg/
+    - handler/
+      - handler.go
+</FileTree>
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Prepare Go workspace
+file_ops_action(
+    name = "prepare_go_workspace",
+    srcs = [
+        "go.mod",
+        "go.sum",
+    ] + glob([
+        "cmd/**/*.go",
+        "pkg/**/*.go",
+    ]),
+    operations = [
+        # Create Go module structure
+        {"operation": "create_directory", "path": "go_build/cmd/server"},
+        {"operation": "create_directory", "path": "go_build/pkg/handler"},
+
+        # Copy Go module files
+        {"operation": "copy_file", "src": "go.mod", "dest": "go_build/go.mod"},
+        {"operation": "copy_file", "src": "go.sum", "dest": "go_build/go.sum"},
+
+        # Copy application code
+        {"operation": "copy_directory", "src": "cmd/", "dest": "go_build/cmd/"},
+        {"operation": "copy_directory", "src": "pkg/", "dest": "go_build/pkg/"},
+    ],
+    implementation = "tinygo",  # TinyGo for Go projects
+)
+
+go_binary(
+    name = "server",
+    srcs = [":prepare_go_workspace"],
+    importpath = "github.com/example/go_project/cmd/server",
+    deps = [":handler_lib"],
+)
+
+go_library(
+    name = "handler_lib",
+    srcs = [":prepare_go_workspace"],
+    importpath = "github.com/example/go_project/pkg/handler",
+)
+```
+</TabItem>
+<TabItem label="go.mod">
+```go
+module github.com/example/go_project
+
+go 1.21
+
+require (
+    github.com/gorilla/mux v1.8.0
+    github.com/sirupsen/logrus v1.9.3
+)
+```
+</TabItem>
+<TabItem label="cmd/server/main.go">
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+
+    "github.com/example/go_project/pkg/handler"
+    "github.com/gorilla/mux"
+)
+
+func main() {
+    r := mux.NewRouter()
+    r.HandleFunc("/", handler.HomeHandler).Methods("GET")
+
+    log.Println("Server starting on :8080")
+    log.Fatal(http.ListenAndServe(":8080", r))
+}
+```
+</TabItem>
+</Tabs>
+
+## JSON Batch Processing Examples
+
+### Complex Batch Operations
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+file_ops_action(
+    name = "complex_batch_operations",
+    config_file = "batch_config.json",
+    implementation = "rust",  # Better JSON support
+    security_level = "standard",
+    srcs = [
+        "batch_config.json",
+        "templates/app.template",
+        "templates/config.template",
+    ] + glob(["src/**/*"]),
+)
+```
+</TabItem>
+<TabItem label="batch_config.json">
+```json
+{
+  "workspace_dir": "/build/workspace",
+  "security": {
+    "level": "standard",
+    "allowed_paths": [
+      "/build/workspace",
+      "/templates/*",
+      "/src/*"
+    ]
+  },
+  "operations": [
+    {
+      "type": "mkdir",
+      "path": "app"
+    },
+    {
+      "type": "mkdir",
+      "path": "config"
+    },
+    {
+      "type": "copy_file",
+      "src_path": "/templates/app.template",
+      "dest_path": "app/main.cpp",
+      "preserve_metadata": true
+    },
+    {
+      "type": "copy_file",
+      "src_path": "/templates/config.template",
+      "dest_path": "config/settings.json"
+    },
+    {
+      "type": "copy_directory",
+      "src_path": "/src",
+      "dest_path": "app/src",
+      "recursive": true,
+      "include_patterns": ["*.cpp", "*.h"],
+      "exclude_patterns": ["*_test.*", "*.tmp"]
+    }
+  ],
+  "post_processing": {
+    "validate_outputs": true,
+    "generate_manifest": true
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+## Security-Focused Examples
+
+### High Security File Processing
+
+```python
+file_ops_action(
+    name = "secure_document_processing",
+    implementation = "tinygo",  # Maximum security
+    security_level = "high",
+    allowed_paths = [
+        "/tmp/secure-workspace",
+        "/encrypted/input",
+        "/encrypted/output",
+    ],
+    operations = [
+        # Create secure workspace
+        {"operation": "create_directory", "path": "/tmp/secure-workspace"},
+        {"operation": "create_directory", "path": "/tmp/secure-workspace/input"},
+        {"operation": "create_directory", "path": "/tmp/secure-workspace/output"},
+
+        # Copy encrypted documents to secure workspace
+        {
+            "operation": "copy_directory",
+            "src": "/encrypted/input",
+            "dest": "/tmp/secure-workspace/input",
+            "include_patterns": ["*.enc", "*.pgp"],
+            "preserve_metadata": True,
+        },
+    ],
+    enable_audit_logging = True,
+    max_file_size_mb = 50,  # Prevent DoS attacks
+)
+```
+
+### Multi-Environment Configuration
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Development environment
+file_ops_action(
+    name = "setup_dev_environment",
+    operations = [
+        {"operation": "create_directory", "path": "environments/dev"},
+        {"operation": "copy_file", "src": "configs/dev.json", "dest": "environments/dev/config.json"},
+        {"operation": "copy_directory", "src": "dev-data/", "dest": "environments/dev/data/"},
+    ],
+    security_level = "low",  # Relaxed for development
+    implementation = "auto",
+)
+
+# Production environment
+file_ops_action(
+    name = "setup_prod_environment",
+    operations = [
+        {"operation": "create_directory", "path": "environments/prod"},
+        {"operation": "copy_file", "src": "configs/prod.json", "dest": "environments/prod/config.json"},
+    ],
+    security_level = "high",  # Maximum security for production
+    implementation = "tinygo",
+    allowed_paths = [
+        "/production/workspace",
+        "/production/configs",
+    ],
+    enable_audit_logging = True,
+)
+```
+</TabItem>
+<TabItem label="configs/dev.json">
+```json
+{
+  "environment": "development",
+  "debug": true,
+  "database_url": "localhost:5432/dev_db",
+  "log_level": "debug"
+}
+```
+</TabItem>
+<TabItem label="configs/prod.json">
+```json
+{
+  "environment": "production",
+  "debug": false,
+  "database_url": "${DATABASE_URL}",
+  "log_level": "warn"
+}
+```
+</TabItem>
+</Tabs>
+
+## Performance Examples
+
+### Large File Processing
+
+```python
+file_ops_action(
+    name = "process_large_files",
+    implementation = "rust",  # Better performance for large files
+    security_level = "standard",
+    operations = [
+        {"operation": "create_directory", "path": "large_data_workspace"},
+        {
+            "operation": "copy_directory",
+            "src": "large_dataset/",
+            "dest": "large_data_workspace/dataset/",
+            "include_patterns": ["*.csv", "*.json", "*.parquet"],
+            "exclude_patterns": ["*_backup.*", "*.tmp"],
+        },
+    ],
+    # Performance optimizations
+    max_parallel_operations = 8,
+    enable_streaming_io = True,
+    buffer_size_kb = 1024,
+)
+```
+
+### Parallel Processing Pipeline
+
+```python
+# Stage 1: Prepare data
+file_ops_action(
+    name = "stage1_prepare",
+    operations = [
+        {"operation": "create_directory", "path": "pipeline/stage1"},
+        {"operation": "copy_directory", "src": "raw_data/", "dest": "pipeline/stage1/"},
+    ],
+    implementation = "rust",
+)
+
+# Stage 2: Process data (depends on stage 1)
+file_ops_action(
+    name = "stage2_process",
+    operations = [
+        {"operation": "create_directory", "path": "pipeline/stage2"},
+        {"operation": "copy_directory", "src": "pipeline/stage1/", "dest": "pipeline/stage2/"},
+    ],
+    implementation = "rust",
+    deps = [":stage1_prepare"],
+)
+
+# Stage 3: Output results (depends on stage 2)
+file_ops_action(
+    name = "stage3_output",
+    operations = [
+        {"operation": "create_directory", "path": "pipeline/output"},
+        {"operation": "copy_directory", "src": "pipeline/stage2/", "dest": "pipeline/output/"},
+    ],
+    implementation = "rust",
+    deps = [":stage2_process"],
+)
+```
+
+## Integration Examples
+
+### Custom Rule with File Operations
+
+<Tabs>
+<TabItem label="custom_rule.bzl">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+def _template_processor_impl(ctx):
+    """Custom rule that processes templates with file operations"""
+
+    # Generate operations based on templates
+    operations = []
+
+    # Create output directory structure
+    operations.append({
+        "operation": "create_directory",
+        "path": ctx.attr.output_dir,
+    })
+
+    # Process each template
+    for template in ctx.files.templates:
+        output_file = ctx.attr.output_dir + "/" + template.basename.replace(".template", "")
+        operations.append({
+            "operation": "copy_file",
+            "src": template.path,
+            "dest": output_file,
+        })
+
+    # Copy additional resources
+    if ctx.files.resources:
+        operations.append({
+            "operation": "copy_directory",
+            "src": ctx.files.resources[0].dirname,
+            "dest": ctx.attr.output_dir + "/resources",
+        })
+
+    # Execute file operations
+    file_ops_outputs = file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_file_ops",
+        operations = operations,
+        implementation = ctx.attr.implementation,
+        security_level = ctx.attr.security_level,
+    )
+
+    return [DefaultInfo(files = depset(file_ops_outputs))]
+
+template_processor = rule(
+    implementation = _template_processor_impl,
+    attrs = {
+        "templates": attr.label_list(allow_files = [".template"], mandatory = True),
+        "resources": attr.label_list(allow_files = True),
+        "output_dir": attr.string(mandatory = True),
+        "implementation": attr.string(default = "auto"),
+        "security_level": attr.string(default = "standard"),
+    },
+)
+```
+</TabItem>
+<TabItem label="BUILD.bazel">
+```python
+load(":custom_rule.bzl", "template_processor")
+
+template_processor(
+    name = "process_app_templates",
+    templates = [
+        "templates/main.cpp.template",
+        "templates/config.json.template",
+        "templates/README.md.template",
+    ],
+    resources = glob(["assets/**/*"]),
+    output_dir = "generated_app",
+    implementation = "tinygo",
+    security_level = "high",
+)
+```
+</TabItem>
+</Tabs>
+
+## Testing Examples
+
+### File Operations Testing
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_test")
+
+# Test successful operations
+file_ops_test(
+    name = "test_file_copy_success",
+    srcs = ["test_input.txt"],
+    operations = [
+        {"operation": "copy_file", "src": "test_input.txt", "dest": "test_output.txt"},
+    ],
+    expected_outputs = ["test_output.txt"],
+)
+
+# Test directory creation
+file_ops_test(
+    name = "test_directory_creation",
+    operations = [
+        {"operation": "create_directory", "path": "test_dir"},
+        {"operation": "create_directory", "path": "test_dir/subdir"},
+    ],
+    expected_outputs = ["test_dir/", "test_dir/subdir/"],
+)
+
+# Test security violations (should fail)
+file_ops_test(
+    name = "test_security_violation",
+    security_level = "high",
+    allowed_paths = ["/tmp/safe"],
+    operations = [
+        {"operation": "copy_file", "src": "test.txt", "dest": "/etc/malicious.txt"},
+    ],
+    expect_failure = True,
+    expected_error = "UNAUTHORIZED_PATH",
+)
+
+# Test complex operations
+file_ops_test(
+    name = "test_complex_operations",
+    srcs = glob(["test_data/**/*"]),
+    operations = [
+        {"operation": "create_directory", "path": "test_workspace"},
+        {
+            "operation": "copy_directory",
+            "src": "test_data/",
+            "dest": "test_workspace/data/",
+            "include_patterns": ["*.txt", "*.json"],
+        },
+    ],
+    expected_outputs = [
+        "test_workspace/",
+        "test_workspace/data/file1.txt",
+        "test_workspace/data/config.json",
+    ],
+    implementation = "rust",
+)
+```
+</TabItem>
+<TabItem label="test_input.txt">
+```
+This is a test file for the file operations component.
+It will be copied to test the basic functionality.
+```
+</TabItem>
+</Tabs>
+
+## Error Handling Examples
+
+### Robust Error Handling
+
+```python
+def _robust_file_processor_impl(ctx):
+    """Example of robust error handling in custom rules"""
+
+    operations = []
+
+    # Validate inputs
+    if not ctx.files.srcs:
+        fail("No source files provided")
+
+    # Create operations with error handling
+    try:
+        for src in ctx.files.srcs:
+            # Validate file extension
+            allowed_extensions = [".cpp", ".h", ".txt", ".json"]
+            if not any(src.basename.endswith(ext) for ext in allowed_extensions):
+                fail(f"Unsupported file type: {src.basename}")
+
+            # Add operation
+            operations.append({
+                "operation": "copy_file",
+                "src": src.path,
+                "dest": f"processed/{src.basename}",
+                "preserve_metadata": True,
+            })
+
+    except Exception as e:
+        fail(f"Error preparing operations: {e}")
+
+    # Execute with appropriate error handling
+    file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_robust",
+        operations = operations,
+        security_level = "standard",
+        # Add error handling configuration
+        continue_on_error = False,  # Stop on first error
+        max_retries = 3,            # Retry failed operations
+        timeout_seconds = 300,      # Operation timeout
+    )
+```
+
+## CI/CD Integration Examples
+
+### GitHub Actions Integration
+
+<Tabs>
+<TabItem label=".github/workflows/build.yml">
+```yaml
+name: Build with File Operations
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v2
+
+      - name: Build with File Operations
+        run: |
+          bazel build //... \
+            --config=ci \
+            --define FILE_OPS_SECURITY_LEVEL=high \
+            --define FILE_OPS_IMPLEMENTATION=tinygo
+
+      - name: Test File Operations
+        run: |
+          bazel test //tests:file_ops_tests \
+            --test_output=all \
+            --test_env=FILE_OPS_LOG_LEVEL=debug
+```
+</TabItem>
+<TabItem label=".bazelrc">
+```
+# CI configuration
+build:ci --disk_cache=/tmp/bazel-cache
+build:ci --remote_cache=https://cache.example.com
+build:ci --verbose_failures
+
+# Security settings for CI
+build:ci --define FILE_OPS_SECURITY_LEVEL=high
+build:ci --define FILE_OPS_AUDIT_LOGGING=true
+
+# Performance settings
+build:ci --jobs=auto
+build:ci --ram_utilization_factor=67
+```
+</TabItem>
+</Tabs>
+
+These examples demonstrate the versatility and power of the Bazel File Operations Component across different languages, security requirements, and integration patterns. Each example includes complete, working code that you can adapt for your specific use cases.
+
+## Next Steps
+
+- **[API Reference](/api-reference/)** - Detailed API documentation for all operations
+- **[Integration Guide](/integration/)** - Learn how to integrate with your rule sets
+- **[Security Configuration](/security/)** - Configure security for your use cases
+- **[Troubleshooting](/troubleshooting/)** - Common issues and solutions

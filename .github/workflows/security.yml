@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -80,7 +80,7 @@ jobs:
   dependency-check:
     name: Dependency Security Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -102,15 +102,15 @@ jobs:
         go list -json -m all | nancy sleuth
       continue-on-error: true
 
-    - name: Rust Dependency Check  
+    - name: Rust Dependency Check
       run: |
         if [ -f "rust/Cargo.toml" ]; then
           cargo install cargo-audit cargo-deny
           cd rust
-          
+
           # Check for vulnerabilities
           cargo audit
-          
+
           # Check licenses and dependency policies
           cargo deny check
         fi
@@ -120,13 +120,13 @@ jobs:
       run: |
         # Install license scanner
         npm install -g license-checker
-        
+
         # Check for license compliance in dependencies
         echo "Scanning Go module licenses..."
         if command -v go-licenses &> /dev/null; then
           cd tinygo && go-licenses csv ./... > ../go-licenses.csv
         fi
-        
+
         echo "Dependency license scan completed"
 
   # Automated dependency updates
@@ -134,7 +134,7 @@ jobs:
     name: Automated Dependency Updates
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -154,12 +154,12 @@ jobs:
     - name: Update Go Dependencies
       run: |
         cd tinygo
-        
+
         # Update go.mod
         go get -u ./...
         go mod tidy
         go mod verify
-        
+
         # Check if there are changes
         if git diff --quiet go.mod go.sum; then
           echo "No Go dependency updates available"
@@ -171,10 +171,10 @@ jobs:
       run: |
         if [ -f "rust/Cargo.toml" ]; then
           cd rust
-          
+
           # Update Cargo.toml with latest compatible versions
           cargo update
-          
+
           # Check if there are changes
           if git diff --quiet Cargo.lock; then
             echo "No Rust dependency updates available"
@@ -199,27 +199,27 @@ jobs:
         title: 'Automated Dependency Updates'
         body: |
           ## 🤖 Automated Dependency Updates
-          
+
           This PR contains automated dependency updates:
-          
+
           ${{ env.GO_DEPS_UPDATED == 'true' && '✅ Go dependencies updated' || '➖ No Go dependency updates' }}
           ${{ env.RUST_DEPS_UPDATED == 'true' && '✅ Rust dependencies updated' || '➖ No Rust dependency updates' }}
-          
+
           ### Changes Made
           - Updated go.mod and go.sum (if applicable)
           - Updated Cargo.lock (if applicable)
           - All updates use compatible version constraints
-          
+
           ### Testing
           - [ ] CI/CD pipeline passes
           - [ ] Security scans pass
           - [ ] No breaking changes introduced
-          
+
           ### Manual Review Required
           - Verify no breaking changes in updated dependencies
           - Review any new security advisories
           - Check for any required code changes
-          
+
           ---
           This PR was automatically created by the dependency update workflow.
         branch: automated-dependency-updates
@@ -229,7 +229,7 @@ jobs:
   supply-chain-security:
     name: Supply Chain Security
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -252,10 +252,10 @@ jobs:
         curl -Lo syft.tar.gz https://github.com/anchore/syft/releases/latest/download/syft_linux_amd64.tar.gz
         tar -xzf syft.tar.gz
         sudo mv syft /usr/local/bin/
-        
+
         # Generate SBOM for the repository
         syft . -o spdx-json=sbom.spdx.json -o cyclonedx-json=sbom.cyclonedx.json
-        
+
         echo "SBOM files generated:"
         ls -la sbom.*
 
@@ -274,7 +274,7 @@ jobs:
         curl -O -L https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
         sudo mv cosign-linux-amd64 /usr/local/bin/cosign
         sudo chmod +x /usr/local/bin/cosign
-        
+
         echo "Signature verification tools installed"
         # Future: Add actual signature verification for dependencies
 
@@ -282,7 +282,7 @@ jobs:
   security-policy:
     name: Security Policy Compliance
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -297,20 +297,20 @@ jobs:
           echo "Creating basic security policy template..."
           cat > SECURITY.md <<EOF
         # Security Policy
-        
+
         ## Supported Versions
-        
+
         We provide security updates for the following versions:
-        
+
         | Version | Supported          |
         | ------- | ------------------ |
         | 1.x.x   | :white_check_mark: |
         | < 1.0   | :x:                |
-        
+
         ## Reporting a Vulnerability
-        
+
         Please report security vulnerabilities to security@pulseengine.dev
-        
+
         We will acknowledge receipt within 48 hours and provide a detailed
         response within 7 days indicating the next steps.
         EOF
@@ -320,14 +320,14 @@ jobs:
       run: |
         echo "## 🔒 Security Configuration Status" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         # Check for security-related files
         echo "### Security Files" >> $GITHUB_STEP_SUMMARY
         echo "- Security Policy: $([ -f SECURITY.md ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
         echo "- Code of Conduct: $([ -f CODE_OF_CONDUCT.md ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
         echo "- License: $([ -f LICENSE ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         echo "### Workflow Security" >> $GITHUB_STEP_SUMMARY
         echo "- Dependabot: $([ -f .github/dependabot.yml ] && echo '✅' || echo '❌')" >> $GITHUB_STEP_SUMMARY
         echo "- Security Scanning: ✅ Enabled" >> $GITHUB_STEP_SUMMARY

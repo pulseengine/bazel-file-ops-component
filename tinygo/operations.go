@@ -59,7 +59,7 @@ func CopyFile(src, dest string) error {
 	return nil
 }
 
-// CopyDirectory copies a directory recursively from source to destination  
+// CopyDirectory copies a directory recursively from source to destination
 // Implements the copy-directory WIT interface function
 func CopyDirectory(src, dest string) error {
 	// Security validation
@@ -86,7 +86,7 @@ func CopyDirectory(src, dest string) error {
 }
 
 // CreateDirectory creates a directory and all parent directories if needed
-// Implements the create-directory WIT interface function  
+// Implements the create-directory WIT interface function
 func CreateDirectory(path string) error {
 	// Security validation
 	if err := ValidatePath(path, []string{}); err != nil {
@@ -161,7 +161,7 @@ func GetDirname(path string) string {
 }
 
 // GetBasename returns the filename from a file path
-// Implements the get-basename WIT interface function  
+// Implements the get-basename WIT interface function
 func GetBasename(path string) string {
 	return filepath.Base(path)
 }
@@ -182,7 +182,7 @@ func ListDirectory(dir string, pattern *string) ([]string, error) {
 	var result []string
 	for _, entry := range entries {
 		name := entry.Name()
-		
+
 		// Apply pattern matching if provided
 		if pattern != nil {
 			matched, err := filepath.Match(*pattern, name)
@@ -193,7 +193,7 @@ func ListDirectory(dir string, pattern *string) ([]string, error) {
 				continue
 			}
 		}
-		
+
 		result = append(result, name)
 	}
 

@@ -1,0 +1,514 @@
+---
+title: Integration Guide
+description: How to integrate Bazel File Operations Component with your rule sets
+---
+
+import { Code, Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+## Overview
+
+The Bazel File Operations Component is designed to integrate seamlessly with any Bazel rule set, replacing platform-specific shell scripts with secure, cross-platform WebAssembly components.
+
+## Integration Patterns
+
+<CardGrid>
+  <Card title="🔄 Drop-in Replacement" icon="swap-horizontal">
+    Replace existing shell script actions with file operations
+  </Card>
+  <Card title="🎯 Custom Rules" icon="puzzle">
+    Build custom rules that use file operations internally
+  </Card>
+  <Card title="⚡ Action Composition" icon="lightning">
+    Compose file operations with other Bazel actions
+  </Card>
+  <Card title="🔧 Toolchain Integration" icon="setting">
+    Integrate with existing Bazel toolchains
+  </Card>
+</CardGrid>
+
+## Rules Integration
+
+### rules_wasm_component
+
+Perfect integration with WebAssembly component rule sets:
+
+<Tabs>
+<TabItem label="Before (Shell Scripts)">
+```python
+# Old approach with shell scripts
+genrule(
+    name = "prepare_workspace",
+    srcs = ["source.cpp"],
+    outs = ["workspace/source.cpp"],
+    cmd = """
+        mkdir -p $(dirname $@)
+        cp $< $@
+        chmod 644 $@
+    """,
+)
+```
+</TabItem>
+<TabItem label="After (File Operations)">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+file_ops_action(
+    name = "prepare_workspace",
+    srcs = ["source.cpp"],
+    outs = ["workspace/source.cpp"],
+    operations = [
+        {"operation": "create_directory", "path": "workspace"},
+        {"operation": "copy_file", "src": "source.cpp", "dest": "workspace/source.cpp"},
+    ],
+)
+```
+</TabItem>
+</Tabs>
+
+### rules_rust
+
+Integrate with Rust build workflows:
+
+```python
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Prepare Rust workspace
+file_ops_action(
+    name = "prepare_rust_workspace",
+    operations = [
+        {"operation": "create_directory", "path": "rust_build/src"},
+        {"operation": "copy_file", "src": "Cargo.toml", "dest": "rust_build/Cargo.toml"},
+        {"operation": "copy_directory", "src": "src/", "dest": "rust_build/src/"},
+    ],
+)
+
+rust_binary(
+    name = "rust_app",
+    srcs = [":prepare_rust_workspace"],
+    crate_root = "rust_build/src/main.rs",
+    deps = [...],
+)
+```
+
+### rules_go
+
+Enhance Go build processes:
+
+```python
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Setup Go module structure
+file_ops_action(
+    name = "setup_go_module",
+    operations = [
+        {"operation": "create_directory", "path": "go_build/cmd"},
+        {"operation": "create_directory", "path": "go_build/pkg"},
+        {"operation": "copy_file", "src": "go.mod", "dest": "go_build/go.mod"},
+        {"operation": "copy_file", "src": "go.sum", "dest": "go_build/go.sum"},
+        {"operation": "copy_directory", "src": "cmd/", "dest": "go_build/cmd/"},
+    ],
+)
+
+go_binary(
+    name = "go_app",
+    srcs = [":setup_go_module"],
+    # ... rest of configuration
+)
+```
+
+### rules_cc
+
+Integrate with C++ build systems:
+
+```python
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Prepare C++ headers and sources
+file_ops_action(
+    name = "prepare_cpp_workspace",
+    operations = [
+        {"operation": "create_directory", "path": "cpp_build/include"},
+        {"operation": "create_directory", "path": "cpp_build/src"},
+        {"operation": "copy_directory",
+         "src": "include/",
+         "dest": "cpp_build/include/",
+         "include_patterns": ["*.h", "*.hpp"]},
+        {"operation": "copy_directory",
+         "src": "src/",
+         "dest": "cpp_build/src/",
+         "include_patterns": ["*.cpp", "*.cc"]},
+    ],
+)
+
+cc_binary(
+    name = "cpp_app",
+    srcs = [":prepare_cpp_workspace"],
+    includes = ["cpp_build/include"],
+    # ... rest of configuration
+)
+```
+
+## Custom Rule Development
+
+### Creating File-Operation-Aware Rules
+
+Create custom rules that use file operations internally:
+
+<Tabs>
+<TabItem label="rule_definition.bzl">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+def _workspace_setup_impl(ctx):
+    """Custom rule that uses file operations"""
+
+    # Create file operations configuration
+    operations = []
+
+    # Create base directories
+    for dir in ctx.attr.directories:
+        operations.append({
+            "operation": "create_directory",
+            "path": dir,
+        })
+
+    # Copy source files
+    for src_file in ctx.files.srcs:
+        dest_path = ctx.attr.dest_dir + "/" + src_file.basename
+        operations.append({
+            "operation": "copy_file",
+            "src": src_file.path,
+            "dest": dest_path,
+        })
+
+    # Execute file operations
+    file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_file_ops",
+        operations = operations,
+        implementation = ctx.attr.implementation,
+        security_level = ctx.attr.security_level,
+    )
+
+workspace_setup = rule(
+    implementation = _workspace_setup_impl,
+    attrs = {
+        "srcs": attr.label_list(allow_files = True),
+        "directories": attr.string_list(),
+        "dest_dir": attr.string(mandatory = True),
+        "implementation": attr.string(default = "auto"),
+        "security_level": attr.string(default = "standard"),
+    },
+)
+```
+</TabItem>
+<TabItem label="BUILD.bazel">
+```python
+load("//:rule_definition.bzl", "workspace_setup")
+
+workspace_setup(
+    name = "my_workspace",
+    srcs = ["main.cpp", "utils.cpp"],
+    directories = ["build/src", "build/include", "build/test"],
+    dest_dir = "build/src",
+    implementation = "tinygo",
+    security_level = "high",
+)
+```
+</TabItem>
+</Tabs>
+
+### Rule Composition
+
+Compose file operations with other Bazel actions:
+
+```python
+def _complex_build_impl(ctx):
+    """Rule combining file ops with other actions"""
+
+    # Step 1: Prepare workspace with file operations
+    workspace_files = file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_prepare",
+        operations = ctx.attr.prepare_operations,
+    )
+
+    # Step 2: Run code generation
+    generated_files = ctx.actions.run(
+        executable = ctx.executable.codegen_tool,
+        arguments = ["--input", workspace_files[0].path],
+        inputs = workspace_files,
+        outputs = [ctx.actions.declare_file("generated.cpp")],
+    )
+
+    # Step 3: Organize generated files with file operations
+    final_files = file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_organize",
+        operations = [
+            {"operation": "copy_file",
+             "src": generated_files[0].path,
+             "dest": "final/generated.cpp"},
+        ],
+        inputs = generated_files,
+    )
+
+    return [DefaultInfo(files = depset(final_files))]
+```
+
+## Toolchain Integration
+
+### Custom Toolchain with File Operations
+
+Create toolchains that use file operations:
+
+<Tabs>
+<TabItem label="toolchain_definition.bzl">
+```python
+def _my_toolchain_impl(ctx):
+    """Toolchain that uses file operations for setup"""
+
+    toolchain_info = platform_common.ToolchainInfo(
+        file_ops = ctx.executable.file_ops,
+        setup_workspace = ctx.attr.setup_operations,
+        compiler = ctx.executable.compiler,
+    )
+
+    return [toolchain_info]
+
+my_toolchain = rule(
+    implementation = _my_toolchain_impl,
+    attrs = {
+        "file_ops": attr.label(
+            executable = True,
+            cfg = "exec",
+            default = "@bazel_file_ops_component//tools:file_ops",
+        ),
+        "setup_operations": attr.string_list(),
+        "compiler": attr.label(executable = True, cfg = "exec"),
+    },
+)
+```
+</TabItem>
+<TabItem label="BUILD.bazel">
+```python
+load(":toolchain_definition.bzl", "my_toolchain")
+
+my_toolchain(
+    name = "my_toolchain_impl",
+    setup_operations = [
+        '{"operation": "create_directory", "path": "workspace"}',
+        '{"operation": "copy_directory", "src": "templates/", "dest": "workspace/"}',
+    ],
+    compiler = ":my_compiler",
+)
+
+toolchain(
+    name = "my_toolchain",
+    toolchain = ":my_toolchain_impl",
+    toolchain_type = ":my_toolchain_type",
+)
+```
+</TabItem>
+</Tabs>
+
+### Using File Operations in Toolchain Actions
+
+```python
+def _use_toolchain_impl(ctx):
+    """Use toolchain with file operations"""
+
+    toolchain = ctx.toolchains[":my_toolchain_type"]
+
+    # Setup workspace using toolchain file operations
+    ctx.actions.run(
+        executable = toolchain.file_ops,
+        arguments = [
+            "process_json_config",
+            "--config", json.encode({
+                "operations": [json.decode(op) for op in toolchain.setup_operations]
+            })
+        ],
+        outputs = [ctx.actions.declare_directory("workspace")],
+    )
+
+    # Use compiler on prepared workspace
+    ctx.actions.run(
+        executable = toolchain.compiler,
+        arguments = ["--workspace", "workspace", "--output", ctx.outputs.executable.path],
+        inputs = [workspace_dir],
+        outputs = [ctx.outputs.executable],
+    )
+```
+
+## Advanced Patterns
+
+### Conditional File Operations
+
+Operations based on platform or configuration:
+
+```python
+def _conditional_ops_impl(ctx):
+    """Conditional file operations based on platform"""
+
+    operations = []
+
+    # Base operations
+    operations.extend([
+        {"operation": "create_directory", "path": "build"},
+        {"operation": "copy_file", "src": "main.cpp", "dest": "build/main.cpp"},
+    ])
+
+    # Platform-specific operations
+    if ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo]):
+        operations.append({
+            "operation": "copy_file",
+            "src": "windows_config.h",
+            "dest": "build/config.h"
+        })
+    else:
+        operations.append({
+            "operation": "copy_file",
+            "src": "unix_config.h",
+            "dest": "build/config.h"
+        })
+
+    file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_ops",
+        operations = operations,
+    )
+```
+
+### Parametric File Operations
+
+Operations based on rule attributes:
+
+```python
+def _parametric_setup_impl(ctx):
+    """File operations based on rule parameters"""
+
+    operations = []
+
+    # Dynamic directory creation
+    for component in ctx.attr.components:
+        operations.append({
+            "operation": "create_directory",
+            "path": f"workspace/{component}"
+        })
+
+    # Conditional file copying
+    if ctx.attr.include_tests:
+        operations.append({
+            "operation": "copy_directory",
+            "src": "test/",
+            "dest": "workspace/test/",
+            "include_patterns": ["*_test.cpp"]
+        })
+
+    # Template-based file generation
+    for template in ctx.attr.templates:
+        operations.append({
+            "operation": "copy_file",
+            "src": f"templates/{template}.template",
+            "dest": f"workspace/{template}"
+        })
+
+    file_ops_action(
+        ctx = ctx,
+        name = ctx.attr.name + "_setup",
+        operations = operations,
+        implementation = "rust" if len(operations) > 10 else "tinygo",
+    )
+```
+
+## Migration Guidelines
+
+### From Shell Scripts
+
+<Tabs>
+<TabItem label="Before">
+```python
+genrule(
+    name = "prepare",
+    srcs = ["input.txt"],
+    outs = ["output.txt"],
+    cmd = """
+        mkdir -p $$(dirname $@)
+        cp $< $@
+        sed 's/old/new/g' $@ > $@.tmp
+        mv $@.tmp $@
+        chmod 644 $@
+    """,
+)
+```
+</TabItem>
+<TabItem label="After">
+```python
+file_ops_action(
+    name = "prepare_files",
+    srcs = ["input.txt"],
+    outs = ["prepared/input.txt"],
+    operations = [
+        {"operation": "create_directory", "path": "prepared"},
+        {"operation": "copy_file", "src": "input.txt", "dest": "prepared/input.txt"},
+    ],
+)
+
+# Use separate action for text processing (not file operations)
+genrule(
+    name = "prepare",
+    srcs = [":prepare_files"],
+    outs = ["output.txt"],
+    cmd = "sed 's/old/new/g' $< > $@",
+)
+```
+</TabItem>
+</Tabs>
+
+### Best Practices
+
+1. **Separate Concerns**: Use file operations for file/directory manipulation, other tools for content processing
+2. **Security First**: Always specify appropriate security levels
+3. **Performance**: Choose implementation based on operation characteristics
+4. **Error Handling**: Provide meaningful error messages in custom rules
+5. **Testing**: Create comprehensive tests for rule integrations
+
+## Troubleshooting Integration
+
+### Common Issues
+
+**File operations not found:**
+```bash
+# Check component availability
+bazel query @bazel_file_ops_component//...
+
+# Verify load statement
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+```
+
+**Custom rule failures:**
+```python
+# Add debug logging to rules
+print("Operations:", operations)
+print("Implementation:", ctx.attr.implementation)
+```
+
+**Toolchain integration problems:**
+```bash
+# Check toolchain registration
+bazel query "config(@bazel_file_ops_component//toolchain:all)"
+
+# Debug toolchain resolution
+bazel build --toolchain_resolution_debug //:target
+```
+
+## Next Steps
+
+- **[Security Configuration](/security/)** - Configure security for your integrations
+- **[Examples](/examples/)** - See real-world integration examples
+- **[API Reference](/api-reference/)** - Detailed API documentation
+- **[Troubleshooting](/troubleshooting/)** - Common integration issues

@@ -206,45 +206,45 @@ func executeJsonOperation(op Operation, workspaceDir string) ([]string, error) {
 // executeJsonCopyFile executes copy_file operation
 func executeJsonCopyFile(op Operation, workspaceDir string) ([]string, error) {
 	dest := filepath.Join(workspaceDir, op.DestPath)
-	
+
 	if err := CopyFile(op.SrcPath, dest); err != nil {
 		return nil, err
 	}
-	
+
 	return []string{dest}, nil
 }
 
 // executeJsonMkdir executes mkdir operation
 func executeJsonMkdir(op Operation, workspaceDir string) ([]string, error) {
 	path := filepath.Join(workspaceDir, op.Path)
-	
+
 	if err := CreateDirectory(path); err != nil {
 		return nil, err
 	}
-	
+
 	return []string{path}, nil
 }
 
 // executeJsonCopyDirectoryContents executes copy_directory_contents operation
 func executeJsonCopyDirectoryContents(op Operation, workspaceDir string) ([]string, error) {
 	dest := filepath.Join(workspaceDir, op.DestPath)
-	
+
 	if err := CopyDirectory(op.SrcPath, dest); err != nil {
 		return nil, err
 	}
-	
+
 	// List all files that were copied (for reporting)
 	files, err := ListDirectory(dest, nil)
 	if err != nil {
 		// Don't fail the operation if listing fails
 		return []string{dest}, nil
 	}
-	
+
 	var fullPaths []string
 	for _, file := range files {
 		fullPaths = append(fullPaths, filepath.Join(dest, file))
 	}
-	
+
 	return fullPaths, nil
 }
 
@@ -268,7 +268,7 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 	// Handle output
 	if op.OutputFile != "" {
 		outputPath := filepath.Join(workspaceDir, op.OutputFile)
-		
+
 		// Ensure output directory exists
 		if err := CreateDirectory(filepath.Dir(outputPath)); err != nil {
 			return nil, fmt.Errorf("failed to create output directory: %w", err)

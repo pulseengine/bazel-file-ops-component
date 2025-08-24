@@ -84,6 +84,7 @@ file_ops_action(
 ## Implementation Selection
 
 ### Automatic Selection
+
 ```starlark
 file_ops_action(
     implementation = "auto",  # Chooses best implementation based on operation
@@ -92,17 +93,19 @@ file_ops_action(
 ```
 
 ### Manual Selection
+
 ```starlark
 # High security operations
 file_ops_action(implementation = "tinygo", security_level = "strict")
 
-# Performance critical operations  
+# Performance critical operations
 file_ops_action(implementation = "rust", security_level = "standard")
 ```
 
 ## Integration Examples
 
 ### With rules_rust
+
 ```starlark
 rust_wasm_component_library(
     name = "my_component",
@@ -113,15 +116,17 @@ rust_wasm_component_library(
 ```
 
 ### With rules_go
+
 ```starlark
 go_wasm_component_library(
-    name = "my_component", 
+    name = "my_component",
     srcs = ["main.go"],
     workspace_preparation = "@bazel_file_ops_component//:file_ops_component",
 )
 ```
 
 ### With rules_cc
+
 ```starlark
 cc_wasm_component_library(
     name = "my_component",
@@ -134,7 +139,7 @@ cc_wasm_component_library(
 ## Documentation
 
 - **[📚 Full Documentation](https://bazel-file-ops.pulseengine.eu)** - Complete guide with examples
-- **[🏗️ Architecture Overview](https://bazel-file-ops.pulseengine.eu/architecture/overview)** - Technical architecture details  
+- **[🏗️ Architecture Overview](https://bazel-file-ops.pulseengine.eu/architecture/overview)** - Technical architecture details
 - **[🔒 Security Model](https://bazel-file-ops.pulseengine.eu/security/wasm-sandbox)** - Security features and configuration
 - **[🚀 Integration Guide](https://bazel-file-ops.pulseengine.eu/integration/rules-wasm-component)** - Step-by-step integration
 - **[📖 API Reference](https://bazel-file-ops.pulseengine.eu/reference/wit-interface)** - Complete WIT interface documentation
@@ -142,14 +147,16 @@ cc_wasm_component_library(
 ## Supported Operations
 
 ### Individual Operations
+
 - `copy-file`: Copy single files with permissions
 - `copy-directory`: Recursive directory copying
 - `create-directory`: Safe directory creation
-- `path-exists`: Path existence and type checking  
+- `path-exists`: Path existence and type checking
 - `validate-path`: Security validation
 - `list-directory`: Directory listing with patterns
 
 ### Batch Operations
+
 - `prepare-workspace`: Complete workspace setup
 - `process-json-config`: JSON batch processing (backward compatibility)
 - `setup-cpp-workspace`: C/C++ specific workspace preparation
@@ -163,7 +170,7 @@ cc_wasm_component_library(
 # Standard: Basic path validation
 file_ops_action(security_level = "standard")
 
-# High: Strict validation + preopen directories  
+# High: Strict validation + preopen directories
 file_ops_action(security_level = "high")
 
 # Strict: Maximum restrictions + minimal access
@@ -200,7 +207,7 @@ file_ops_action(
 # Build TinyGo component
 bazel build //tinygo:file_ops_component --config=tinygo
 
-# Build Rust component  
+# Build Rust component
 bazel build //rust:file_ops_component --config=rust-wasm
 
 # Build both components
@@ -259,7 +266,7 @@ This component is designed for use across the Bazel ecosystem:
 
 - **[rules_wasm_component](https://github.com/pulseengine/rules_wasm_component)** - Primary integration
 - **rules_rust** - Rust component builds
-- **rules_go** - Go component builds  
+- **rules_go** - Go component builds
 - **rules_cc** - C++ component builds
 - **rules_js** - JavaScript component builds
 

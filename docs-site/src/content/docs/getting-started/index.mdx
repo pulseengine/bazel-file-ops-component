@@ -1,0 +1,329 @@
+---
+title: Getting Started
+description: Your first file operations with Bazel File Operations Component
+---
+
+import { Code, Tabs, TabItem, Card, CardGrid } from '@astrojs/starlight/components';
+
+## Quick Start
+
+Get up and running with file operations in under 5 minutes.
+
+### 1. Installation
+
+First, add the component to your `MODULE.bazel`:
+
+```python
+bazel_dep(name = "bazel_file_ops_component", version = "1.0.0")
+```
+
+### 2. Your First Operation
+
+Create a simple file copy operation:
+
+<Tabs>
+<TabItem label="BUILD.bazel">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_test")
+
+# Simple file copy test
+file_ops_test(
+    name = "copy_test",
+    srcs = ["input.txt"],
+    operations = [
+        {
+            "operation": "copy_file",
+            "src": "input.txt",
+            "dest": "output.txt",
+        },
+    ],
+)
+```
+</TabItem>
+<TabItem label="input.txt">
+```
+Hello, Bazel File Operations Component!
+This file will be copied using WebAssembly.
+```
+</TabItem>
+</Tabs>
+
+### 3. Run the Operation
+
+```bash
+bazel test //:copy_test
+```
+
+**Expected output:**
+```
+INFO: Analyzed target //:copy_test (2 packages loaded, 8 targets configured).
+INFO: Found 1 test target...
+Target //:copy_test up-to-date:
+  bazel-bin/copy_test
+INFO: Build completed successfully, 1 total action
+//:copy_test                                                             PASSED in 0.1s
+
+Executed 1 out of 1 test: 1 test passes.
+```
+
+## Core Concepts
+
+### Operations
+
+The component supports these file operations:
+
+<CardGrid>
+  <Card title="copy_file" icon="document">
+    Copy individual files with metadata preservation
+  </Card>
+  <Card title="copy_directory" icon="folder">
+    Recursively copy directories with filtering
+  </Card>
+  <Card title="create_directory" icon="add-folder">
+    Create directories with parent creation
+  </Card>
+  <Card title="process_json_config" icon="setting">
+    Batch operations from JSON configuration
+  </Card>
+</CardGrid>
+
+### Implementation Selection
+
+Choose between two implementations:
+
+<Tabs>
+<TabItem label="TinyGo (Security)">
+```python
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+file_ops_action(
+    name = "secure_ops",
+    implementation = "tinygo",
+    security_level = "high",
+    operations = [
+        {"operation": "copy_file", "src": "secret.txt", "dest": "backup.txt"},
+    ],
+)
+```
+
+**Best for:**
+- Security-critical applications
+- Smaller memory footprint
+- Maximum WebAssembly sandboxing
+</TabItem>
+<TabItem label="Rust (Performance)">
+```python
+file_ops_action(
+    name = "fast_ops",
+    implementation = "rust",
+    security_level = "standard",
+    operations = [
+        {"operation": "copy_directory", "src": "large_dir/", "dest": "backup/"},
+    ],
+)
+```
+
+**Best for:**
+- High-throughput operations
+- Large file processing
+- Advanced JSON workflows
+</TabItem>
+</Tabs>
+
+## Common Patterns
+
+### Directory Setup
+
+Create workspace structure:
+
+```python
+file_ops_action(
+    name = "setup_workspace",
+    operations = [
+        {"operation": "create_directory", "path": "src"},
+        {"operation": "create_directory", "path": "include"},
+        {"operation": "create_directory", "path": "test"},
+        {"operation": "copy_file", "src": "template.cpp", "dest": "src/main.cpp"},
+    ],
+)
+```
+
+### File Processing Pipeline
+
+Chain operations for complex workflows:
+
+```python
+file_ops_action(
+    name = "process_sources",
+    operations = [
+        # Stage 1: Copy source files
+        {"operation": "copy_directory", "src": "src/", "dest": "build/src/"},
+
+        # Stage 2: Copy headers
+        {"operation": "copy_directory", "src": "include/", "dest": "build/include/"},
+
+        # Stage 3: Create output directories
+        {"operation": "create_directory", "path": "build/bin"},
+        {"operation": "create_directory", "path": "build/lib"},
+    ],
+)
+```
+
+### JSON Batch Processing
+
+Use JSON for complex operations:
+
+<Tabs>
+<TabItem label="operations.json">
+```json
+{
+  "workspace_dir": "/build/workspace",
+  "operations": [
+    {
+      "type": "copy_file",
+      "src_path": "/source/main.cpp",
+      "dest_path": "main.cpp",
+      "preserve_metadata": true
+    },
+    {
+      "type": "mkdir",
+      "path": "include"
+    },
+    {
+      "type": "copy_directory",
+      "src_path": "/headers",
+      "dest_path": "include",
+      "recursive": true,
+      "exclude_patterns": ["*.tmp", ".*"]
+    }
+  ]
+}
+```
+</TabItem>
+<TabItem label="BUILD.bazel">
+```python
+file_ops_action(
+    name = "batch_process",
+    config_file = "operations.json",
+    implementation = "rust",  # Better JSON support
+)
+```
+</TabItem>
+</Tabs>
+
+## Security Features
+
+### Sandboxed Execution
+
+All operations run in WebAssembly sandboxes:
+
+```python
+file_ops_action(
+    name = "secure_copy",
+    security_level = "high",
+    allowed_paths = [
+        "/tmp/bazel-workspace",
+        "/build/output"
+    ],
+    operations = [
+        {"operation": "copy_file", "src": "input.txt", "dest": "/tmp/bazel-workspace/output.txt"},
+    ],
+)
+```
+
+### Path Validation
+
+Automatic protection against path traversal:
+
+```python
+# This will be rejected automatically
+operations = [
+    {"operation": "copy_file", "src": "../../etc/passwd", "dest": "stolen.txt"},  # ❌ Blocked
+    {"operation": "copy_file", "src": "safe.txt", "dest": "output.txt"},         # ✅ Allowed
+]
+```
+
+## Error Handling
+
+### Validation Errors
+
+```bash
+$ bazel test //:invalid_copy
+ERROR: Invalid operation: source file does not exist: missing.txt
+ERROR: Path traversal detected: ../../../secrets.txt
+```
+
+### Runtime Errors
+
+```bash
+$ bazel test //:permission_test
+ERROR: Permission denied: cannot write to /etc/hosts
+ERROR: WASM sandbox violation: unauthorized path access
+```
+
+## Performance Tips
+
+### Choose the Right Implementation
+
+- **TinyGo**: Files < 10MB, security-critical
+- **Rust**: Files > 10MB, batch processing
+
+### Optimize Operations
+
+```python
+# ❌ Inefficient: Many small operations
+file_ops_action(
+    name = "slow_copy",
+    operations = [
+        {"operation": "copy_file", "src": f"file{i}.txt", "dest": f"output{i}.txt"}
+        for i in range(100)
+    ]
+)
+
+# ✅ Efficient: Directory operation
+file_ops_action(
+    name = "fast_copy",
+    operations = [
+        {"operation": "copy_directory", "src": "files/", "dest": "output/"}
+    ]
+)
+```
+
+## Next Steps
+
+Now that you've completed your first operations:
+
+1. **[Integration Guide](/integration/)** - Integrate with your rule set
+2. **[API Reference](/api-reference/)** - Explore all available operations
+3. **[Security Configuration](/security/)** - Configure advanced security
+4. **[Examples](/examples/)** - See real-world usage patterns
+
+## Troubleshooting
+
+### Component Not Found
+
+```bash
+# Verify installation
+bazel query @bazel_file_ops_component//...
+
+# Check module configuration
+grep "bazel_file_ops_component" MODULE.bazel
+```
+
+### Operation Failures
+
+```bash
+# Enable debug logging
+export FILE_OPS_LOG_LEVEL=debug
+bazel test //:your_test --verbose_failures
+```
+
+### Performance Issues
+
+```bash
+# Profile operations
+export FILE_OPS_PROFILE=true
+bazel test //:large_operation
+```
+
+Still having issues? Check the [troubleshooting guide](/troubleshooting/) or [open an issue](https://github.com/pulseengine/bazel-file-ops-component/issues).
