@@ -5,6 +5,7 @@ the file operations WebAssembly components.
 """
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@buildifier_prebuilt//:rules.bzl", "buildifier")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -95,6 +96,13 @@ filegroup(
         "//examples:all_examples",
     ],
     visibility = ["//visibility:public"],
+)
+
+# Buildifier for formatting
+buildifier(
+    name = "buildifier",
+    diff_command = "diff -u",
+    mode = "fix",
 )
 
 # License file
