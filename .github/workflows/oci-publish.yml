@@ -195,7 +195,7 @@ jobs:
           type=sha,prefix={{branch}}-
 
     - name: Install Cosign for OCI Signing
-      uses: sigstore/cosign-installer@v3.7.0
+      uses: sigstore/cosign-installer@v3.9.2
       with:
         cosign-release: 'v2.4.1'
 
