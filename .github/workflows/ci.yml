@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]  # Windows not supported by rules_wasm_component
         
     steps:
     - name: Checkout code
@@ -101,90 +101,90 @@ jobs:
           bazel-bin/tinygo/component_signing_keys*
         retention-days: 7
 
-  # Build and test Rust implementation
-  rust-component:
-    name: Rust Component Build & Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@0.9.0
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: ${{ env.RUST_VERSION }}
-        targets: wasm32-wasi
-
-    - name: Cache Bazel
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/bazel
-          ~/.cache/bazelisk
-        key: bazel-rust-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'rust/**', '**/*.bzl') }}
-        restore-keys: |
-          bazel-rust-${{ runner.os }}-
-
-    - name: Cache Cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-        key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.lock', 'rust/**/Cargo.toml') }}
-        restore-keys: |
-          cargo-${{ runner.os }}-
-
-    - name: Build Rust Component
-      run: |
-        bazel build //rust:file_ops_rust
-        
-    - name: Test Rust Component  
-      run: |
-        bazel test //rust:all --test_output=errors
-        
-    - name: Build WebAssembly Component
-      run: |
-        bazel build //rust:file_ops_component_wasm
-
-    - name: Validate WebAssembly Component
-      run: |
-        # Install wasm-tools if not available
-        if ! command -v wasm-tools &> /dev/null; then
-          curl -L https://github.com/bytecodealliance/wasm-tools/releases/latest/download/wasm-tools-${{ runner.os == 'Linux' && 'x86_64-linux' || runner.os == 'macOS' && 'x86_64-macos' || 'x86_64-windows' }}.tar.gz | tar xz
-          sudo mv wasm-tools*/wasm-tools /usr/local/bin/ || mv wasm-tools*/wasm-tools.exe /usr/local/bin/
-        fi
-        
-        # Validate the generated WebAssembly component
-        wasm-tools validate bazel-bin/rust/file_ops_component_wasm.wasm
-        wasm-tools component wit bazel-bin/rust/file_ops_component_wasm.wasm
-
-    - name: Upload Rust Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: rust-component-${{ matrix.os }}
-        path: |
-          bazel-bin/rust/file_ops_rust*
-          bazel-bin/rust/file_ops_component_wasm.wasm
-        retention-days: 7
+  # Build and test Rust implementation (disabled - package not yet created)
+  # rust-component:
+  #   name: Rust Component Build & Test
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os: [ubuntu-latest, macos-latest]
+  #       
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+  #
+  #   - name: Setup Bazel
+  #     uses: bazel-contrib/setup-bazel@0.9.0
+  #     with:
+  #       bazelisk-cache: true
+  #       disk-cache: ${{ github.workflow }}
+  #       repository-cache: true
+  #
+  #   - name: Setup Rust
+  #     uses: dtolnay/rust-toolchain@stable
+  #     with:
+  #       toolchain: ${{ env.RUST_VERSION }}
+  #       targets: wasm32-wasi
+  #
+  #   - name: Cache Bazel
+  #     uses: actions/cache@v4
+  #     with:
+  #       path: |
+  #         ~/.cache/bazel
+  #         ~/.cache/bazelisk
+  #       key: bazel-rust-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'rust/**', '**/*.bzl') }}
+  #       restore-keys: |
+  #         bazel-rust-${{ runner.os }}-
+  #
+  #   - name: Cache Cargo
+  #     uses: actions/cache@v4
+  #     with:
+  #       path: |
+  #         ~/.cargo/registry/index/
+  #         ~/.cargo/registry/cache/
+  #         ~/.cargo/git/db/
+  #       key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.lock', 'rust/**/Cargo.toml') }}
+  #       restore-keys: |
+  #         cargo-${{ runner.os }}-
+  #
+  #   - name: Build Rust Component
+  #     run: |
+  #       bazel build //rust:file_ops_rust
+  #       
+  #   - name: Test Rust Component  
+  #     run: |
+  #       bazel test //rust:all --test_output=errors
+  #       
+  #   - name: Build WebAssembly Component
+  #     run: |
+  #       bazel build //rust:file_ops_component_wasm
+  #
+  #   - name: Validate WebAssembly Component
+  #     run: |
+  #       # Install wasm-tools if not available
+  #       if ! command -v wasm-tools &> /dev/null; then
+  #         curl -L https://github.com/bytecodealliance/wasm-tools/releases/latest/download/wasm-tools-${{ runner.os == 'Linux' && 'x86_64-linux' || runner.os == 'macOS' && 'x86_64-macos' || 'x86_64-windows' }}.tar.gz | tar xz
+  #         sudo mv wasm-tools*/wasm-tools /usr/local/bin/ || mv wasm-tools*/wasm-tools.exe /usr/local/bin/
+  #       fi
+  #       
+  #       # Validate the generated WebAssembly component
+  #       wasm-tools validate bazel-bin/rust/file_ops_component_wasm.wasm
+  #       wasm-tools component wit bazel-bin/rust/file_ops_component_wasm.wasm
+  #
+  #   - name: Upload Rust Artifacts
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: rust-component-${{ matrix.os }}
+  #       path: |
+  #         bazel-bin/rust/file_ops_rust*
+  #         bazel-bin/rust/file_ops_component_wasm.wasm
+  #       retention-days: 7
 
   # Integration and cross-component testing
   integration-test:
     name: Integration Testing
     runs-on: ubuntu-latest
-    needs: [tinygo-component, rust-component]
+    needs: [tinygo-component]  # rust-component disabled
     
     steps:
     - name: Checkout code
@@ -339,7 +339,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [tinygo-component, rust-component, integration-test, quality-gate]
+    needs: [tinygo-component, integration-test, quality-gate]  # rust-component disabled
     if: github.event_name == 'release' && github.event.action == 'published'
     
     steps:
