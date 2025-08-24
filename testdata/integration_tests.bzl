@@ -5,7 +5,7 @@ load("@rules_go//go:def.bzl", "go_test")
 
 def file_ops_integration_tests(name = "integration_tests"):
     """Define integration tests for file operations components
-    
+
     Args:
       name: Base name for the test suite (default: "integration_tests")
     """

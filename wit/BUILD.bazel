@@ -1,5 +1,7 @@
 """WIT interface definitions for file operations component"""
 
+load("@rules_wasm_component//wit:defs.bzl", "wit_library")
+
 package(default_visibility = ["//visibility:public"])
 
 # Export WIT interface files
@@ -9,12 +11,15 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-# Alias for easier reference
-alias(
-    name = "file-operations.wit",
-    actual = "file-operations.wit",
+# WIT library for component interface
+wit_library(
+    name = "file_operations_wit",
+    srcs = ["file-operations.wit"],
     visibility = ["//visibility:public"],
 )
+
+# Direct file reference (no alias needed)
+exports_files(["file-operations.wit"])
 
 # Generate documentation from WIT interface
 # This will be used by the documentation system
