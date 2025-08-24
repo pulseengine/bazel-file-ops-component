@@ -1,0 +1,620 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Bazel File Operations Component
+---
+
+import { Code, Tabs, TabItem, Card, CardGrid, Badge } from '@astrojs/starlight/components';
+
+## Common Issues
+
+This guide helps you diagnose and resolve common issues when using the Bazel File Operations Component.
+
+## Installation Issues
+
+### Module Not Found
+
+**Error:**
+```
+ERROR: no such package '@bazel_file_ops_component//bazel': BUILD file not found in directory 'bazel' of external repository @bazel_file_ops_component
+```
+
+**Solutions:**
+
+<Tabs>
+<TabItem label="Check MODULE.bazel">
+```python
+# Ensure correct dependency declaration
+bazel_dep(name = "bazel_file_ops_component", version = "1.0.0")
+
+# For development versions
+git_override(
+    module_name = "bazel_file_ops_component",
+    remote = "https://github.com/pulseengine/bazel-file-ops-component.git",
+    commit = "main",  # Use specific commit hash
+)
+```
+</TabItem>
+<TabItem label="Verify Repository">
+```bash
+# Check if repository is accessible
+bazel query @bazel_file_ops_component//...
+
+# Clean and rebuild
+bazel clean --expunge
+bazel build //:your_target
+```
+</TabItem>
+</Tabs>
+
+### Load Statement Errors
+
+**Error:**
+```
+ERROR: Extension file 'bazel:defs.bzl' not found in package '@bazel_file_ops_component//bazel'
+```
+
+**Solution:**
+```python
+# Correct load statement
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+# Common typos to avoid:
+# load("@bazel_file_ops_component:defs.bzl", ...)  # ❌ Missing //bazel
+# load("@bazel-file-ops-component//...", ...)      # ❌ Hyphens instead of underscores
+```
+
+### Dependency Resolution Failures
+
+**Error:**
+```
+ERROR: Analysis of target '//:my_target' failed; build aborted: no such target '@bazel_file_ops_component//tools:file_ops'
+```
+
+**Solutions:**
+
+1. **Update to Latest Version:**
+```python
+git_override(
+    module_name = "bazel_file_ops_component",
+    remote = "https://github.com/pulseengine/bazel-file-ops-component.git",
+    commit = "latest-stable-commit-hash",
+)
+```
+
+2. **Check Available Targets:**
+```bash
+bazel query @bazel_file_ops_component//...
+```
+
+## Build Issues
+
+### WebAssembly Toolchain Not Found
+
+**Error:**
+```
+ERROR: No toolchain found for target platform. WebAssembly compilation requires appropriate toolchain.
+```
+
+**Solutions:**
+
+<Tabs>
+<TabItem label="Add Required Dependencies">
+```python
+# Add to MODULE.bazel
+bazel_dep(name = "rules_rust", version = "0.62.0")
+bazel_dep(name = "rules_go", version = "0.55.1")
+
+# For WASI SDK (C++ components)
+bazel_dep(name = "rules_cc", version = "0.1.1")
+```
+</TabItem>
+<TabItem label="Register Toolchains">
+```python
+# Rust toolchain
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(edition = "2021")
+use_repo(rust, "rust_toolchains")
+register_toolchains("@rust_toolchains//:all")
+
+# Go toolchain (for TinyGo)
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.23.0")
+```
+</TabItem>
+</Tabs>
+
+### Component Compilation Failures
+
+**Error:**
+```
+ERROR: failed to build component: compilation failed with exit code 1
+```
+
+**Debug Steps:**
+
+1. **Enable Verbose Output:**
+```bash
+bazel build //:target --verbose_failures --sandbox_debug
+```
+
+2. **Check Implementation:**
+```python
+file_ops_action(
+    name = "debug_build",
+    implementation = "tinygo",  # Try specific implementation
+    operations = [...],
+)
+```
+
+3. **Verify Rust/Go Installation:**
+```bash
+# Check Rust toolchain
+bazel query @rules_rust//...
+
+# Check Go toolchain
+bazel query @rules_go//...
+```
+
+## Runtime Issues
+
+### File Operation Failures
+
+**Error:**
+```
+ERROR: File operation failed: copy_file from 'source.txt' to 'dest.txt': No such file or directory
+```
+
+**Solutions:**
+
+<Tabs>
+<TabItem label="Check File Paths">
+```python
+file_ops_action(
+    name = "debug_paths",
+    srcs = ["source.txt"],  # Ensure file exists
+    operations = [
+        {"operation": "copy_file", "src": "source.txt", "dest": "output.txt"},
+    ],
+)
+```
+</TabItem>
+<TabItem label="Verify File Existence">
+```bash
+# Check if source files exist
+ls -la source.txt
+
+# Check Bazel file inputs
+bazel query 'deps(//:target)' --output=build
+```
+</TabItem>
+<TabItem label="Enable Debug Logging">
+```bash
+export FILE_OPS_LOG_LEVEL=debug
+bazel build //:target --verbose_failures
+```
+</TabItem>
+</Tabs>
+
+### Security Violations
+
+**Error:**
+```
+ERROR: Path traversal detected: ../../../etc/passwd
+ERROR: Unauthorized path access: /etc/hosts
+```
+
+**Solutions:**
+
+1. **Check Security Configuration:**
+```python
+file_ops_action(
+    name = "secure_ops",
+    security_level = "standard",  # Try lower security level for debugging
+    allowed_paths = [
+        "/tmp/workspace",
+        "${BAZEL_WORKSPACE}/*",  # Allow workspace access
+    ],
+    operations = [...],
+)
+```
+
+2. **Use Absolute Paths:**
+```python
+# ❌ Problematic relative paths
+{"operation": "copy_file", "src": "../external/file.txt", "dest": "output.txt"}
+
+# ✅ Safe absolute paths within workspace
+{"operation": "copy_file", "src": "external/file.txt", "dest": "build/output.txt"}
+```
+
+### Permission Denied Errors
+
+**Error:**
+```
+ERROR: Permission denied: cannot write to /protected/directory
+```
+
+**Solutions:**
+
+<Tabs>
+<TabItem label="Check Directory Permissions">
+```bash
+# Check target directory permissions
+ls -la /protected/directory
+
+# Ensure Bazel has write access
+sudo chown -R $USER:$USER /tmp/bazel-workspace
+```
+</TabItem>
+<TabItem label="Use Bazel Output Directories">
+```python
+file_ops_action(
+    name = "safe_output",
+    operations = [
+        # Use Bazel's output directories
+        {"operation": "create_directory", "path": "bazel-out/workspace"},
+        {"operation": "copy_file", "src": "input.txt", "dest": "bazel-out/workspace/output.txt"},
+    ],
+)
+```
+</TabItem>
+</Tabs>
+
+## Performance Issues
+
+### Slow File Operations
+
+**Symptoms:**
+- Long build times
+- High memory usage
+- Component timeouts
+
+**Solutions:**
+
+1. **Choose Appropriate Implementation:**
+```python
+# For large files or batch operations
+file_ops_action(
+    name = "large_file_ops",
+    implementation = "rust",  # Better performance
+    operations = [...],
+)
+
+# For small files and security
+file_ops_action(
+    name = "small_file_ops",
+    implementation = "tinygo",  # Lower overhead
+    operations = [...],
+)
+```
+
+2. **Optimize Operations:**
+```python
+# ❌ Inefficient: Many individual operations
+operations = [
+    {"operation": "copy_file", "src": f"file{i}.txt", "dest": f"output{i}.txt"}
+    for i in range(100)
+]
+
+# ✅ Efficient: Single directory operation
+operations = [
+    {"operation": "copy_directory", "src": "files/", "dest": "output/"}
+]
+```
+
+3. **Enable Performance Monitoring:**
+```bash
+export FILE_OPS_PROFILE=true
+export FILE_OPS_LOG_LEVEL=info
+bazel build //:target --verbose_failures
+```
+
+### Memory Issues
+
+**Error:**
+```
+ERROR: WebAssembly runtime out of memory
+```
+
+**Solutions:**
+
+1. **Reduce Batch Size:**
+```python
+# Split large operations into smaller batches
+file_ops_action(
+    name = "batch1",
+    operations = operations[:50],  # First 50 operations
+)
+
+file_ops_action(
+    name = "batch2",
+    operations = operations[50:100],  # Next 50 operations
+    deps = [":batch1"],
+)
+```
+
+2. **Use Streaming for Large Files:**
+```python
+file_ops_action(
+    name = "large_file_copy",
+    implementation = "rust",  # Better memory management
+    operations = [
+        {
+            "operation": "copy_file",
+            "src": "large_file.bin",
+            "dest": "output.bin",
+            "streaming": True,  # Enable streaming
+            "buffer_size_kb": 1024,
+        },
+    ],
+)
+```
+
+## Integration Issues
+
+### Custom Rule Problems
+
+**Error:**
+```
+ERROR: in custom rule: file_ops_action() got unexpected keyword argument 'ctx'
+```
+
+**Solution:**
+```python
+# ❌ Incorrect usage
+file_ops_action(
+    ctx = ctx,  # Don't pass ctx directly
+    name = "ops",
+    operations = [...],
+)
+
+# ✅ Correct usage
+def _my_rule_impl(ctx):
+    # Use ctx to prepare operations, then call file_ops_action normally
+    operations = [...]
+
+    file_ops_action(
+        name = ctx.attr.name + "_file_ops",
+        operations = operations,
+    )
+```
+
+### Toolchain Integration Issues
+
+**Error:**
+```
+ERROR: No matching toolchains found for types @bazel_file_ops_component//toolchain:file_ops_toolchain_type
+```
+
+**Solutions:**
+
+1. **Register Toolchain:**
+```python
+# In MODULE.bazel
+register_toolchains("@bazel_file_ops_component//toolchain:all")
+```
+
+2. **Check Platform Compatibility:**
+```bash
+# List available toolchains
+bazel query "config(@bazel_file_ops_component//toolchain:all)"
+
+# Check platform constraints
+bazel config --verbose --platform=@platforms//host:all
+```
+
+## Debugging Techniques
+
+### Enable Debug Logging
+
+<Tabs>
+<TabItem label="Environment Variables">
+```bash
+# Enable comprehensive debugging
+export FILE_OPS_DEBUG=true
+export FILE_OPS_LOG_LEVEL=debug
+export FILE_OPS_TRACE_OPERATIONS=true
+
+# Run with debug output
+bazel build //:target --verbose_failures
+```
+</TabItem>
+<TabItem label="Bazel Configuration">
+```python
+file_ops_action(
+    name = "debug_ops",
+    operations = [...],
+    enable_debug_logging = True,
+    enable_audit_logging = True,
+)
+```
+</TabItem>
+</Tabs>
+
+### Inspect Component State
+
+```bash
+# Check component availability
+bazel query @bazel_file_ops_component//...
+
+# Inspect specific targets
+bazel query 'deps(//:my_target)' --output=build
+
+# Check execution environment
+bazel info execution_root
+bazel info output_base
+```
+
+### Test Minimal Examples
+
+Create minimal test cases to isolate issues:
+
+```python
+# Minimal working example
+file_ops_test(
+    name = "minimal_test",
+    srcs = ["test.txt"],
+    operations = [
+        {"operation": "copy_file", "src": "test.txt", "dest": "output.txt"},
+    ],
+)
+```
+
+## Platform-Specific Issues
+
+### Windows Issues
+
+**Path Separator Problems:**
+```python
+# ❌ Unix-style paths on Windows
+{"operation": "copy_file", "src": "src/file.txt", "dest": "dest/file.txt"}
+
+# ✅ Use forward slashes (Bazel normalizes)
+{"operation": "copy_file", "src": "src/file.txt", "dest": "dest/file.txt"}
+```
+
+**Long Path Names:**
+```python
+# Enable long path support on Windows
+file_ops_action(
+    name = "windows_long_paths",
+    enable_long_paths = True,  # Windows-specific option
+    operations = [...],
+)
+```
+
+### macOS Issues
+
+**Xcode Command Line Tools:**
+```bash
+# Ensure Xcode tools are installed
+xcode-select --install
+
+# Check clang availability
+which clang
+```
+
+### Linux Issues
+
+**GLIBC Compatibility:**
+```bash
+# Check glibc version
+ldd --version
+
+# Use older glibc if needed
+bazel build --crosstool_top=@bazel_tools//tools/cpp:toolchain //:target
+```
+
+## Getting Help
+
+### Collect Debug Information
+
+When reporting issues, include:
+
+1. **Environment Information:**
+```bash
+bazel version
+echo $OS, $ARCH
+cat MODULE.bazel | grep bazel_file_ops_component
+```
+
+2. **Error Logs:**
+```bash
+# Full verbose output
+bazel build //:target --verbose_failures --sandbox_debug > debug.log 2>&1
+```
+
+3. **Minimal Reproduction:**
+```python
+# Create minimal BUILD.bazel that reproduces the issue
+load("@bazel_file_ops_component//bazel:defs.bzl", "file_ops_action")
+
+file_ops_action(
+    name = "reproduce_issue",
+    operations = [
+        # Minimal operations that cause the problem
+    ],
+)
+```
+
+### Community Resources
+
+<CardGrid>
+  <Card title="🐛 GitHub Issues" icon="github">
+    [Report bugs and request features](https://github.com/pulseengine/bazel-file-ops-component/issues)
+  </Card>
+  <Card title="💬 Discussions" icon="comment">
+    [Community discussions and Q&A](https://github.com/pulseengine/bazel-file-ops-component/discussions)
+  </Card>
+  <Card title="📖 Documentation" icon="document">
+    [Complete documentation](https://pulseengine.github.io/bazel-file-ops-component/)
+  </Card>
+  <Card title="🚀 Examples" icon="rocket">
+    [Working examples repository](https://github.com/pulseengine/bazel-file-ops-component/tree/main/examples)
+  </Card>
+</CardGrid>
+
+### Issue Template
+
+When reporting issues, please use this template:
+
+```markdown
+## Bug Report
+
+**Environment:**
+- Bazel version:
+- OS:
+- Component version:
+
+**Expected Behavior:**
+[Describe what should happen]
+
+**Actual Behavior:**
+[Describe what actually happens]
+
+**Minimal Reproduction:**
+```python
+# Include minimal BUILD.bazel that reproduces the issue
+```
+
+**Error Logs:**
+```
+# Include full error output with --verbose_failures
+```
+
+**Additional Context:**
+[Any other relevant information]
+```
+
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Clean build
+bazel clean --expunge && bazel build //:target
+
+# Verbose debugging
+bazel build //:target --verbose_failures --sandbox_debug
+
+# Query dependencies
+bazel query 'deps(//:target)' --output=build
+
+# Check toolchains
+bazel query "config(@bazel_file_ops_component//...)"
+
+# Test with logging
+FILE_OPS_LOG_LEVEL=debug bazel test //:test
+```
+
+### Environment Variables
+
+| Variable | Description | Values |
+|----------|-------------|--------|
+| `FILE_OPS_DEBUG` | Enable debug mode | `true`, `false` |
+| `FILE_OPS_LOG_LEVEL` | Logging level | `debug`, `info`, `warn`, `error` |
+| `FILE_OPS_IMPLEMENTATION` | Force implementation | `tinygo`, `rust`, `auto` |
+| `FILE_OPS_SECURITY_LEVEL` | Default security | `low`, `standard`, `high` |
+| `FILE_OPS_TRACE_OPERATIONS` | Trace all operations | `true`, `false` |
+
+This troubleshooting guide should help you resolve most common issues. If you encounter problems not covered here, please [open an issue](https://github.com/pulseengine/bazel-file-ops-component/issues) with detailed information.

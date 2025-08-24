@@ -568,7 +568,7 @@ LNode.prototype.updateBounds = function () {
     this.setWidth(childGraph.getRight() - childGraph.getLeft());
     this.setHeight(childGraph.getBottom() - childGraph.getTop());
 
-    // Update compound bounds considering its label properties    
+    // Update compound bounds considering its label properties
     if (LayoutConstants.NODE_DIMENSIONS_INCLUDE_LABELS) {
 
       var width = childGraph.getRight() - childGraph.getLeft();
@@ -2097,7 +2097,7 @@ IGeometry.doIntersect = function (p1, p2, p3, p4) {
 };
 
 /**
- * This method checks and calculates the intersection of 
+ * This method checks and calculates the intersection of
  * a line segment and a circle.
  */
 IGeometry.findCircleLineIntersections = function (Ex, Ey, Lx, Ly, Cx, Cy, r) {
@@ -2719,7 +2719,7 @@ Layout.prototype.runLayout = function () {
   }
 
   if (LayoutConstants.ANIMATE === 'during') {
-    // If this is a 'during' layout animation. Layout is not finished yet. 
+    // If this is a 'during' layout animation. Layout is not finished yet.
     // We need to perform these in index.js when layout is really finished.
     return false;
   }
@@ -3640,7 +3640,7 @@ FDLayout.prototype.calcRepulsionForce = function (nodeA, nodeB) {
       repulsionForceX = repulsionForce * distanceX / distance;
       repulsionForceY = repulsionForce * distanceY / distance;
 
-      // Apply forces on the two nodes    
+      // Apply forces on the two nodes
       nodeA.repulsionForceX -= repulsionForceX;
       nodeA.repulsionForceY -= repulsionForceY;
       nodeB.repulsionForceX += repulsionForceX;
@@ -3797,7 +3797,7 @@ FDLayout.prototype.calculateRepulsionForceOfANode = function (nodeA, processedNo
           for (var k = 0; k < grid[i][j].length; k++) {
             nodeB = grid[i][j][k];
 
-            // If both nodes are not members of the same graph, 
+            // If both nodes are not members of the same graph,
             // or both nodes are the same, skip.
             if (nodeA.getOwner() != nodeB.getOwner() || nodeA == nodeB) {
               continue;
@@ -3809,7 +3809,7 @@ FDLayout.prototype.calculateRepulsionForceOfANode = function (nodeA, processedNo
               var distanceX = Math.abs(nodeA.getCenterX() - nodeB.getCenterX()) - (nodeA.getWidth() / 2 + nodeB.getWidth() / 2);
               var distanceY = Math.abs(nodeA.getCenterY() - nodeB.getCenterY()) - (nodeA.getHeight() / 2 + nodeB.getHeight() / 2);
 
-              // if the distance between nodeA and nodeB 
+              // if the distance between nodeA and nodeB
               // is less then calculation range
               if (distanceX <= this.repulsionRange && distanceY <= this.repulsionRange) {
                 //then add nodeB to surrounding of nodeA
@@ -4319,8 +4319,8 @@ function SVD() {};
 /* Below singular value decomposition (svd) code including hypot function is adopted from https://github.com/dragonfly-ai/JamaJS
    Some changes are applied to make the code compatible with the fcose code and to make it independent from Jama.
    Input matrix is changed to a 2D array instead of Jama matrix. Matrix dimensions are taken according to 2D array instead of using Jama functions.
-   An object that includes singular value components is created for return. 
-   The types of input parameters of the hypot function are removed. 
+   An object that includes singular value components is created for return.
+   The types of input parameters of the hypot function are removed.
    let is used instead of var for the variable initialization.
 */
 /*

@@ -16,7 +16,7 @@ func main() {
 	}
 
 	operation := os.Args[1]
-	
+
 	switch operation {
 	case "copy_file":
 		handleCopyFile()
@@ -41,7 +41,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Operations:")
 	fmt.Println("  copy_file --src <src> --dest <dest>")
-	fmt.Println("  copy_directory --src <src> --dest <dest>") 
+	fmt.Println("  copy_directory --src <src> --dest <dest>")
 	fmt.Println("  create_directory --path <path>")
 	fmt.Println("  process_json_config --config <config_file>")
 	fmt.Println("  prepare_workspace --config <workspace_config>")
@@ -53,12 +53,12 @@ func handleCopyFile() {
 		fmt.Fprintf(os.Stderr, "Error parsing arguments: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	if err := CopyFile(src, dest); err != nil {
 		fmt.Fprintf(os.Stderr, "Error copying file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully copied %s to %s\n", src, dest)
 }
 
@@ -68,12 +68,12 @@ func handleCopyDirectory() {
 		fmt.Fprintf(os.Stderr, "Error parsing arguments: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	if err := CopyDirectory(src, dest); err != nil {
 		fmt.Fprintf(os.Stderr, "Error copying directory: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully copied directory %s to %s\n", src, dest)
 }
 
@@ -83,12 +83,12 @@ func handleCreateDirectory() {
 		fmt.Fprintf(os.Stderr, "Error parsing arguments: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	if err := CreateDirectory(path); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating directory: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("Successfully created directory %s\n", path)
 }
 
@@ -98,19 +98,19 @@ func handleProcessJsonConfig() {
 		fmt.Fprintf(os.Stderr, "Error parsing arguments: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	configContent, err := os.ReadFile(configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	result, err := ProcessJsonConfig(string(configContent))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error processing JSON config: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Println("JSON config processed successfully:")
 	fmt.Printf("  Workspace: %s\n", result.WorkspacePath)
 	fmt.Printf("  Files: %d\n", len(result.PreparedFiles))
@@ -123,25 +123,25 @@ func handlePrepareWorkspace() {
 		fmt.Fprintf(os.Stderr, "Error parsing arguments: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	configContent, err := os.ReadFile(configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	var config WorkspaceConfig
 	if err := json.Unmarshal(configContent, &config); err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing workspace config: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	result, err := PrepareWorkspace(config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error preparing workspace: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Println("Workspace prepared successfully:")
 	fmt.Printf("  Path: %s\n", result.WorkspacePath)
 	fmt.Printf("  Files: %d\n", len(result.PreparedFiles))
@@ -155,7 +155,7 @@ func parseCopyArgs(args []string) (src, dest string, err error) {
 	if len(args) < 4 {
 		return "", "", fmt.Errorf("copy operations require --src <src> --dest <dest>")
 	}
-	
+
 	for i := 0; i < len(args)-1; i += 2 {
 		switch args[i] {
 		case "--src":
@@ -166,14 +166,14 @@ func parseCopyArgs(args []string) (src, dest string, err error) {
 			return "", "", fmt.Errorf("unknown argument: %s", args[i])
 		}
 	}
-	
+
 	if src == "" {
 		return "", "", fmt.Errorf("--src is required")
 	}
 	if dest == "" {
 		return "", "", fmt.Errorf("--dest is required")
 	}
-	
+
 	return src, dest, nil
 }
 

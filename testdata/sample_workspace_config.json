@@ -6,7 +6,7 @@
       "path": "src"
     },
     {
-      "type": "mkdir", 
+      "type": "mkdir",
       "path": "include"
     },
     {

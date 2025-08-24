@@ -1,8 +1,8 @@
+//go:build tinygo.wasm
+
 // Package main provides WIT interface bindings for the TinyGo WebAssembly component
 // This file bridges Go functions to the WIT interface exports
 package main
-
-//go:build tinygo.wasm
 
 import (
 	"encoding/json"
@@ -16,18 +16,18 @@ import (
 func exportCopyFile(srcPtr, srcLen, destPtr, destLen uint32) uint32 {
 	src := ptrToString(srcPtr, srcLen)
 	dest := ptrToString(destPtr, destLen)
-	
+
 	if err := CopyFile(src, dest); err != nil {
 		return encodeError(err.Error())
 	}
 	return 0 // Success
 }
 
-//export file-operations#copy-directory  
+//export file-operations#copy-directory
 func exportCopyDirectory(srcPtr, srcLen, destPtr, destLen uint32) uint32 {
 	src := ptrToString(srcPtr, srcLen)
 	dest := ptrToString(destPtr, destLen)
-	
+
 	if err := CopyDirectory(src, dest); err != nil {
 		return encodeError(err.Error())
 	}
@@ -37,7 +37,7 @@ func exportCopyDirectory(srcPtr, srcLen, destPtr, destLen uint32) uint32 {
 //export file-operations#create-directory
 func exportCreateDirectory(pathPtr, pathLen uint32) uint32 {
 	path := ptrToString(pathPtr, pathLen)
-	
+
 	if err := CreateDirectory(path); err != nil {
 		return encodeError(err.Error())
 	}
@@ -47,7 +47,7 @@ func exportCreateDirectory(pathPtr, pathLen uint32) uint32 {
 //export file-operations#remove-path
 func exportRemovePath(pathPtr, pathLen uint32) uint32 {
 	path := ptrToString(pathPtr, pathLen)
-	
+
 	if err := RemovePath(path); err != nil {
 		return encodeError(err.Error())
 	}
@@ -63,12 +63,12 @@ func exportPathExists(pathPtr, pathLen uint32) uint32 {
 //export file-operations#resolve-absolute-path
 func exportResolveAbsolutePath(pathPtr, pathLen uint32) uint32 {
 	path := ptrToString(pathPtr, pathLen)
-	
+
 	absPath, err := ResolveAbsolutePath(path)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	return encodeString(absPath)
 }
 
@@ -76,12 +76,12 @@ func exportResolveAbsolutePath(pathPtr, pathLen uint32) uint32 {
 func exportJoinPaths(pathsPtr, pathsLen uint32) uint32 {
 	// For simplicity, assume paths are JSON-encoded array
 	pathsJson := ptrToString(pathsPtr, pathsLen)
-	
+
 	var paths []string
 	if err := json.Unmarshal([]byte(pathsJson), &paths); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	result := JoinPaths(paths)
 	return encodeString(result)
 }
@@ -103,31 +103,31 @@ func exportGetBasename(pathPtr, pathLen uint32) uint32 {
 //export file-operations#list-directory
 func exportListDirectory(dirPtr, dirLen, patternPtr, patternLen uint32) uint32 {
 	dir := ptrToString(dirPtr, dirLen)
-	
+
 	var pattern *string
 	if patternLen > 0 {
 		p := ptrToString(patternPtr, patternLen)
 		pattern = &p
 	}
-	
+
 	files, err := ListDirectory(dir, pattern)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	// Encode as JSON array
 	filesJson, err := json.Marshal(files)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	return encodeString(string(filesJson))
 }
 
 //export file-operations#validate-path
 func exportValidatePath(pathPtr, pathLen, allowedDirsPtr, allowedDirsLen uint32) uint32 {
 	path := ptrToString(pathPtr, pathLen)
-	
+
 	var allowedDirs []string
 	if allowedDirsLen > 0 {
 		allowedDirsJson := ptrToString(allowedDirsPtr, allowedDirsLen)
@@ -135,7 +135,7 @@ func exportValidatePath(pathPtr, pathLen, allowedDirsPtr, allowedDirsLen uint32)
 			return encodeError(err.Error())
 		}
 	}
-	
+
 	if err := ValidatePath(path, allowedDirs); err != nil {
 		return encodeError(err.Error())
 	}
@@ -147,24 +147,24 @@ func exportValidatePath(pathPtr, pathLen, allowedDirsPtr, allowedDirsLen uint32)
 //export json-batch-operations#process-json-config
 func exportProcessJsonConfig(configPtr, configLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
-	
+
 	result, err := ProcessJsonConfig(configJson)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	resultJson, err := json.Marshal(result)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	return encodeString(string(resultJson))
 }
 
 //export json-batch-operations#validate-json-config
 func exportValidateJsonConfig(configPtr, configLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
-	
+
 	if err := ValidateJsonConfig(configJson); err != nil {
 		return encodeError(err.Error())
 	}
@@ -182,22 +182,22 @@ func exportGetJsonSchema() uint32 {
 //export workspace-management#prepare-workspace
 func exportPrepareWorkspace(configPtr, configLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
-	
+
 	var config WorkspaceConfig
 	if err := json.Unmarshal([]byte(configJson), &config); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	result, err := PrepareWorkspace(config)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	resultJson, err := json.Marshal(result)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	return encodeString(string(resultJson))
 }
 
@@ -205,12 +205,12 @@ func exportPrepareWorkspace(configPtr, configLen uint32) uint32 {
 func exportCopySources(sourcesPtr, sourcesLen, destDirPtr, destDirLen uint32) uint32 {
 	sourcesJson := ptrToString(sourcesPtr, sourcesLen)
 	destDir := ptrToString(destDirPtr, destDirLen)
-	
+
 	var sources []FileSpec
 	if err := json.Unmarshal([]byte(sourcesJson), &sources); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := CopySources(sources, destDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -221,12 +221,12 @@ func exportCopySources(sourcesPtr, sourcesLen, destDirPtr, destDirLen uint32) ui
 func exportCopyHeaders(headersPtr, headersLen, destDirPtr, destDirLen uint32) uint32 {
 	headersJson := ptrToString(headersPtr, headersLen)
 	destDir := ptrToString(destDirPtr, destDirLen)
-	
+
 	var headers []FileSpec
 	if err := json.Unmarshal([]byte(headersJson), &headers); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := CopyHeaders(headers, destDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -237,7 +237,7 @@ func exportCopyHeaders(headersPtr, headersLen, destDirPtr, destDirLen uint32) ui
 func exportCopyBindings(bindingsDirPtr, bindingsDirLen, destDirPtr, destDirLen uint32) uint32 {
 	bindingsDir := ptrToString(bindingsDirPtr, bindingsDirLen)
 	destDir := ptrToString(destDirPtr, destDirLen)
-	
+
 	if err := CopyBindings(bindingsDir, destDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -248,12 +248,12 @@ func exportCopyBindings(bindingsDirPtr, bindingsDirLen, destDirPtr, destDirLen u
 func exportSetupPackageJson(configPtr, configLen, workDirPtr, workDirLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
 	workDir := ptrToString(workDirPtr, workDirLen)
-	
+
 	var config PackageConfig
 	if err := json.Unmarshal([]byte(configJson), &config); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := SetupPackageJson(config, workDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -264,12 +264,12 @@ func exportSetupPackageJson(configPtr, configLen, workDirPtr, workDirLen uint32)
 func exportSetupGoModule(configPtr, configLen, workDirPtr, workDirLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
 	workDir := ptrToString(workDirPtr, workDirLen)
-	
+
 	var config GoModuleConfig
 	if err := json.Unmarshal([]byte(configJson), &config); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := SetupGoModule(config, workDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -280,12 +280,12 @@ func exportSetupGoModule(configPtr, configLen, workDirPtr, workDirLen uint32) ui
 func exportSetupCppWorkspace(configPtr, configLen, workDirPtr, workDirLen uint32) uint32 {
 	configJson := ptrToString(configPtr, configLen)
 	workDir := ptrToString(workDirPtr, workDirLen)
-	
+
 	var config CppWorkspaceConfig
 	if err := json.Unmarshal([]byte(configJson), &config); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := SetupCppWorkspace(config, workDir); err != nil {
 		return encodeError(err.Error())
 	}
@@ -297,12 +297,12 @@ func exportSetupCppWorkspace(configPtr, configLen, workDirPtr, workDirLen uint32
 //export security-operations#configure-preopen-dirs
 func exportConfigurePreopenDirs(configsPtr, configsLen uint32) uint32 {
 	configsJson := ptrToString(configsPtr, configsLen)
-	
+
 	var configs []PreopenDirConfig
 	if err := json.Unmarshal([]byte(configsJson), &configs); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := ConfigurePreopenDirs(configs); err != nil {
 		return encodeError(err.Error())
 	}
@@ -313,12 +313,12 @@ func exportConfigurePreopenDirs(configsPtr, configsLen uint32) uint32 {
 func exportValidateOperation(operationPtr, operationLen, pathsPtr, pathsLen uint32) uint32 {
 	operation := ptrToString(operationPtr, operationLen)
 	pathsJson := ptrToString(pathsPtr, pathsLen)
-	
+
 	var paths []string
 	if err := json.Unmarshal([]byte(pathsJson), &paths); err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	if err := ValidateOperation(operation, paths); err != nil {
 		return encodeError(err.Error())
 	}
@@ -328,12 +328,12 @@ func exportValidateOperation(operationPtr, operationLen, pathsPtr, pathsLen uint
 //export security-operations#get-security-context
 func exportGetSecurityContext() uint32 {
 	context := GetSecurityContext()
-	
+
 	contextJson, err := json.Marshal(context)
 	if err != nil {
 		return encodeError(err.Error())
 	}
-	
+
 	return encodeString(string(contextJson))
 }
 

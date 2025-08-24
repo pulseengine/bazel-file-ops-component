@@ -32,7 +32,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -69,7 +69,7 @@ jobs:
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           brew install hyperfine
         fi
-        
+
         # Install wasmtime for runtime benchmarks
         curl https://wasmtime.dev/install.sh -sSf | bash
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
@@ -79,7 +79,7 @@ jobs:
         # Build TinyGo component
         bazel build //tinygo:file_ops_tinygo
         bazel build //tinygo:file_ops_component_wasm
-        
+
         # Build Rust component (if exists)
         if bazel query //rust:file_ops_rust &>/dev/null; then
           bazel build //rust:file_ops_rust
@@ -89,18 +89,18 @@ jobs:
     - name: Create Performance Test Data
       run: |
         mkdir -p perf_test_data
-        
+
         # Create test files of various sizes
         dd if=/dev/zero of=perf_test_data/small.txt bs=1K count=1      # 1KB
         dd if=/dev/zero of=perf_test_data/medium.txt bs=1M count=1     # 1MB
         dd if=/dev/zero of=perf_test_data/large.txt bs=1M count=10     # 10MB
-        
+
         # Create directory with many small files
         mkdir -p perf_test_data/many_files
         for i in {1..100}; do
           echo "File $i content" > perf_test_data/many_files/file_$i.txt
         done
-        
+
         # Create JSON batch operation test file
         cat > perf_test_data/batch_ops.json <<EOF
         {
@@ -119,16 +119,16 @@ jobs:
         echo "## TinyGo Performance Benchmarks" >> perf_results.md
         echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
         echo "|-----------|-----------|-------------|-------|" >> perf_results.md
-        
+
         # File copy benchmarks
         hyperfine --export-json tinygo_copy_benchmark.json \
           --setup 'rm -f perf_test_data/copy_target.txt' \
           './bazel-bin/tinygo/file_ops_tinygo copy_file --src perf_test_data/small.txt --dest perf_test_data/copy_target.txt'
-        
+
         # JSON batch operation benchmark
         hyperfine --export-json tinygo_batch_benchmark.json \
           './bazel-bin/tinygo/file_ops_tinygo process_json_batch --config perf_test_data/batch_ops.json'
-        
+
         # WebAssembly runtime benchmark
         if command -v wasmtime &> /dev/null; then
           hyperfine --export-json tinygo_wasm_benchmark.json \
@@ -139,16 +139,16 @@ jobs:
       if: (github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'rust-only' || github.event.inputs.benchmark_type == '') && hashFiles('rust/**') != ''
       run: |
         echo "## Rust Performance Benchmarks" >> perf_results.md
-        
+
         # File copy benchmarks
         hyperfine --export-json rust_copy_benchmark.json \
           --setup 'rm -f perf_test_data/rust_copy_target.txt' \
           './bazel-bin/rust/file_ops_rust copy_file --src perf_test_data/small.txt --dest perf_test_data/rust_copy_target.txt'
-        
+
         # JSON batch operation benchmark
         hyperfine --export-json rust_batch_benchmark.json \
           './bazel-bin/rust/file_ops_rust process_json_batch --config perf_test_data/batch_ops.json'
-        
+
         # WebAssembly runtime benchmark
         if command -v wasmtime &> /dev/null; then
           hyperfine --export-json rust_wasm_benchmark.json \
@@ -164,28 +164,28 @@ jobs:
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           brew install jq
         fi
-        
+
         echo "## 📊 Performance Comparison (${{ matrix.os }})" >> perf_results.md
         echo "" >> perf_results.md
-        
+
         # Compare TinyGo vs Rust performance
         if [ -f tinygo_copy_benchmark.json ] && [ -f rust_copy_benchmark.json ]; then
           TINYGO_TIME=$(jq -r '.results[0].mean' tinygo_copy_benchmark.json)
           RUST_TIME=$(jq -r '.results[0].mean' rust_copy_benchmark.json)
-          
+
           echo "### File Copy Performance" >> perf_results.md
           echo "- TinyGo: ${TINYGO_TIME}s" >> perf_results.md
           echo "- Rust: ${RUST_TIME}s" >> perf_results.md
           echo "" >> perf_results.md
         fi
-        
+
         # Binary size comparison
         if [ -f bazel-bin/tinygo/file_ops_component_wasm.wasm ]; then
           TINYGO_SIZE=$(stat -c%s bazel-bin/tinygo/file_ops_component_wasm.wasm 2>/dev/null || stat -f%z bazel-bin/tinygo/file_ops_component_wasm.wasm)
           echo "### Binary Size Comparison" >> perf_results.md
           echo "- TinyGo WASM: $(echo $TINYGO_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
         fi
-        
+
         if [ -f bazel-bin/rust/file_ops_component_wasm.wasm ]; then
           RUST_SIZE=$(stat -c%s bazel-bin/rust/file_ops_component_wasm.wasm 2>/dev/null || stat -f%z bazel-bin/rust/file_ops_component_wasm.wasm)
           echo "- Rust WASM: $(echo $RUST_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
@@ -207,10 +207,10 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           if (fs.existsSync('perf_results.md')) {
             const results = fs.readFileSync('perf_results.md', 'utf8');
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -223,7 +223,7 @@ jobs:
   resource-profiling:
     name: Resource Usage Profiling
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -250,7 +250,7 @@ jobs:
         # Install memory profiling tools
         sudo apt-get update
         sudo apt-get install -y valgrind time
-        
+
         # Install wasmtime with profiling support
         curl https://wasmtime.dev/install.sh -sSf | bash
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
@@ -264,10 +264,10 @@ jobs:
       run: |
         echo "## Memory Usage Profiling" >> profile_results.md
         echo "" >> profile_results.md
-        
+
         # Create test data
         dd if=/dev/zero of=profile_test.dat bs=1M count=5
-        
+
         # Profile TinyGo native binary
         /usr/bin/time -v ./bazel-bin/tinygo/file_ops_tinygo copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
           grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md
@@ -277,7 +277,7 @@ jobs:
         echo "" >> profile_results.md
         echo "## WebAssembly Runtime Profiling" >> profile_results.md
         echo "" >> profile_results.md
-        
+
         # Profile WASM component memory usage
         /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component_wasm.wasm -- copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
           grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md
@@ -295,7 +295,7 @@ jobs:
     name: Performance Regression Detection
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
     - name: Checkout PR
       uses: actions/checkout@v5
@@ -331,10 +331,10 @@ jobs:
     - name: Benchmark Baseline Performance
       run: |
         bazel build //tinygo:file_ops_tinygo
-        
+
         # Create test data
         echo "Baseline test data" > baseline_test.txt
-        
+
         # Benchmark baseline
         hyperfine --export-json baseline_results/baseline_benchmark.json \
           './bazel-bin/tinygo/file_ops_tinygo copy_file --src baseline_test.txt --dest baseline_copy.txt'
@@ -347,7 +347,7 @@ jobs:
     - name: Benchmark PR Performance
       run: |
         bazel build //tinygo:file_ops_tinygo
-        
+
         # Benchmark PR changes
         hyperfine --export-json pr_results/pr_benchmark.json \
           './bazel-bin/tinygo/file_ops_tinygo copy_file --src baseline_test.txt --dest pr_copy.txt'
@@ -356,20 +356,20 @@ jobs:
       run: |
         # Install jq for JSON analysis
         sudo apt-get update && sudo apt-get install -y jq
-        
+
         BASELINE_TIME=$(jq -r '.results[0].mean' baseline_results/baseline_benchmark.json)
         PR_TIME=$(jq -r '.results[0].mean' pr_results/pr_benchmark.json)
-        
+
         # Calculate percentage change
         CHANGE=$(echo "scale=2; (($PR_TIME - $BASELINE_TIME) / $BASELINE_TIME) * 100" | bc)
-        
+
         echo "## 📈 Performance Regression Analysis" > regression_report.md
         echo "" >> regression_report.md
         echo "| Metric | Baseline | PR | Change |" >> regression_report.md
         echo "|--------|----------|----| -------|" >> regression_report.md
         echo "| Execution Time | ${BASELINE_TIME}s | ${PR_TIME}s | ${CHANGE}% |" >> regression_report.md
         echo "" >> regression_report.md
-        
+
         # Check for significant regression (>5% slower)
         if (( $(echo "$CHANGE > 5" | bc -l) )); then
           echo "⚠️ **Performance Regression Detected**: ${CHANGE}% slower than baseline" >> regression_report.md
@@ -385,17 +385,17 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           if (fs.existsSync('regression_report.md')) {
             const report = fs.readFileSync('regression_report.md', 'utf8');
-            
+
             const comment = await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: report
             });
-            
+
             // Set as actionable comment if regression detected
             if (process.env.PERFORMANCE_REGRESSION === 'true') {
               await github.rest.reactions.createForIssueComment({

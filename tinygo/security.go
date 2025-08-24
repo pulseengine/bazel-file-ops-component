@@ -19,24 +19,24 @@ const (
 
 // SecurityContext provides information about the current security configuration
 type SecurityContext struct {
-	Level           SecurityLevel `json:"level"`
-	AccessibleDirs  []string     `json:"accessible_dirs"`
-	Restrictions    []string     `json:"restrictions"`
+	Level          SecurityLevel `json:"level"`
+	AccessibleDirs []string      `json:"accessible_dirs"`
+	Restrictions   []string      `json:"restrictions"`
 }
 
 // SecurityConfig represents security configuration for operations
 type SecurityConfig struct {
-	Level            SecurityLevel `json:"level"`
-	AllowedDirs      []string     `json:"allowed_dirs"`
-	DeniedPatterns   []string     `json:"denied_patterns"`
-	EnforceValidation bool        `json:"enforce_validation"`
+	Level             SecurityLevel `json:"level"`
+	AllowedDirs       []string      `json:"allowed_dirs"`
+	DeniedPatterns    []string      `json:"denied_patterns"`
+	EnforceValidation bool          `json:"enforce_validation"`
 }
 
 // PreopenDirConfig represents configuration for WASI preopen directories
 type PreopenDirConfig struct {
-	HostPath     string           `json:"host_path"`
-	VirtualPath  string          `json:"virtual_path"`
-	Permissions  AccessPermissions `json:"permissions"`
+	HostPath    string            `json:"host_path"`
+	VirtualPath string            `json:"virtual_path"`
+	Permissions AccessPermissions `json:"permissions"`
 }
 
 // AccessPermissions represents access permissions for preopen directories
@@ -77,17 +77,17 @@ func ValidatePath(path string, allowedDirs []string) error {
 }
 
 // ConfigurePreopenDirs configures preopen directories for WASI sandboxing
-// Implements the configure-preopen-dirs WIT interface function  
+// Implements the configure-preopen-dirs WIT interface function
 func ConfigurePreopenDirs(configs []PreopenDirConfig) error {
 	// In a real WASI environment, this would configure the runtime
 	// For now, we update our security context
-	
+
 	var accessibleDirs []string
 	var restrictions []string
-	
+
 	for _, config := range configs {
 		accessibleDirs = append(accessibleDirs, config.VirtualPath)
-		
+
 		switch config.Permissions {
 		case AccessReadOnly:
 			restrictions = append(restrictions, fmt.Sprintf("%s: read-only", config.VirtualPath))
@@ -97,10 +97,10 @@ func ConfigurePreopenDirs(configs []PreopenDirConfig) error {
 			restrictions = append(restrictions, fmt.Sprintf("%s: full access", config.VirtualPath))
 		}
 	}
-	
+
 	currentSecurityContext.AccessibleDirs = accessibleDirs
 	currentSecurityContext.Restrictions = restrictions
-	
+
 	return nil
 }
 
@@ -197,8 +197,8 @@ func validatePathStrict(path string, allowedDirs []string) error {
 
 	// Check for suspicious patterns
 	if strings.Contains(strings.ToLower(absPath), "secret") ||
-	   strings.Contains(strings.ToLower(absPath), "private") ||
-	   strings.Contains(strings.ToLower(absPath), ".ssh") {
+		strings.Contains(strings.ToLower(absPath), "private") ||
+		strings.Contains(strings.ToLower(absPath), ".ssh") {
 		return fmt.Errorf("path contains sensitive patterns: %s", path)
 	}
 
@@ -302,13 +302,13 @@ func isPathWritable(path string) bool {
 // SetSecurityLevel updates the current security level
 func SetSecurityLevel(level SecurityLevel) {
 	currentSecurityContext.Level = level
-	
+
 	// Update restrictions based on level
 	switch level {
 	case SecurityStandard:
 		currentSecurityContext.Restrictions = []string{"basic path traversal protection"}
 	case SecurityHigh:
-		currentSecurityContext.Restrictions = append(currentSecurityContext.Restrictions, 
+		currentSecurityContext.Restrictions = append(currentSecurityContext.Restrictions,
 			"directory access restrictions", "preopen directory enforcement")
 	case SecurityStrict:
 		currentSecurityContext.Restrictions = append(currentSecurityContext.Restrictions,

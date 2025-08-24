@@ -1,0 +1,160 @@
+---
+title: Installation
+description: How to add Bazel File Operations Component to your Bazel workspace
+---
+
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Adding to Your Bazel Workspace
+
+The Bazel File Operations Component is distributed as a Bazel module. Add it to your `MODULE.bazel` file:
+
+<Tabs>
+<TabItem label="MODULE.bazel (bzlmod)">
+```python
+# Add the file operations component dependency
+bazel_dep(name = "bazel_file_ops_component", version = "1.0.0")
+
+# Git override for latest development version (optional)
+git_override(
+    module_name = "bazel_file_ops_component",
+    remote = "https://github.com/pulseengine/bazel-file-ops-component.git",
+    commit = "main",  # Use specific commit hash for production
+)
+```
+</TabItem>
+<TabItem label="WORKSPACE (legacy)">
+```python
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+# File Operations Component
+git_repository(
+    name = "bazel_file_ops_component",
+    remote = "https://github.com/pulseengine/bazel-file-ops-component.git",
+    branch = "main",  # Use tag for production: tag = "v1.0.0"
+)
+
+# Load dependencies
+load("@bazel_file_ops_component//bazel:repositories.bzl", "file_ops_dependencies")
+file_ops_dependencies()
+```
+</TabItem>
+</Tabs>
+
+## Prerequisites
+
+### Required Dependencies
+
+Your workspace must include:
+
+- **Bazel 7.0+**: Component model support requires recent Bazel
+- **Platform Support**: The component supports Linux, macOS, and Windows
+
+### Rule Set Integration
+
+The component works with any Bazel rule set. Common integrations:
+
+```python
+# For WebAssembly component rule sets
+bazel_dep(name = "rules_wasm_component", version = "0.1.0")
+
+# For Rust integration
+bazel_dep(name = "rules_rust", version = "0.62.0")
+
+# For Go integration
+bazel_dep(name = "rules_go", version = "0.55.1")
+
+# For C++ integration
+bazel_dep(name = "rules_cc", version = "0.1.1")
+```
+
+## Verification
+
+Test your installation with a simple build:
+
+```bash
+# Test basic functionality
+bazel run @bazel_file_ops_component//tools:file_ops_test
+
+# Test component builds (requires WebAssembly toolchain)
+bazel build @bazel_file_ops_component//tinygo:file_ops_component
+bazel build @bazel_file_ops_component//rust:file_ops_component
+```
+
+## Implementation Selection
+
+The component automatically selects the best implementation:
+
+### TinyGo Implementation
+- **Security-focused**: Maximum WebAssembly sandboxing
+- **Smaller binary**: ~2MB component size
+- **Memory efficient**: Lower memory footprint
+- **Use case**: Security-critical applications
+
+### Rust Implementation
+- **Performance-optimized**: Faster execution
+- **Feature-rich**: Advanced JSON processing, streaming I/O
+- **Larger binary**: ~8MB component size
+- **Use case**: High-throughput file operations
+
+## Configuration
+
+### Basic Configuration
+
+Create a configuration file for default settings:
+
+```json
+{
+  "default_implementation": "tinygo",
+  "security_level": "high",
+  "allowed_paths": [
+    "/tmp/bazel-*",
+    "/workspace/*"
+  ],
+  "enable_logging": true,
+  "log_level": "info"
+}
+```
+
+### Environment Variables
+
+```bash
+# Override default implementation
+export FILE_OPS_IMPLEMENTATION=rust
+
+# Security configuration
+export FILE_OPS_SECURITY_LEVEL=high
+
+# Enable debug logging
+export FILE_OPS_LOG_LEVEL=debug
+```
+
+## Next Steps
+
+- **[Getting Started Guide](/getting-started/)** - Run your first operations
+- **[Integration Examples](/integration/)** - Integrate with your rule set
+- **[Security Configuration](/security/)** - Configure security settings
+- **[API Reference](/api-reference/)** - Detailed API documentation
+
+## Troubleshooting
+
+### Common Issues
+
+**Module not found errors:**
+```bash
+# Ensure proper module name in MODULE.bazel
+bazel_dep(name = "bazel_file_ops_component", version = "1.0.0")
+```
+
+**WebAssembly toolchain errors:**
+```bash
+# Ensure WebAssembly toolchain is available
+bazel query @rules_wasm_component//...
+```
+
+**Platform compatibility:**
+- Windows: Requires Bazel 7.0+ with proper MSYS2 setup
+- macOS: No additional requirements
+- Linux: glibc 2.17+ recommended
+
+See the [full troubleshooting guide](/troubleshooting/) for more details.

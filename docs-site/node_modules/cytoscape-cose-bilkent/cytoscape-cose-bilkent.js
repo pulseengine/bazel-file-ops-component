@@ -102,9 +102,9 @@ var defaults = {
   ready: function ready() {},
   // Called on `layoutstop`
   stop: function stop() {},
-  // 'draft', 'default' or 'proof" 
-  // - 'draft' fast cooling rate 
-  // - 'default' moderate cooling rate 
+  // 'draft', 'default' or 'proof"
+  // - 'draft' fast cooling rate
+  // - 'default' moderate cooling rate
   // - "proof" slow cooling rate
   quality: 'default',
   // include labels in node dimensions
@@ -400,7 +400,7 @@ _CoSELayout.prototype.processChildrenList = function (parent, children, layout) 
     theNode.paddingRight = parseInt(theChild.css('padding'));
     theNode.paddingBottom = parseInt(theChild.css('padding'));
 
-    //Attach the label properties to compound if labels will be included in node dimensions  
+    //Attach the label properties to compound if labels will be included in node dimensions
     if (this.options.nodeDimensionsIncludeLabels) {
       if (theChild.isParent()) {
         var labelWidth = theChild.boundingBox({ includeLabels: true, includeNodes: false }).w;
