@@ -16,6 +16,7 @@ go_library(
     name = "file_ops_lib",
     srcs = [
         "json_bridge.go",
+        "main.go",
         "operations.go",
         "security.go",
         "workspace.go",
