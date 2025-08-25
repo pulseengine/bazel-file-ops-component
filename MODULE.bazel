@@ -31,7 +31,7 @@ bazel_dep(name = "rules_nodejs", version = "6.5.0")
 # TinyGo toolchain for WebAssembly components
 bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 
-# Git repository override - use latest from GitHub
+# Git repository override - use latest from GitHub (cache invalidation: 2025-08-25)
 git_override(
     module_name = "rules_wasm_component",
     branch = "refactor/eliminate-shell-scripts",  # Branch with go_wasm_component fix
@@ -76,7 +76,7 @@ register_toolchains(
     "@wasi_sdk//:cc_toolchain",
 )
 
-# Register default C++ toolchains for file operations component
+# Register default C++ toolchains for file operations component - force cache invalidation
 register_toolchains("@bazel_tools//tools/cpp:all")
 
 # Note: Rust dependencies are provided by rules_wasm_component
