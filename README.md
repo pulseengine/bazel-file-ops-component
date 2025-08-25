@@ -2,6 +2,8 @@
 
 Universal file operations for Bazel build systems via WebAssembly components with enhanced security and cross-platform support.
 
+<!-- Multi-file Go component compilation now supported -->
+
 [![CI Status](https://github.com/pulseengine/bazel-file-ops-component/workflows/CI/badge.svg)](https://github.com/pulseengine/bazel-file-ops-component/actions)
 [![Documentation](https://img.shields.io/badge/docs-available-blue.svg)](https://bazel-file-ops.pulseengine.eu)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
