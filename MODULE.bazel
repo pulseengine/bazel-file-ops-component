@@ -18,6 +18,9 @@ bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 
+# Enable C++ toolchain auto-configuration for cross-platform support
+cc_configure = use_extension("@rules_cc//cc:extensions.bzl", "cc_configure")
+
 # WebAssembly and component support
 bazel_dep(name = "rules_rust", version = "0.62.0")
 bazel_dep(name = "rules_go", version = "0.55.1")
@@ -76,7 +79,8 @@ register_toolchains(
     "@wasi_sdk//:cc_toolchain",
 )
 
-# Register default C++ toolchains for file operations component - force cache invalidation
+# Register C++ toolchains explicitly for cross-platform compatibility
+# This ensures Linux CI has proper C++ toolchain resolution for Rust binaries
 register_toolchains("@bazel_tools//tools/cpp:all")
 
 # Note: Rust dependencies are provided by rules_wasm_component
