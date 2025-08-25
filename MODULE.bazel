@@ -13,10 +13,10 @@ module(
     compatibility_level = 1,
 )
 
-# Core Bazel dependencies
-bazel_dep(name = "platforms", version = "0.0.11")
-bazel_dep(name = "rules_cc", version = "0.1.1")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
+# Core Bazel dependencies - updated to resolve warnings
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.0") 
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
 
 # WebAssembly and component support
 bazel_dep(name = "rules_rust", version = "0.62.0")
@@ -75,6 +75,9 @@ register_toolchains(
     "@wasi_sdk//:wasi_sdk_toolchain",
     "@wasi_sdk//:cc_toolchain",
 )
+
+# Register default C++ toolchains for file operations component
+register_toolchains("@bazel_tools//tools/cpp:all")
 
 # Note: Rust dependencies are provided by rules_wasm_component
 # No local Rust crate dependencies needed for TinyGo-focused implementation
