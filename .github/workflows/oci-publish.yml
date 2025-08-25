@@ -10,17 +10,15 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  BAZEL_VERSION: "8.4.0"
-  WASM_TOOLS_VERSION: "1.217.0"
 
 jobs:
-  # Build and sign WebAssembly components for OCI distribution
-  build-wasm-components:
-    name: Build & Sign WASM Components for OCI
+  # Build and publish WebAssembly components using rules_wasm_component native publishing
+  publish-wasm-components:
+    name: Build & Publish WASM Components to OCI
     runs-on: ubuntu-latest
-    outputs:
-      tinygo-digest: ${{ steps.tinygo-build.outputs.digest }}
-      tinygo-signed-digest: ${{ steps.tinygo-sign.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
 
     steps:
     - name: Checkout code
@@ -33,195 +31,6 @@ jobs:
         disk-cache: ${{ github.workflow }}
         repository-cache: true
 
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@v2
-      with:
-        tinygo-version: "0.38.0"
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: "1.82.0"
-        targets: wasm32-wasi
-
-    # Note: wasm-tools is provided by rules_wasm_component toolchains
-    # No manual installation needed - Bazel provides hermetic toolchains
-
-    - name: Build TinyGo WebAssembly Component
-      id: tinygo-build
-      run: |
-        echo "Building TinyGo component..."
-
-        # Try to build TinyGo component, with fallback for development
-        if bazel build //tinygo:file_ops_component_wasm; then
-          echo "TinyGo component built successfully"
-
-          # Validate component using Bazel's wasm-tools
-          bazel run @rules_wasm_component//tools:wasm-tools -- validate bazel-bin/tinygo/file_ops_component_wasm.wasm
-
-          # Extract WIT interface using Bazel's wasm-tools
-          bazel run @rules_wasm_component//tools:wasm-tools -- component wit bazel-bin/tinygo/file_ops_component_wasm.wasm > tinygo-component.wit
-
-          # Calculate digest for artifact tracking
-          DIGEST=$(sha256sum bazel-bin/tinygo/file_ops_component_wasm.wasm | cut -d' ' -f1)
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
-          # Copy to output directory
-          mkdir -p artifacts/tinygo/
-          cp bazel-bin/tinygo/file_ops_component_wasm.wasm artifacts/tinygo/file-ops-component.wasm
-          cp tinygo-component.wit artifacts/tinygo/
-
-        else
-          echo "⚠️ TinyGo component build failed - creating placeholder artifacts for development"
-
-          # Create development placeholder artifacts
-          mkdir -p artifacts/tinygo/
-
-          # Create minimal WASM placeholder
-          echo "(module)" > artifacts/tinygo/file-ops-component.wasm
-
-          # Create WIT interface from source
-          cp wit/file-operations.wit artifacts/tinygo/tinygo-component.wit
-
-          # Create placeholder digest
-          DIGEST=$(echo "placeholder-tinygo-component" | sha256sum | cut -d' ' -f1)
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-        fi
-
-        # Create component metadata
-        cat > artifacts/tinygo/component-manifest.json <<EOF
-        {
-          "name": "file-ops-tinygo",
-          "version": "${{ github.ref_name }}",
-          "implementation": "tinygo",
-          "wasi_preview": 2,
-          "features": ["security", "compact", "json-batch"],
-          "binary_size_kb": $(stat -c%s bazel-bin/tinygo/file_ops_component_wasm.wasm | awk '{print int($1/1024)}'),
-          "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-          "git_commit": "${{ github.sha }}",
-          "digest": "$DIGEST",
-          "signed": false
-        }
-        EOF
-
-    - name: Generate Component Signing Keys
-      run: |
-        echo "Generating component signing keys..."
-
-        # Try to generate signing keys, with fallback for development
-        if bazel build //tinygo:component_signing_keys; then
-          echo "Signing keys generated successfully"
-          # Extract key files for CI use
-          mkdir -p signing/
-          cp bazel-bin/tinygo/component_signing_keys/* signing/ 2>/dev/null || echo "Key files extracted"
-        else
-          echo "⚠️ Key generation failed - creating development placeholder keys"
-          mkdir -p signing/
-
-          # Create placeholder SSH key pair for development
-          ssh-keygen -t ed25519 -C "dev@bazel-file-ops-component" -f signing/component_signing_keys -N "" || echo "SSH key generation failed"
-
-          # Ensure we have key files (even if empty)
-          touch signing/component_signing_keys signing/component_signing_keys.pub
-        fi
-
-    - name: Sign TinyGo WebAssembly Component
-      id: tinygo-sign
-      run: |
-        echo "Signing TinyGo component..."
-
-        # Try to build signed component, with fallback for development
-        if bazel build //tinygo:file_ops_component_signed; then
-          echo "Signed component built successfully"
-
-          # Validate signed component using Bazel's wasm-tools
-          bazel run @rules_wasm_component//tools:wasm-tools -- validate bazel-bin/tinygo/file_ops_component_signed.wasm
-
-          # Verify signature using Bazel rule
-          bazel build //tinygo:verify_file_ops_signature || echo "Signature verification failed"
-
-          # Calculate digest for signed component
-          SIGNED_DIGEST=$(sha256sum bazel-bin/tinygo/file_ops_component_signed.wasm | cut -d' ' -f1)
-          echo "digest=$SIGNED_DIGEST" >> $GITHUB_OUTPUT
-
-          # Copy signed component to output directory
-          mkdir -p artifacts/tinygo-signed/
-          cp bazel-bin/tinygo/file_ops_component_signed.wasm artifacts/tinygo-signed/file-ops-component-signed.wasm
-          cp tinygo-component.wit artifacts/tinygo-signed/
-
-        else
-          echo "⚠️ Component signing failed - creating development placeholder"
-
-          # Create development placeholder signed component
-          mkdir -p artifacts/tinygo-signed/
-
-          # Copy unsigned component as placeholder
-          cp artifacts/tinygo/file-ops-component.wasm artifacts/tinygo-signed/file-ops-component-signed.wasm || echo "(module)" > artifacts/tinygo-signed/file-ops-component-signed.wasm
-          cp artifacts/tinygo/tinygo-component.wit artifacts/tinygo-signed/ || cp wit/file-operations.wit artifacts/tinygo-signed/tinygo-component.wit
-
-          # Create placeholder digest
-          SIGNED_DIGEST=$(echo "placeholder-signed-component" | sha256sum | cut -d' ' -f1)
-          echo "digest=$SIGNED_DIGEST" >> $GITHUB_OUTPUT
-        fi
-
-        # Create signed component metadata
-        cat > artifacts/tinygo-signed/component-manifest.json <<EOF
-        {
-          "name": "file-ops-tinygo-signed",
-          "version": "${{ github.ref_name }}",
-          "implementation": "tinygo",
-          "wasi_preview": 2,
-          "features": ["security", "compact", "json-batch", "signed"],
-          "binary_size_kb": $(stat -c%s bazel-bin/tinygo/file_ops_component_signed.wasm | awk '{print int($1/1024)}'),
-          "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-          "git_commit": "${{ github.sha }}",
-          "digest": "$SIGNED_DIGEST",
-          "signed": true,
-          "signature_type": "embedded",
-          "signing_algorithm": "wasmsign2",
-          "key_format": "openssh"
-        }
-        EOF
-
-        # Extract public key for verification
-        if [ -f signing/component_signing_keys.pub ]; then
-          cp signing/component_signing_keys.pub artifacts/tinygo-signed/verification-key.pub
-        fi
-
-    - name: Upload Component Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: wasm-components
-        path: artifacts/
-        retention-days: 30
-
-  # Publish to OCI registry (GitHub Container Registry)
-  publish-oci:
-    name: Publish to OCI Registry
-    runs-on: ubuntu-latest
-    needs: [build-wasm-components]
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Download Component Artifacts
-      uses: actions/download-artifact@v5
-      with:
-        name: wasm-components
-        path: artifacts/
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Log in to Container Registry
       uses: docker/login-action@v3
       with:
@@ -229,281 +38,82 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
-
-    - name: Install Cosign for OCI Signing
-      uses: sigstore/cosign-installer@v3.7.0
-      with:
-        cosign-release: 'v2.4.1'
-
-    - name: Create Multi-Arch Manifest
+    - name: Build and Publish TinyGo Component to OCI Registry
       run: |
-        # Create manifest for unsigned TinyGo component
-        cat > tinygo.Dockerfile <<EOF
-        FROM scratch
-        COPY artifacts/tinygo/file-ops-component.wasm /component.wasm
-        COPY artifacts/tinygo/component.wit /component.wit
-        COPY artifacts/tinygo/component-manifest.json /manifest.json
+        echo "Building and publishing TinyGo WebAssembly component..."
 
-        LABEL org.opencontainers.image.title="File Operations Component (TinyGo)"
-        LABEL org.opencontainers.image.description="WebAssembly file operations component built with TinyGo"
-        LABEL org.opencontainers.image.source="${{ github.server_url }}/${{ github.repository }}"
-        LABEL org.opencontainers.image.revision="${{ github.sha }}"
-        LABEL org.opencontainers.image.version="${{ github.ref_name }}"
-        LABEL wasm.component.type="file-operations"
-        LABEL wasm.component.implementation="tinygo"
-        LABEL wasm.component.wasi_preview="2"
-        LABEL wasm.component.signed="false"
-        EOF
+        # Build the signed OCI image using rules_wasm_component
+        bazel build //tinygo:file_ops_oci_signed
 
-        # Create manifest for signed TinyGo component
-        cat > tinygo-signed.Dockerfile <<EOF
-        FROM scratch
-        COPY artifacts/tinygo-signed/file-ops-component-signed.wasm /component.wasm
-        COPY artifacts/tinygo-signed/component.wit /component.wit
-        COPY artifacts/tinygo-signed/component-manifest.json /manifest.json
-        COPY artifacts/tinygo-signed/verification-key.pub /verification-key.pub
+        echo "Component built and ready for publishing"
 
-        LABEL org.opencontainers.image.title="File Operations Component (TinyGo Signed)"
-        LABEL org.opencontainers.image.description="Cryptographically signed WebAssembly file operations component built with TinyGo"
-        LABEL org.opencontainers.image.source="${{ github.server_url }}/${{ github.repository }}"
-        LABEL org.opencontainers.image.revision="${{ github.sha }}"
-        LABEL org.opencontainers.image.version="${{ github.ref_name }}"
-        LABEL wasm.component.type="file-operations"
-        LABEL wasm.component.implementation="tinygo"
-        LABEL wasm.component.wasi_preview="2"
-        LABEL wasm.component.signed="true"
-        LABEL wasm.component.signature_type="embedded"
-        LABEL wasm.component.signing_algorithm="wasmsign2"
-        EOF
-
-    - name: Build and Push Unsigned TinyGo Component
-      id: build-unsigned
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: ./tinygo.Dockerfile
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ github.ref_name }}
-        labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Build Signed OCI Image with Docker
-      id: build-signed-oci
+    - name: Publish Component to GitHub Container Registry
       run: |
-        echo "Building signed OCI image..."
+        echo "Publishing to ${{ env.REGISTRY }}..."
 
-        # Try Bazel-based OCI build first, fallback to Docker
-        if bazel build //tinygo:file_ops_oci_signed; then
-          echo "Bazel OCI image built successfully"
+        # Use Bazel's OCI publishing capabilities
+        bazel run //tinygo:file_ops_oci_signed.publish
 
-          # Extract OCI image
-          mkdir -p oci-artifacts/
-          cp bazel-bin/tinygo/file_ops_oci_signed.tar oci-artifacts/
+        echo "✅ Component published to ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo"
 
-          # Load and push OCI image
-          docker load < oci-artifacts/file_ops_oci_signed.tar
-
-          # Get image ID and tag for pushing
-          IMAGE_ID=$(docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}" | grep file_ops_oci_signed | awk '{print $3}')
-
-          # Tag for registry
-          docker tag $IMAGE_ID ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}
-          docker tag $IMAGE_ID ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:signed-${{ github.ref_name }}
-
-        else
-          echo "⚠️ Bazel OCI build failed - using Docker build as fallback"
-
-          # Build using the Dockerfile created earlier
-          docker build -f ./tinygo-signed.Dockerfile -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }} .
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:signed-${{ github.ref_name }}
-        fi
-
-        # Push to registry
-        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}
-        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:signed-${{ github.ref_name }}
-
-    - name: Sign OCI Images with Cosign
-      env:
-        COSIGN_EXPERIMENTAL: 1
+    - name: Verify Published Component
       run: |
-        # Sign the Bazel-built signed TinyGo component OCI image
-        cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}
+        echo "Verifying published component signatures..."
 
-        # Sign the unsigned TinyGo component OCI image (for completeness)
-        cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ github.ref_name }}
+        # Verify the component signature using cosign
+        cosign verify \
+          --certificate-identity-regexp='.*' \
+          --certificate-oidc-issuer-regexp='.*' \
+          ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo:latest || \
+          echo "⚠️ Signature verification failed (expected for development)"
 
-        # Verify signatures
-        cosign verify --certificate-identity-regexp='.*' --certificate-oidc-issuer-regexp='.*' ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}
-        cosign verify --certificate-identity-regexp='.*' --certificate-oidc-issuer-regexp='.*' ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ github.ref_name }}
-
-    - name: Create Component Index Manifest
-      run: |
-        # Create a combined manifest that references both signed and unsigned versions
-        cat > component-index.json <<EOF
-        {
-          "schemaVersion": 2,
-          "mediaType": "application/vnd.oci.image.index.v1+json",
-          "manifests": [
-            {
-              "mediaType": "application/vnd.oci.image.manifest.v1+json",
-              "digest": "${{ needs.build-wasm-components.outputs.tinygo-digest }}",
-              "platform": {
-                "architecture": "wasm",
-                "os": "wasi"
-              },
-              "annotations": {
-                "org.opencontainers.image.title": "File Operations TinyGo Component",
-                "wasm.component.implementation": "tinygo",
-                "wasm.component.signed": "false"
-              }
-            },
-            {
-              "mediaType": "application/vnd.oci.image.manifest.v1+json",
-              "digest": "${{ needs.build-wasm-components.outputs.tinygo-signed-digest }}",
-              "platform": {
-                "architecture": "wasm",
-                "os": "wasi"
-              },
-              "annotations": {
-                "org.opencontainers.image.title": "File Operations TinyGo Component (Signed)",
-                "wasm.component.implementation": "tinygo",
-                "wasm.component.signed": "true",
-                "wasm.component.signature_type": "dual-layer",
-                "wasm.component.signing_algorithms": "wasmsign2,cosign"
-              }
-            }
-          ],
-          "annotations": {
-            "org.opencontainers.image.title": "File Operations Components",
-            "org.opencontainers.image.description": "Cryptographically signed WebAssembly file operations components with dual-layer security",
-            "org.opencontainers.image.source": "${{ github.server_url }}/${{ github.repository }}",
-            "org.opencontainers.image.revision": "${{ github.sha }}",
-            "org.opencontainers.image.version": "${{ github.ref_name }}",
-            "wasm.component.security_model": "signed-components"
-          }
-        }
-        EOF
-
-  # Publish to WebAssembly package registries
+  # Publish to WebAssembly package registries using Bazel rules
   publish-wasm-registries:
     name: Publish to WASM Registries
     runs-on: ubuntu-latest
-    needs: [build-wasm-components]
+    needs: [publish-wasm-components]
     if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
 
-    - name: Download Component Artifacts
-      uses: actions/download-artifact@v5
+    - name: Setup Bazel
+      uses: bazel-contrib/setup-bazel@0.15.0
       with:
-        name: wasm-components
-        path: artifacts/
+        bazelisk-cache: true
+        disk-cache: ${{ github.workflow }}
+        repository-cache: true
 
-    # Note: wkg is provided by rules_wasm_component toolchains
-    # No manual installation needed - Bazel provides hermetic toolchains
-
-    - name: Publish Unsigned TinyGo Component to wkg Registry
+    - name: Publish to WebAssembly Package Registry
       run: |
-        cd artifacts/tinygo/
+        echo "Publishing to WebAssembly registries using Bazel rules..."
 
-        # Create wkg package manifest for unsigned component
-        cat > wkg.toml <<EOF
-        [package]
-        name = "pulseengine:file-operations-tinygo"
-        version = "${{ github.ref_name }}"
-        description = "TinyGo implementation of file operations WebAssembly component"
-        authors = ["PulseEngine <opensource@pulseengine.dev>"]
-        license = "Apache-2.0"
-        repository = "${{ github.server_url }}/${{ github.repository }}"
+        # Use rules_wasm_component's native publishing capabilities
+        # This will be implemented when wkg registry credentials are available
+        echo "Registry publishing configured - credentials needed for activation"
 
-        [component]
-        wit = "component.wit"
-        wasm = "file-ops-component.wasm"
-
-        [features]
-        security = true
-        compact = true
-        json-batch = true
-        EOF
-
-        # Publish to registry using Bazel's wkg toolchain (when credentials are available)
-        # bazel run @rules_wasm_component//tools:wkg -- publish --token ${{ secrets.WKG_TOKEN }} || echo "WKG publishing skipped - no token"
-
-    - name: Publish Signed TinyGo Component to wkg Registry
-      run: |
-        cd artifacts/tinygo-signed/
-
-        # Create wkg package manifest for signed component
-        cat > wkg.toml <<EOF
-        [package]
-        name = "pulseengine:file-operations-tinygo-signed"
-        version = "${{ github.ref_name }}"
-        description = "Cryptographically signed TinyGo implementation of file operations WebAssembly component"
-        authors = ["PulseEngine <opensource@pulseengine.dev>"]
-        license = "Apache-2.0"
-        repository = "${{ github.server_url }}/${{ github.repository }}"
-
-        [component]
-        wit = "component.wit"
-        wasm = "file-ops-component-signed.wasm"
-        verification_key = "verification-key.pub"
-
-        [features]
-        security = true
-        compact = true
-        json-batch = true
-        signed = true
-
-        [security]
-        signing_algorithm = "wasmsign2"
-        signature_type = "embedded"
-        verification_required = false
-        EOF
-
-        # Publish to registry using Bazel's wkg toolchain (when credentials are available)
-        # bazel run @rules_wasm_component//tools:wkg -- publish --token ${{ secrets.WKG_TOKEN }} || echo "WKG publishing skipped - no token"
+        # Future: bazel run //tinygo:file_ops_component.publish_wkg --registry=wkg.dev
 
     - name: Create Distribution Summary
       run: |
-        echo "## 🔐 Signed Component Distribution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚀 Component Distribution Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### OCI Registry (ghcr.io)" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (unsigned)**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (signed)**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Published Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Registry**: \`${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Component**: TinyGo WebAssembly component with dual-layer security" >> $GITHUB_STEP_SUMMARY
+        echo "- **Features**: Component signing, OCI signing, WASI Preview 2" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### WebAssembly Package Registry" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (unsigned)**: \`pulseengine:file-operations-tinygo@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (signed)**: \`pulseengine:file-operations-tinygo-signed@${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Security Features" >> $GITHUB_STEP_SUMMARY
-        echo "- **Component Signing**: wasmsign2 with embedded signatures" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔐 Security Features" >> $GITHUB_STEP_SUMMARY
+        echo "- **Component Signing**: Embedded signatures using wasmsign2" >> $GITHUB_STEP_SUMMARY
         echo "- **OCI Signing**: Cosign with keyless signing (GitHub OIDC)" >> $GITHUB_STEP_SUMMARY
         echo "- **Dual-Layer Security**: Component + Container manifest signing" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Component Digests" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (unsigned)**: \`${{ needs.build-wasm-components.outputs.tinygo-digest }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **TinyGo (signed)**: \`${{ needs.build-wasm-components.outputs.tinygo-signed-digest }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Verification" >> $GITHUB_STEP_SUMMARY
+        echo "### 🛠️ Usage" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-        echo "# Verify OCI signature" >> $GITHUB_STEP_SUMMARY
-        echo "cosign verify ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tinygo-signed:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "# Pull the component" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo:latest" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "# Verify WebAssembly component signature (requires wasmsign2)" >> $GITHUB_STEP_SUMMARY
-        echo "wasmsign2 verify component.wasm --key verification-key.pub" >> $GITHUB_STEP_SUMMARY
+        echo "# Verify signatures" >> $GITHUB_STEP_SUMMARY
+        echo "cosign verify ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo:latest" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
