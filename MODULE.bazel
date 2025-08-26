@@ -37,7 +37,7 @@ bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 # Git repository override - use main branch with merged fixes
 git_override(
     module_name = "rules_wasm_component",
-    commit = "e6a3455",  # Latest main branch with go_wasm_component + C++ toolchain fixes
+    commit = "082d191",  # Latest main branch with go_wasm_component + C++ toolchain + wasmsign2 fixes
     remote = "https://github.com/pulseengine/rules_wasm_component.git",
 )
 
@@ -82,6 +82,16 @@ register_toolchains(
 # Register C++ toolchains explicitly for cross-platform compatibility
 # This ensures Linux CI has proper C++ toolchain resolution for Rust binaries
 register_toolchains("@bazel_tools//tools/cpp:all")
+
+# WebAssembly toolchain with Bazel strategy to avoid wrapper script issues
+wasm_toolchain = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasm_toolchain")
+wasm_toolchain.register(
+    name = "wasm_tools",
+    strategy = "bazel",  # Use Bazel-native rust_binary builds instead of wrapper scripts
+)
+use_repo(wasm_toolchain, "wasm_tools_toolchains")
+
+register_toolchains("@wasm_tools_toolchains//:wasm_tools_toolchain")
 
 # Note: Rust dependencies are provided by rules_wasm_component
 # No local Rust crate dependencies needed for TinyGo-focused implementation

@@ -52,7 +52,7 @@ go_wasm_component(
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
     wit = "//wit:file_operations_wit",
-    world = "file-operations-world",
+    world = "file-ops-world",
 )
 
 # Test suite
