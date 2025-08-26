@@ -34,10 +34,10 @@ bazel_dep(name = "rules_nodejs", version = "6.5.0")
 # TinyGo toolchain for WebAssembly components
 bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 
-# Git repository override - use latest from GitHub (cache invalidation: 2025-08-25)
+# Git repository override - use latest from GitHub (C++ toolchain fix: 2025-08-26)
 git_override(
     module_name = "rules_wasm_component",
-    branch = "refactor/eliminate-shell-scripts",  # Branch with go_wasm_component fix
+    branch = "refactor/eliminate-shell-scripts",  # Branch with go_wasm_component + C++ toolchain fix
     remote = "https://github.com/pulseengine/rules_wasm_component.git",
 )
 
