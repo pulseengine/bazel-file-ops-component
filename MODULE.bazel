@@ -13,10 +13,10 @@ module(
     compatibility_level = 1,
 )
 
-# Core Bazel dependencies - reverted to match rules_wasm_component expectations
-bazel_dep(name = "platforms", version = "0.0.11")
-bazel_dep(name = "rules_cc", version = "0.1.1")
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
+# Core Bazel dependencies - updated to match rules_wasm_component expectations
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
 
 # Enable C++ toolchain auto-configuration for cross-platform support
 cc_configure = use_extension("@rules_cc//cc:extensions.bzl", "cc_configure")
@@ -37,7 +37,7 @@ bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 # Git repository override - use main branch with merged fixes
 git_override(
     module_name = "rules_wasm_component",
-    commit = "f655f31",  # Latest main branch with C++ toolchain debugging + WIT file path fix
+    commit = "247fe4c",  # Latest main branch with dependency updates and all fixes
     remote = "https://github.com/pulseengine/rules_wasm_component.git",
 )
 
