@@ -37,7 +37,7 @@ bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 # Git repository override - use main branch with merged fixes
 git_override(
     module_name = "rules_wasm_component",
-    commit = "05327e3",  # Latest main branch with WIT file path fix + go_wasm_component + C++ toolchain + wasmsign2 fixes
+    commit = "f655f31",  # Latest main branch with C++ toolchain debugging + WIT file path fix
     remote = "https://github.com/pulseengine/rules_wasm_component.git",
 )
 
