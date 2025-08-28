@@ -48,11 +48,11 @@ go_wasm_component(
         "wit_bindings.go",
         "workspace.go",
     ],
+    adapter = "@rules_wasm_component//wasm/adapters:wasi_snapshot_preview1",
     go_mod = "go.mod",
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
-    wit = "//wit:file_operations_wit",
-    world = "file-ops-world",
+    world = "wasi:cli/command",
 )
 
 # Test suite

@@ -7,8 +7,162 @@
 
 package bazel:file-ops@1.0.0;
 
+/// Shared types interface for cross-interface type usage
+interface types {
+    /// Path information returned by path-exists function
+    record path-info {
+        /// Whether the path exists
+        exists: bool,
+        /// Type of path (file, directory, symlink, etc.)
+        path-type: path-type-enum,
+        /// File size in bytes (if applicable)
+        size: option<u64>,
+    }
+
+    /// Enumeration of path types
+    enum path-type-enum {
+        file,
+        directory,
+        symlink,
+        other,
+    }
+
+    /// Information about prepared workspace
+    record workspace-info {
+        /// List of files that were prepared
+        prepared-files: list<string>,
+
+        /// Final workspace path
+        workspace-path: string,
+
+        /// Success message
+        message: string,
+
+        /// Time taken for preparation (milliseconds)
+        preparation-time-ms: u64,
+
+        /// Security context used
+        security-context: option<security-context>,
+    }
+
+    /// Security context information
+    record security-context {
+        /// Active security policy
+        policy: string,
+        /// Preopen directories currently configured
+        preopen-dirs: list<string>,
+        /// Security level (low, medium, high)
+        security-level: string,
+    }
+
+    /// Types of workspace configurations supported
+    enum workspace-type {
+        /// JavaScript/Node.js workspace
+        javascript,
+        /// Go/TinyGo workspace
+        golang,
+        /// C/C++ workspace
+        cpp,
+        /// Rust workspace
+        rust,
+        /// Generic workspace
+        generic,
+    }
+
+    /// Security configuration for sandbox operations
+    record security-config {
+        /// Allowed directories for file operations
+        allowed-dirs: list<string>,
+        /// Whether to enable strict path validation
+        strict-validation: bool,
+        /// Maximum file size for operations
+        max-file-size: option<u64>,
+    }
+
+    /// Preopen directory configuration for WASI
+    record preopen-dir-config {
+        /// Host path to map
+        host-path: string,
+        /// Guest path in WASI environment
+        guest-path: string,
+        /// Whether directory is read-only
+        read-only: bool,
+    }
+
+    /// File specification with source and optional destination
+    record file-spec {
+        /// Source file path
+        source: string,
+
+        /// Optional destination path (defaults to basename)
+        destination: option<string>,
+
+        /// Whether to preserve file permissions
+        preserve-permissions: bool,
+
+        /// Whether to preserve directory structure
+        preserve-structure: bool,
+    }
+
+    /// Package.json configuration for JavaScript projects
+    record package-config {
+        /// Package name
+        name: string,
+        /// Package version
+        version: string,
+        /// Dependencies to include
+        dependencies: list<string>,
+        /// Dev dependencies to include
+        dev-dependencies: list<string>,
+        /// Build scripts
+        scripts: list<script-entry>,
+    }
+
+    /// Script entry for package.json
+    record script-entry {
+        /// Script name
+        name: string,
+        /// Script command
+        command: string,
+    }
+
+    /// Go module configuration for Go projects
+    record go-module-config {
+        /// Module name
+        module-name: string,
+        /// Go version requirement
+        go-version: string,
+        /// Dependencies to include
+        dependencies: list<go-dependency>,
+    }
+
+    /// Go dependency specification
+    record go-dependency {
+        /// Module path
+        module: string,
+        /// Version constraint
+        version: string,
+    }
+
+    /// C/C++ workspace configuration
+    record cpp-workspace-config {
+        /// Project name
+        project-name: string,
+        /// Include directories
+        include-dirs: list<string>,
+        /// Library directories
+        lib-dirs: list<string>,
+        /// Compiler flags
+        cflags: list<string>,
+        /// Linker flags
+        ldflags: list<string>,
+    }
+}
+
 /// Core file operations interface
 interface file-operations {
+    use types.{path-info};
+
     /// Copy a single file from source to destination
     /// Returns success or error message
     copy-file: func(src: string, dest: string) -> result<_, string>;
@@ -51,6 +205,8 @@ interface file-operations {
 
 /// JSON batch processing interface for backward compatibility
 interface json-batch-operations {
+    use types.{workspace-info};
+
     /// Process JSON configuration for batch file operations
     /// This maintains compatibility with existing Go-based tools
     process-json-config: func(config-json: string) -> result<workspace-info, string>;
@@ -64,6 +220,32 @@ interface json-batch-operations {
 
 /// Workspace management interface for build systems
 interface workspace-management {
+    use types.{workspace-info, workspace-type, security-config, file-spec, package-config, go-module-config, cpp-workspace-config};
+
+    /// Configuration for workspace preparation
+    record workspace-config {
+        /// Target workspace directory
+        work-dir: string,
+
+        /// Source files to include
+        sources: list<file-spec>,
+
+        /// Header files to include (C/C++)
+        headers: list<file-spec>,
+
+        /// Generated bindings directory
+        bindings-dir: option<string>,
+
+        /// Dependencies to include
+        dependencies: list<file-spec>,
+
+        /// Workspace type for language-specific setup
+        workspace-type: workspace-type,
+
+        /// Security configuration
+        security-config: option<security-config>,
+    }
+
     /// Prepare a complete workspace from configuration
     /// This is the main entry point for build system integration
     prepare-workspace: func(config: workspace-config) -> result<workspace-info, string>;
@@ -89,6 +271,8 @@ interface workspace-management {
 
 /// Security and sandboxing interface
 interface security-operations {
+    use types.{security-context, preopen-dir-config};
+
     /// Set preopen directories for WASI sandboxing
     configure-preopen-dirs: func(dirs: list<preopen-dir-config>) -> result<_, string>;
 
@@ -99,230 +283,6 @@ interface security-operations {
     get-security-context: func() -> security-context;
 }
 
-/// Configuration for workspace preparation
-record workspace-config {
-    /// Target workspace directory
-    work-dir: string,
-
-    /// Source files to include
-    sources: list<file-spec>,
-
-    /// Header files to include (C/C++)
-    headers: list<file-spec>,
-
-    /// Generated bindings directory
-    bindings-dir: option<string>,
-
-    /// Dependencies to include
-    dependencies: list<file-spec>,
-
-    /// Workspace type for language-specific setup
-    workspace-type: workspace-type,
-
-    /// Security configuration
-    security-config: option<security-config>,
-}
-
-/// Information about prepared workspace
-record workspace-info {
-    /// List of files that were prepared
-    prepared-files: list<string>,
-
-    /// Final workspace path
-    workspace-path: string,
-
-    /// Success message
-    message: string,
-
-    /// Time taken for preparation (milliseconds)
-    preparation-time-ms: u64,
-
-    /// Security context used
-    security-context: option<security-context>,
-}
-
-/// File specification with source and optional destination
-record file-spec {
-    /// Source file path
-    source: string,
-
-    /// Optional destination path (defaults to basename)
-    destination: option<string>,
-
-    /// Whether to preserve file permissions
-    preserve-permissions: bool,
-
-    /// Whether to preserve directory structure
-    preserve-structure: bool,
-}
-
-/// Package.json configuration for JavaScript builds
-record package-config {
-    /// Package name
-    name: string,
-
-    /// Package version
-    version: string,
-
-    /// Module type (module, commonjs)
-    module-type: string,
-
-    /// NPM dependencies
-    dependencies: list<dependency>,
-
-    /// Additional package.json fields
-    additional-fields: list<json-field>,
-}
-
-/// Go module configuration for TinyGo builds
-record go-module-config {
-    /// Module name from go.mod
-    module-name: string,
-
-    /// Go version
-    go-version: string,
-
-    /// Source files
-    sources: list<file-spec>,
-
-    /// go.mod file
-    go-mod-file: option<string>,
-
-    /// WIT file for binding generation
-    wit-file: option<string>,
-}
-
-/// C/C++ workspace configuration
-record cpp-workspace-config {
-    /// Source files (.c, .cpp)
-    sources: list<file-spec>,
-
-    /// Header files (.h, .hpp)
-    headers: list<file-spec>,
-
-    /// Generated bindings from WIT
-    bindings-dir: option<string>,
-
-    /// Dependency headers with directory structure
-    dependency-headers: list<file-spec>,
-}
-
-/// NPM dependency specification
-record dependency {
-    /// Package name
-    name: string,
-
-    /// Version specification
-    version: string,
-}
-
-/// Generic JSON field for package.json
-record json-field {
-    /// Field name
-    key: string,
-
-    /// Field value (JSON-encoded string)
-    value: string,
-}
-
-/// Security configuration
-record security-config {
-    /// Security level (standard, high, strict)
-    level: security-level,
-
-    /// Allowed directories for file operations
-    allowed-dirs: list<string>,
-
-    /// Denied patterns (glob patterns to block)
-    denied-patterns: list<string>,
-
-    /// Whether to enforce path validation
-    enforce-validation: bool,
-}
-
-/// Preopen directory configuration for WASI
-record preopen-dir-config {
-    /// Host directory path
-    host-path: string,
-
-    /// Virtual path in WASM environment
-    virtual-path: string,
-
-    /// Access permissions
-    permissions: access-permissions,
-}
-
-/// Security context information
-record security-context {
-    /// Current security level
-    level: security-level,
-
-    /// Accessible directories
-    accessible-dirs: list<string>,
-
-    /// Applied restrictions
-    restrictions: list<string>,
-}
-
-/// Type of workspace being prepared
-variant workspace-type {
-    /// Rust workspace
-    rust,
-
-    /// Go/TinyGo workspace
-    go,
-
-    /// C/C++ workspace
-    cpp,
-
-    /// JavaScript/TypeScript workspace
-    javascript,
-
-    /// Generic workspace
-    generic,
-}
-
-/// Path information
-variant path-info {
-    /// Path does not exist
-    not-found,
-
-    /// Path is a regular file
-    file,
-
-    /// Path is a directory
-    directory,
-
-    /// Path is a symbolic link
-    symlink,
-
-    /// Path exists but type is unknown
-    other,
-}
-
-/// Security levels
-variant security-level {
-    /// Standard security (basic path validation)
-    standard,
-
-    /// High security (strict path validation, preopen dirs)
-    high,
-
-    /// Strict security (maximum restrictions, minimal access)
-    strict,
-}
-
-/// Access permissions for preopen directories
-variant access-permissions {
-    /// Read-only access
-    read-only,
-
-    /// Read-write access
-    read-write,
-
-    /// Full access (read-write-execute)
-    full,
-}
 
 /// World definition for the file operations component
 world file-ops-world {
