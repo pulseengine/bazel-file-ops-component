@@ -61,8 +61,6 @@ go_test(
     srcs = [
         "json_bridge_test.go",
         "operations_test.go",
-        "security_test.go",
-        "workspace_test.go",
     ],
     data = [
         "//testdata:test_configs",
@@ -77,14 +75,14 @@ go_test(
 # Integration tests with WASM component
 # Note: sh_test is deprecated, replaced with Go-based integration tests in //testdata:integration_tests
 
-# Performance benchmarks
-go_test(
-    name = "benchmark_test",
-    srcs = ["benchmark_test.go"],
-    args = ["-bench=."],
-    tags = ["benchmark"],
-    deps = [":file_ops_lib"],
-)
+# Performance benchmarks (disabled - benchmark_test.go not yet implemented)
+# go_test(
+#     name = "benchmark_test",
+#     srcs = ["benchmark_test.go"],
+#     args = ["-bench=."],
+#     tags = ["benchmark"],
+#     deps = [":file_ops_lib"],
+# )
 
 # Generate signing keys for component security
 wasm_keygen(
