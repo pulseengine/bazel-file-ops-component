@@ -23,7 +23,8 @@ cc_configure = use_extension("@rules_cc//cc:extensions.bzl", "cc_configure_exten
 use_repo(cc_configure, "local_config_cc")
 
 # Add compatibility proxy repository for rules_cc 0.2.0 (required for bzlmod)
-cc_compatibility = use_extension("@rules_cc//cc:extensions.bzl", "compatibility_proxy")
+cc_compatibility = use_extension("@rules_cc//cc:extensions.bzl", "compatibility_proxy_repo")
+cc_compatibility.compatibility_proxy_repo()
 
 # WebAssembly and component support
 bazel_dep(name = "rules_rust", version = "0.62.0")
