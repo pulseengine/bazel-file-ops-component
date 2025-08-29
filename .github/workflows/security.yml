@@ -34,9 +34,12 @@ jobs:
         toolchain: "1.82.0"
 
     - name: Run Gosec Security Scanner (Go)
-      uses: securecodewarrior/github-action-gosec@master
-      with:
-        args: '-fmt sarif -out go-results.sarif ./tinygo/...'
+      run: |
+        # Install gosec
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        
+        # Run gosec security scan
+        cd tinygo && gosec -fmt sarif -out ../go-results.sarif ./...
       continue-on-error: true
 
     - name: Upload Gosec Results to GitHub Security Tab
@@ -48,9 +51,11 @@ jobs:
 
     - name: Run Cargo Audit (Rust)
       run: |
-        if [ -f "rust/Cargo.toml" ]; then
+        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
           cargo install cargo-audit
           cd rust && cargo audit --format json --output audit-results.json || true
+        else
+          echo "Rust directory not found - skipping Cargo audit"
         fi
 
     - name: Run Trivy Vulnerability Scanner
@@ -108,7 +113,7 @@ jobs:
 
     - name: Rust Dependency Check
       run: |
-        if [ -f "rust/Cargo.toml" ]; then
+        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
           cargo install cargo-audit cargo-deny
           cd rust
 
@@ -117,6 +122,8 @@ jobs:
 
           # Check licenses and dependency policies
           cargo deny check
+        else
+          echo "Rust directory not found - skipping Rust dependency checks"
         fi
       continue-on-error: true
 
@@ -175,7 +182,7 @@ jobs:
 
     - name: Update Rust Dependencies
       run: |
-        if [ -f "rust/Cargo.toml" ]; then
+        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
           cd rust
 
           # Update Cargo.toml with latest compatible versions
@@ -187,6 +194,8 @@ jobs:
           else
             echo "RUST_DEPS_UPDATED=true" >> $GITHUB_ENV
           fi
+        else
+          echo "Rust directory not found - skipping Rust dependency updates"
         fi
 
     - name: Update Bazel Dependencies

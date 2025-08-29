@@ -81,9 +81,11 @@ jobs:
         bazel build //tinygo:file_ops_component_wasm
 
         # Build Rust component (if exists)
-        if bazel query //rust:file_ops_rust &>/dev/null; then
+        if [ -d "rust" ] && bazel query //rust:file_ops_rust &>/dev/null; then
           bazel build //rust:file_ops_rust
           bazel build //rust:file_ops_component_wasm
+        else
+          echo "Rust components not available - skipping Rust builds"
         fi
 
     - name: Create Performance Test Data
@@ -135,7 +137,7 @@ jobs:
             'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component_wasm.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt'
         fi
 
-    - name: Benchmark Rust Implementation
+    - name: Benchmark Rust Implementation  
       if: (github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'rust-only' || github.event.inputs.benchmark_type == '') && hashFiles('rust/**') != ''
       run: |
         echo "## Rust Performance Benchmarks" >> perf_results.md

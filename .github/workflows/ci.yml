@@ -333,8 +333,14 @@ jobs:
 
     - name: Buildifier Check
       run: |
-        # Use bazel to run buildifier (it's already a dependency)
-        bazel run //:buildifier -- --lint=warn --mode=check $(find . -name "*.bzl" -o -name "BUILD" -o -name "BUILD.bazel")
+        # Install buildifier if Bazel target is not available
+        if ! bazel query //:buildifier &>/dev/null; then
+          go install github.com/bazelbuild/buildtools/buildifier@latest
+          buildifier --lint=warn --mode=check $(find . -name "*.bzl" -o -name "BUILD" -o -name "BUILD.bazel")
+        else
+          # Use bazel to run buildifier (it's already a dependency)
+          bazel run //:buildifier -- --lint=warn --mode=check $(find . -name "*.bzl" -o -name "BUILD" -o -name "BUILD.bazel")
+        fi
 
     - name: License Check
       run: |
