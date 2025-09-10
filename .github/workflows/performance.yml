@@ -45,7 +45,7 @@ jobs:
         repository-cache: true
 
     - name: Setup Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23'
 
@@ -238,7 +238,7 @@ jobs:
         repository-cache: true
 
     - name: Setup Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23'
 
@@ -316,7 +316,7 @@ jobs:
         repository-cache: true
 
     - name: Setup Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.23'
 
