@@ -73,11 +73,16 @@ jobs:
 
     - name: Create OCI Image with WASM Component
       run: |
-        # Create a simple OCI image containing the WASM file
-        # Using crane to create a minimal OCI artifact
+        # Create an OCI artifact containing the WASM file
+        # Using oras which is designed for OCI artifacts
 
-        # Install crane
-        go install github.com/google/go-containerregistry/cmd/crane@latest
+        # Install oras
+        VERSION="1.2.2"
+        curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+        mkdir -p oras-install/
+        tar -zxf "oras_${VERSION}_linux_amd64.tar.gz" -C oras-install/
+        sudo mv oras-install/oras /usr/local/bin/
+        rm -rf "oras_${VERSION}_linux_amd64.tar.gz" oras-install/
 
         # Determine tag
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -86,26 +91,20 @@ jobs:
           TAG="${{ github.event.release.tag_name }}"
         fi
 
-        # Create OCI artifact
+        # Create OCI artifact references
         IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
         IMAGE_LATEST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
 
-        # Create a simple tar with the wasm file
-        mkdir -p oci-artifact
-        cp file_ops_component.wasm oci-artifact/
-        tar -czf component.tar.gz -C oci-artifact file_ops_component.wasm
-
-        # Push as OCI artifact using crane
-        crane append \
-          --base scratch \
-          --new_layer component.tar.gz \
-          --new_tag "${IMAGE_TAG}"
+        # Push WASM file as OCI artifact
+        oras push "${IMAGE_TAG}" \
+          --artifact-type application/vnd.wasm.component.layer.v1+wasm \
+          file_ops_component.wasm:application/vnd.wasm.component.layer.v1+wasm
 
         # Tag as latest
-        crane tag "${IMAGE_TAG}" latest
+        oras tag "${IMAGE_TAG}" latest
 
-        echo "Published OCI image: ${IMAGE_TAG}"
-        echo "Published OCI image: ${IMAGE_LATEST}"
+        echo "Published OCI artifact: ${IMAGE_TAG}"
+        echo "Published OCI artifact: ${IMAGE_LATEST}"
         echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
         echo "IMAGE_LATEST=${IMAGE_LATEST}" >> $GITHUB_ENV
 
@@ -184,11 +183,11 @@ jobs:
 
           - **Unsigned WASM Component** (`file_ops_component.wasm`) - Ready to use
           - **SHA256 Checksum** - For integrity verification
-          - **Signed OCI Image** - Available at `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}`
+          - **Signed OCI Artifact** - Available at `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}`
 
           ### 🔐 Security Features
 
-          - ✅ **OCI Image Signing** - Signed with Cosign using GitHub OIDC (keyless)
+          - ✅ **OCI Artifact Signing** - Signed with Cosign using GitHub OIDC (keyless)
           - ✅ **SLSA Provenance** - Build attestation included
           - ✅ **SHA256 Checksums** - For download verification
 
@@ -202,10 +201,10 @@ jobs:
           sha256sum -c file_ops_component.wasm.sha256
           ```
 
-          #### Pull Signed OCI Image
+          #### Pull Signed OCI Artifact
           ```bash
-          # Pull the signed OCI image
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
+          # Pull the signed OCI artifact with oras
+          oras pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
 
           # Verify signature with Cosign
           cosign verify \
@@ -240,14 +239,14 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Published Artifacts" >> $GITHUB_STEP_SUMMARY
         echo "- **WASM Component**: \`file_ops_component.wasm\` ($(ls -lh file_ops_component.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
-        echo "- **OCI Image**: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **OCI Image (latest)**: \`${IMAGE_LATEST}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact**: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact (latest)**: \`${IMAGE_LATEST}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ OCI image signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ OCI artifact signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ SLSA provenance attestation" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ SHA256 checksums provided" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
         echo "- [Download WASM](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
-        echo "- [Pull OCI Image](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Pull OCI Artifact](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG})" >> $GITHUB_STEP_SUMMARY
