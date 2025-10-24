@@ -76,8 +76,15 @@ jobs:
 
     - name: Build All Components
       run: |
-        # Build TinyGo component (all aliases point to file_ops_component)
+        # Build TinyGo component (regular version)
         bazel build //tinygo:file_ops_component
+
+        # Build platform-specific AOT precompiled component
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          bazel build //tinygo:file_ops_aot_linux_x64
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          bazel build //tinygo:file_ops_aot_darwin_arm64
+        fi
 
         # Note: Rust implementation is not yet available
         # Future: Add Rust component builds when implemented
@@ -137,6 +144,65 @@ jobs:
           fi
         else
           echo "⚠️ wasmtime not available, skipping runtime benchmarks" >> perf_results.md
+        fi
+
+    - name: Benchmark TinyGo AOT Implementation
+      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'tinygo-only' || github.event.inputs.benchmark_type == ''
+      run: |
+        echo "" >> perf_results.md
+        echo "## TinyGo AOT Performance Benchmarks" >> perf_results.md
+        echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
+        echo "|-----------|-----------|-------------|-------|" >> perf_results.md
+
+        # Determine AOT file path based on platform
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          AOT_FILE="bazel-bin/tinygo/file_ops_aot_linux_x64.cwasm"
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          AOT_FILE="bazel-bin/tinygo/file_ops_aot_darwin_arm64.cwasm"
+        else
+          echo "⚠️ Unsupported platform for AOT benchmarks" >> perf_results.md
+          exit 0
+        fi
+
+        # WebAssembly AOT runtime benchmark
+        if command -v wasmtime &> /dev/null; then
+          # Test the AOT precompiled component first
+          echo "Testing AOT precompiled component execution..."
+          if wasmtime run --allow-precompiled --dir=. "$AOT_FILE" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
+            echo "✅ AOT component test passed, running benchmarks..."
+
+            # Run benchmark comparing regular vs AOT
+            echo "### AOT vs Regular Comparison" >> perf_results.md
+
+            # Benchmark AOT precompiled component
+            hyperfine --export-json tinygo_aot_benchmark.json \
+              --warmup 3 \
+              --show-output \
+              "wasmtime run --allow-precompiled --dir=. $AOT_FILE copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
+              || echo "⚠️ AOT benchmark failed but continuing" >> perf_results.md
+
+            # Extract and compare results
+            if [ -f tinygo_wasm_benchmark.json ] && [ -f tinygo_aot_benchmark.json ]; then
+              REGULAR_TIME=$(jq -r '.results[0].mean' tinygo_wasm_benchmark.json 2>/dev/null || echo "N/A")
+              AOT_TIME=$(jq -r '.results[0].mean' tinygo_aot_benchmark.json 2>/dev/null || echo "N/A")
+
+              echo "- **Regular WASM**: ${REGULAR_TIME}s" >> perf_results.md
+              echo "- **AOT WASM**: ${AOT_TIME}s" >> perf_results.md
+
+              # Calculate speedup if both values are available
+              if [[ "$REGULAR_TIME" != "N/A" ]] && [[ "$AOT_TIME" != "N/A" ]]; then
+                SPEEDUP=$(echo "scale=2; $REGULAR_TIME / $AOT_TIME" | bc)
+                echo "- **Speedup**: ${SPEEDUP}x faster with AOT" >> perf_results.md
+              fi
+            fi
+
+            echo "" >> perf_results.md
+            echo "✅ TinyGo AOT component benchmarks completed" >> perf_results.md
+          else
+            echo "⚠️ AOT component test failed, skipping benchmarks" >> perf_results.md
+          fi
+        else
+          echo "⚠️ wasmtime not available, skipping AOT benchmarks" >> perf_results.md
         fi
 
     - name: Benchmark Rust Implementation  
