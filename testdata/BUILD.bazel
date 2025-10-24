@@ -14,10 +14,10 @@ filegroup(
 
 filegroup(
     name = "test_files",
-    srcs = glob(["files/*"]),
+    srcs = glob(["*.json", "*.go", "*.mod"]),
 )
 
 filegroup(
     name = "integration_configs",
-    srcs = glob(["integration/*"]),
+    srcs = glob(["*.json"]),
 )

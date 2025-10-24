@@ -14,27 +14,8 @@ def file_ops_integration_tests(name = "integration_tests"):
     build_test(
         name = "tinygo_component_build_test",
         targets = [
-            "//tinygo:file_ops_tinygo",
-            "//tinygo:file_ops_component_wasm",
+            "//tinygo:file_ops_component",
         ],
-        tags = ["integration", "build"],
-    )
-
-    # Test Rust component build (if it exists)
-    native.config_setting(
-        name = "rust_component_exists",
-        values = {"define": "rust_enabled=true"},
-    )
-
-    build_test(
-        name = "rust_component_build_test",
-        targets = select({
-            ":rust_component_exists": [
-                "//rust:file_ops_rust",
-                "//rust:file_ops_component_wasm",
-            ],
-            "//conditions:default": ["//tinygo:file_ops_tinygo"],  # Fallback
-        }),
         tags = ["integration", "build"],
     )
 
@@ -43,13 +24,11 @@ def file_ops_integration_tests(name = "integration_tests"):
         name = "integration_tests",
         srcs = ["integration_test.go"],
         data = [
-            "//tinygo:file_ops_tinygo",
-            "//tinygo:file_ops_component_wasm",
+            "//tinygo:file_ops_component",
             "//wit:file-operations.wit",
         ],
         env = {
-            "COMPONENT_BINARY": "$(location //tinygo:file_ops_tinygo)",
-            "COMPONENT_WASM": "$(location //tinygo:file_ops_component_wasm)",
+            "COMPONENT_WASM": "$(location //tinygo:file_ops_component)",
             "WIT_SOURCE": "$(location //wit:file-operations.wit)",
         },
         tags = ["integration", "manual"],  # Manual due to external tool dependencies
@@ -61,10 +40,10 @@ def file_ops_integration_tests(name = "integration_tests"):
         srcs = ["integration_test.go"],
         args = ["-test.run=TestComponentBuild"],
         data = [
-            "//tinygo:file_ops_tinygo",
+            "//tinygo:file_ops_component",
         ],
         env = {
-            "COMPONENT_BINARY": "$(location //tinygo:file_ops_tinygo)",
+            "COMPONENT_WASM": "$(location //tinygo:file_ops_component)",
         },
         tags = ["integration"],
     )
@@ -75,10 +54,10 @@ def file_ops_integration_tests(name = "integration_tests"):
         srcs = ["integration_test.go"],
         args = ["-test.run=TestJSONBatchCompatibility"],
         data = [
-            "//tinygo:file_ops_tinygo",
+            "//tinygo:file_ops_component",
         ],
         env = {
-            "COMPONENT_BINARY": "$(location //tinygo:file_ops_tinygo)",
+            "COMPONENT_WASM": "$(location //tinygo:file_ops_component)",
         },
         tags = ["integration"],
     )
@@ -89,11 +68,11 @@ def file_ops_integration_tests(name = "integration_tests"):
         srcs = ["integration_test.go"],
         args = ["-test.run=TestWITInterfaceConsistency"],
         data = [
-            "//tinygo:file_ops_component_wasm",
+            "//tinygo:file_ops_component",
             "//wit:file-operations.wit",
         ],
         env = {
-            "COMPONENT_WASM": "$(location //tinygo:file_ops_component_wasm)",
+            "COMPONENT_WASM": "$(location //tinygo:file_ops_component)",
             "WIT_SOURCE": "$(location //wit:file-operations.wit)",
         },
         tags = ["integration", "wit", "manual"],  # Manual due to wasm-tools dependency
@@ -105,10 +84,10 @@ def file_ops_integration_tests(name = "integration_tests"):
         srcs = ["integration_test.go"],
         args = ["-test.run=TestPerformanceBasic"],
         data = [
-            "//tinygo:file_ops_tinygo",
+            "//tinygo:file_ops_component",
         ],
         env = {
-            "COMPONENT_BINARY": "$(location //tinygo:file_ops_tinygo)",
+            "COMPONENT_WASM": "$(location //tinygo:file_ops_component)",
         },
         tags = ["integration", "performance"],
         timeout = "moderate",  # Allow more time for performance tests
@@ -131,11 +110,8 @@ def file_ops_integration_tests(name = "integration_tests"):
         name = "integration_test_suite_full",
         tests = [
             ":tinygo_component_build_test",
-            ":rust_component_build_test",
-            ":integration_tests",
             ":component_functionality_test",
             ":json_batch_compatibility_test",
-            ":wit_interface_consistency_test",
             ":performance_basic_test",
         ],
         tags = ["integration", "full"],

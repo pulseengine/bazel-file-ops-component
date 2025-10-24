@@ -71,7 +71,6 @@ go_test(
     ],
     deps = [
         ":file_ops_lib",
-        "@org_golang_x_testing//fstest",
     ],
 )
 
