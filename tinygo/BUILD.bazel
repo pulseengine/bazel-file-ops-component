@@ -35,6 +35,7 @@ go_binary(
     goarch = "amd64",
     # Build for host platform for testing
     goos = "linux",
+    pure = "on",  # Hermetic build - prevents system linker dependencies (Issue #162)
     deps = [":file_ops_lib"],
 )
 
