@@ -59,10 +59,36 @@ jobs:
         file ./file_ops_component.wasm
         ls -lh ./file_ops_component.wasm
 
+    - name: Build AOT-Embedded WASM Component
+      run: |
+        echo "Building AOT-embedded WebAssembly component with multi-architecture support..."
+
+        # Build multi-architecture AOT compiled artifacts
+        echo "Compiling WASM to native code for multiple architectures..."
+        bazel build //tinygo:file_ops_aot_multi
+
+        # Build the component with embedded AOT artifacts
+        echo "Embedding AOT artifacts as custom sections..."
+        bazel build //tinygo:file_ops_component_aot
+
+        # Copy to a predictable location
+        cp bazel-bin/tinygo/file_ops_component_aot.wasm ./file_ops_component_aot.wasm
+
+        # Verify it's a valid WebAssembly module
+        file ./file_ops_component_aot.wasm
+        ls -lh ./file_ops_component_aot.wasm
+
+        # Show size comparison
+        echo "Size comparison:"
+        echo "  Regular WASM: $(ls -lh file_ops_component.wasm | awk '{print $5}')"
+        echo "  AOT-embedded: $(ls -lh file_ops_component_aot.wasm | awk '{print $5}')"
+
     - name: Create SHA256 checksums
       run: |
         sha256sum file_ops_component.wasm > file_ops_component.wasm.sha256
+        sha256sum file_ops_component_aot.wasm > file_ops_component_aot.wasm.sha256
         cat file_ops_component.wasm.sha256
+        cat file_ops_component_aot.wasm.sha256
 
     - name: Log in to Container Registry
       uses: docker/login-action@v3
@@ -94,8 +120,11 @@ jobs:
         # Create OCI artifact references
         IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
         IMAGE_LATEST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        IMAGE_AOT_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot"
+        IMAGE_AOT_LATEST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-aot"
 
-        # Push WASM file as OCI artifact
+        # Push regular WASM file as OCI artifact
+        echo "Publishing regular WASM component..."
         oras push "${IMAGE_TAG}" \
           --artifact-type application/vnd.wasm.component.layer.v1+wasm \
           file_ops_component.wasm:application/vnd.wasm.component.layer.v1+wasm
@@ -103,18 +132,38 @@ jobs:
         # Tag as latest
         oras tag "${IMAGE_TAG}" latest
 
-        echo "Published OCI artifact: ${IMAGE_TAG}"
-        echo "Published OCI artifact: ${IMAGE_LATEST}"
+        # Push AOT-embedded WASM file as OCI artifact
+        echo "Publishing AOT-embedded WASM component..."
+        oras push "${IMAGE_AOT_TAG}" \
+          --artifact-type application/vnd.wasm.component.layer.v1+wasm \
+          file_ops_component_aot.wasm:application/vnd.wasm.component.layer.v1+wasm
+
+        # Tag AOT as latest-aot
+        oras tag "${IMAGE_AOT_TAG}" latest-aot
+
+        echo "Published OCI artifacts:"
+        echo "  Regular: ${IMAGE_TAG}"
+        echo "  Regular (latest): ${IMAGE_LATEST}"
+        echo "  AOT-embedded: ${IMAGE_AOT_TAG}"
+        echo "  AOT-embedded (latest): ${IMAGE_AOT_LATEST}"
+
         echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
         echo "IMAGE_LATEST=${IMAGE_LATEST}" >> $GITHUB_ENV
+        echo "IMAGE_AOT_TAG=${IMAGE_AOT_TAG}" >> $GITHUB_ENV
+        echo "IMAGE_AOT_LATEST=${IMAGE_AOT_LATEST}" >> $GITHUB_ENV
 
     - name: Sign OCI Image with Cosign
       run: |
         # Sign using keyless signing with GitHub OIDC
+        echo "Signing regular WASM component..."
         cosign sign --yes "${IMAGE_TAG}"
         cosign sign --yes "${IMAGE_LATEST}"
 
-        echo "✅ OCI images signed with Cosign (keyless)"
+        echo "Signing AOT-embedded WASM component..."
+        cosign sign --yes "${IMAGE_AOT_TAG}"
+        cosign sign --yes "${IMAGE_AOT_LATEST}"
+
+        echo "✅ All OCI images signed with Cosign (keyless)"
 
     - name: Generate SLSA Provenance
       run: |
@@ -152,13 +201,18 @@ jobs:
         }
         EOF
 
-        # Attest the provenance
+        # Attest the provenance for both regular and AOT variants
         cosign attest --yes \
           --predicate provenance.json \
           --type slsaprovenance \
           "${IMAGE_TAG}"
 
-        echo "✅ SLSA provenance attestation created"
+        cosign attest --yes \
+          --predicate provenance.json \
+          --type slsaprovenance \
+          "${IMAGE_AOT_TAG}"
+
+        echo "✅ SLSA provenance attestation created for all variants"
 
     - name: Verify Signatures
       run: |
@@ -176,24 +230,35 @@ jobs:
         files: |
           file_ops_component.wasm
           file_ops_component.wasm.sha256
+          file_ops_component_aot.wasm
+          file_ops_component_aot.wasm.sha256
         body: |
           ## 🎉 Bazel File Operations Component Release
 
           ### 📦 What's Included
 
-          - **Unsigned WASM Component** (`file_ops_component.wasm`) - Ready to use
-          - **SHA256 Checksum** - For integrity verification
-          - **Signed OCI Artifact** - Available at `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}`
+          **Regular WASM Component:**
+          - `file_ops_component.wasm` - Standard WebAssembly component
+          - `file_ops_component.wasm.sha256` - SHA256 checksum
+          - Signed OCI artifact: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}`
+
+          **AOT-Embedded WASM Component (NEW):**
+          - `file_ops_component_aot.wasm` - Component with embedded AOT compiled artifacts
+          - `file_ops_component_aot.wasm.sha256` - SHA256 checksum
+          - Signed OCI artifact: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot`
+          - **Includes native code for:** Linux x64/ARM64, macOS x64/ARM64, Windows x64, Pulley64 (portable)
+          - **Benefits:** Faster startup times, better runtime performance
+          - **Trade-off:** Larger file size (~6x) but instant execution
 
           ### 🔐 Security Features
 
-          - ✅ **OCI Artifact Signing** - Signed with Cosign using GitHub OIDC (keyless)
-          - ✅ **SLSA Provenance** - Build attestation included
+          - ✅ **OCI Artifact Signing** - All variants signed with Cosign using GitHub OIDC (keyless)
+          - ✅ **SLSA Provenance** - Build attestation included for all variants
           - ✅ **SHA256 Checksums** - For download verification
 
           ### 🚀 Usage
 
-          #### Download WASM Component
+          #### Download WASM Component (Regular)
           ```bash
           # Download and verify checksum
           wget https://github.com/${{ github.repository }}/releases/download/${TAG}/file_ops_component.wasm
@@ -201,7 +266,15 @@ jobs:
           sha256sum -c file_ops_component.wasm.sha256
           ```
 
-          #### Pull Signed OCI Artifact
+          #### Download WASM Component (AOT-Embedded)
+          ```bash
+          # Download AOT-embedded variant with native code for multiple platforms
+          wget https://github.com/${{ github.repository }}/releases/download/${TAG}/file_ops_component_aot.wasm
+          wget https://github.com/${{ github.repository }}/releases/download/${TAG}/file_ops_component_aot.wasm.sha256
+          sha256sum -c file_ops_component_aot.wasm.sha256
+          ```
+
+          #### Pull Signed OCI Artifact (Regular)
           ```bash
           # Pull the signed OCI artifact with oras
           oras pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
@@ -220,6 +293,25 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
           ```
 
+          #### Pull Signed OCI Artifact (AOT-Embedded)
+          ```bash
+          # Pull the AOT-embedded variant
+          oras pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot
+
+          # Verify signature
+          cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot
+
+          # Verify SLSA provenance
+          cosign verify-attestation \
+            --type slsaprovenance \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot
+          ```
+
           ### 📋 Integration with rules_wasm_component
 
           See [INTEGRATION.md](https://github.com/${{ github.repository }}/blob/main/INTEGRATION.md) for details on using this component.
@@ -235,18 +327,35 @@ jobs:
 
     - name: Create Release Summary
       run: |
+        # Determine tag
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          TAG="${{ inputs.tag }}"
+        else
+          TAG="${{ github.event.release.tag_name }}"
+        fi
+
         echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📦 Published Artifacts" >> $GITHUB_STEP_SUMMARY
-        echo "- **WASM Component**: \`file_ops_component.wasm\` ($(ls -lh file_ops_component.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Regular WASM Component:**" >> $GITHUB_STEP_SUMMARY
+        echo "- **File**: \`file_ops_component.wasm\` ($(ls -lh file_ops_component.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
         echo "- **OCI Artifact**: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
         echo "- **OCI Artifact (latest)**: \`${IMAGE_LATEST}\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**AOT-Embedded WASM Component:**" >> $GITHUB_STEP_SUMMARY
+        echo "- **File**: \`file_ops_component_aot.wasm\` ($(ls -lh file_ops_component_aot.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact**: \`${IMAGE_AOT_TAG}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact (latest)**: \`${IMAGE_AOT_LATEST}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platforms**: Linux x64/ARM64, macOS x64/ARM64, Windows x64, Pulley64" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ OCI artifact signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ SLSA provenance attestation" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ SHA256 checksums provided" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ All OCI artifacts signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ SLSA provenance attestation for all variants" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ SHA256 checksums provided for all files" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
-        echo "- [Download WASM](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
-        echo "- [Pull OCI Artifact](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Download WASM (Regular)](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Download WASM (AOT)](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Pull OCI (Regular)](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Pull OCI (AOT)](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot)" >> $GITHUB_STEP_SUMMARY

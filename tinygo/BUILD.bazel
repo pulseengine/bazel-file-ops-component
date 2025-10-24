@@ -6,7 +6,7 @@ with WIT interface bindings for secure, sandboxed file operations.
 
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@rules_wasm_component//go:defs.bzl", "go_wasm_component")
-load("@rules_wasm_component//wasm:defs.bzl", "wasm_keygen", "wasm_sign", "wasm_verify")
+load("@rules_wasm_component//wasm:defs.bzl", "wasm_keygen", "wasm_sign", "wasm_verify", "wasm_precompile", "wasm_precompile_multi", "wasm_embed_aot")
 load("@rules_wasm_component//wkg:oci_signing.bzl", "wasm_component_signed_oci_image")
 load("@rules_wasm_component//wkg:defs.bzl", "wkg_publish")
 
@@ -56,6 +56,96 @@ go_wasm_component(
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
     world = "wasi:cli/command",
+)
+
+# AOT (Ahead-of-Time) compilation for individual architectures
+# Compiles the WASM component to native .cwasm files for faster startup times
+
+# Linux x86_64
+wasm_precompile(
+    name = "file_ops_aot_linux_x64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "x86_64-unknown-linux-gnu",
+)
+
+# Linux ARM64
+wasm_precompile(
+    name = "file_ops_aot_linux_arm64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "aarch64-unknown-linux-gnu",
+)
+
+# macOS x86_64
+wasm_precompile(
+    name = "file_ops_aot_darwin_x64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "x86_64-apple-darwin",
+)
+
+# macOS ARM64
+wasm_precompile(
+    name = "file_ops_aot_darwin_arm64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "aarch64-apple-darwin",
+)
+
+# Windows x86_64
+wasm_precompile(
+    name = "file_ops_aot_windows_x64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "x86_64-pc-windows-gnu",
+)
+
+# Portable interpreter (Pulley64)
+wasm_precompile(
+    name = "file_ops_aot_pulley64",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    target_triple = "pulley64",
+)
+
+# Multi-architecture AOT compilation (builds all platforms in parallel)
+wasm_precompile_multi(
+    name = "file_ops_aot_multi",
+    component = ":file_ops_component",
+    optimization_level = "2",
+    tags = ["manual"],
+    targets = {
+        "linux_x64": "x86_64-unknown-linux-gnu",
+        "linux_arm64": "aarch64-unknown-linux-gnu",
+        "darwin_x64": "x86_64-apple-darwin",
+        "darwin_arm64": "aarch64-apple-darwin",
+        "windows_x64": "x86_64-pc-windows-gnu",
+        "pulley64": "pulley64",
+    },
+)
+
+# Embed all AOT-compiled artifacts as custom sections in the WASM component
+# The resulting component contains both the WASM bytecode and native code for multiple platforms
+# Runtime code can extract the appropriate AOT artifact for the current architecture
+wasm_embed_aot(
+    name = "file_ops_component_aot",
+    aot_artifacts = {
+        "linux-x64": ":file_ops_aot_linux_x64",
+        "linux-arm64": ":file_ops_aot_linux_arm64",
+        "darwin-x64": ":file_ops_aot_darwin_x64",
+        "darwin-arm64": ":file_ops_aot_darwin_arm64",
+        "windows-x64": ":file_ops_aot_windows_x64",
+        "portable": ":file_ops_aot_pulley64",
+    },
+    component = ":file_ops_component",
+    tags = ["manual"],
 )
 
 # Test suite
