@@ -87,15 +87,9 @@ register_toolchains(
 # This ensures Linux CI has proper C++ toolchain resolution for Rust binaries
 register_toolchains("@bazel_tools//tools/cpp:all")
 
-# WebAssembly toolchain with Bazel strategy to avoid wrapper script issues
-wasm_toolchain = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasm_toolchain")
-wasm_toolchain.register(
-    name = "wasm_tools",
-    strategy = "bazel",  # Use Bazel-native rust_binary builds instead of wrapper scripts
-)
-use_repo(wasm_toolchain, "wasm_tools_toolchains")
-
-register_toolchains("@wasm_tools_toolchains//:wasm_tools_toolchain")
+# WebAssembly toolchain - using default download strategy from rules_wasm_component
+# Note: Signing is handled via Cosign in release workflow, not wasmsign2
+# The "bazel" strategy for wasmsign2 is not yet production-ready in rules_wasm_component
 
 # Note: Rust dependencies are provided by rules_wasm_component
 # No local Rust crate dependencies needed for TinyGo-focused implementation
