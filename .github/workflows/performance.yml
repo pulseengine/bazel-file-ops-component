@@ -120,14 +120,14 @@ jobs:
         if command -v wasmtime &> /dev/null; then
           # Test the command first to see if it works
           echo "Testing WASM component execution..."
-          if wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
+          if wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
             echo "✅ WASM component test passed, running benchmarks..."
 
             # Run benchmark with proper error handling
             hyperfine --export-json tinygo_wasm_benchmark.json \
               --warmup 3 \
               --show-output \
-              'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt' \
+              'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt' \
               || echo "⚠️ Benchmark failed but continuing" >> perf_results.md
 
             echo "✅ TinyGo component benchmarks completed" >> perf_results.md
@@ -156,7 +156,7 @@ jobs:
         # WebAssembly runtime benchmark
         if command -v wasmtime &> /dev/null; then
           hyperfine --export-json rust_wasm_benchmark.json \
-            'wasmtime run --dir=. bazel-bin/rust/file_ops_component_wasm.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/rust_wasm_copy.txt'
+            'wasmtime run --dir=. bazel-bin/rust/file_ops_component_wasm.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/rust_wasm_copy.txt'
         fi
 
     - name: Performance Comparison Analysis
@@ -274,7 +274,7 @@ jobs:
 
         # Profile TinyGo WebAssembly component
         echo "### TinyGo Component (WASM)" >> profile_results.md
-        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
+        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
           grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Profiling data not available" >> profile_results.md
 
     - name: Profile WebAssembly Runtime Memory
@@ -284,7 +284,7 @@ jobs:
         echo "" >> profile_results.md
 
         # Profile WASM component memory usage with detailed stats
-        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
+        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
           grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Detailed profiling data not available" >> profile_results.md
 
     - name: Upload Profiling Results
@@ -348,7 +348,7 @@ jobs:
         # Benchmark baseline using WASM component
         hyperfine --export-json baseline_results/baseline_benchmark.json \
           --warmup 3 \
-          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src baseline_test.txt --dest baseline_copy.txt'
+          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest baseline_copy.txt'
 
     - name: Checkout PR Branch
       run: |
@@ -362,7 +362,7 @@ jobs:
         # Benchmark PR changes using WASM component
         hyperfine --export-json pr_results/pr_benchmark.json \
           --warmup 3 \
-          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src baseline_test.txt --dest pr_copy.txt'
+          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest pr_copy.txt'
 
     - name: Analyze Performance Regression
       run: |
