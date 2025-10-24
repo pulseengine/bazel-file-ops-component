@@ -74,9 +74,14 @@ jobs:
 
         # Build the component with embedded AOT artifacts
         echo "Embedding AOT artifacts as custom sections..."
-        # Use legacy C++ toolchain resolution for Rust binary compilation
+        # Configure C++ toolchain environment for Rust binary compilation
+        export CC=/usr/bin/gcc
+        export CXX=/usr/bin/g++
         bazel build //tinygo:file_ops_component_aot \
-          --incompatible_enable_cc_toolchain_resolution=false
+          --repo_env=CC=/usr/bin/gcc \
+          --repo_env=CXX=/usr/bin/g++ \
+          --action_env=CC=/usr/bin/gcc \
+          --action_env=CXX=/usr/bin/g++
 
         # Copy to a predictable location
         cp bazel-bin/tinygo/file_ops_component_aot.wasm ./file_ops_component_aot.wasm
