@@ -73,13 +73,9 @@ jobs:
 
     - name: Build Signed WebAssembly Component
       run: |
-        # Generate signing keys and build signed component (if available)
-        if bazel query //tinygo:component_signing_keys &>/dev/null; then
-          bazel build //tinygo:component_signing_keys //tinygo:file_ops_component_signed
-          bazel build //tinygo:verify_file_ops_signature || echo "Signature verification not implemented"
-        else
-          echo "Component signing not yet implemented"
-        fi
+        # Component signing requires strategy='bazel' which increases build time significantly
+        # Signing is handled in release workflow instead
+        echo "Component signing skipped in CI - will be done in release workflow"
 
     - name: Validate WebAssembly Component
       run: |
