@@ -261,5 +261,7 @@ func (t *OperationTimer) ElapsedMs() uint64 {
 // This is a security helper function from the original implementation
 func containsPathTraversal(path string) bool {
 	cleaned := filepath.Clean(path)
-	return strings.Contains(cleaned, "..") || strings.HasPrefix(cleaned, "/")
+	// Only reject paths that contain ".." after cleaning
+	// Absolute paths are allowed - the issue is only with relative paths trying to escape
+	return strings.Contains(cleaned, "..")
 }

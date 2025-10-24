@@ -17,6 +17,13 @@ func main() {
 
 	operation := os.Args[1]
 
+	// Auto-detect JSON config file (for bootstrap compatibility)
+	// If first argument is a file path, treat it as JSON config
+	if isJSONConfigFile(operation) {
+		handleProcessJsonConfigDirect(operation)
+		return
+	}
+
 	switch operation {
 	case "copy_file":
 		handleCopyFile()
@@ -149,7 +156,45 @@ func handlePrepareWorkspace() {
 	fmt.Printf("  Time: %d ms\n", result.PreparationTimeMs)
 }
 
-// Helper functions for argument parsing
+// Helper functions for argument parsing and JSON detection
+
+// isJSONConfigFile checks if the given path is likely a JSON config file
+// This enables bootstrap compatibility where: ./file_ops config.json
+func isJSONConfigFile(path string) bool {
+	// Check if it ends with .json
+	if len(path) > 5 && path[len(path)-5:] == ".json" {
+		return true
+	}
+
+	// Check if it's an existing file (for paths without .json extension)
+	info, err := os.Stat(path)
+	if err == nil && !info.IsDir() {
+		return true
+	}
+
+	return false
+}
+
+// handleProcessJsonConfigDirect processes a JSON config file directly from path
+// This is used when the file path is provided as the first argument
+func handleProcessJsonConfigDirect(configFile string) {
+	configContent, err := os.ReadFile(configFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := ProcessJsonConfig(string(configContent))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error processing JSON config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("JSON config processed successfully:")
+	fmt.Printf("  Workspace: %s\n", result.WorkspacePath)
+	fmt.Printf("  Files: %d\n", len(result.PreparedFiles))
+	fmt.Printf("  Time: %d ms\n", result.PreparationTimeMs)
+}
 
 func parseCopyArgs(args []string) (src, dest string, err error) {
 	if len(args) < 4 {

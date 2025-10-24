@@ -22,3 +22,7 @@ Thumbs.db
 
 # Bazel
 bazel-*
+*.wasm
+
+# Claude Code
+.claude/

@@ -69,9 +69,7 @@ go_test(
         "//testdata:test_configs",
         "//testdata:test_files",
     ],
-    deps = [
-        ":file_ops_lib",
-    ],
+    embed = [":file_ops_lib"],
 )
 
 # Integration tests with WASM component
