@@ -1,0 +1,2 @@
+# This file is required by rules_wasm_component even though this module has no external dependencies
+# It ensures hermetic builds and compatibility with GitHub Actions caching

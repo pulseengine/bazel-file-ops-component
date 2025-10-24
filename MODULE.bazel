@@ -15,7 +15,7 @@ module(
 
 # Core Bazel dependencies - updated to match rules_wasm_component expectations
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.0")
+bazel_dep(name = "rules_cc", version = "0.2.4")
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
 
 # Enable C++ toolchain auto-configuration for cross-platform support
@@ -28,7 +28,7 @@ cc_compatibility.compatibility_proxy_repo()
 
 # WebAssembly and component support
 bazel_dep(name = "rules_rust", version = "0.62.0")
-bazel_dep(name = "rules_go", version = "0.55.1")
+bazel_dep(name = "rules_go", version = "0.57.0")
 
 # Development dependencies
 bazel_dep(name = "buildifier_prebuilt", version = "6.4.0", dev_dependency = True)
@@ -39,10 +39,10 @@ bazel_dep(name = "rules_nodejs", version = "6.5.0")
 # TinyGo toolchain for WebAssembly components
 bazel_dep(name = "rules_wasm_component", version = "0.1.0")
 
-# Git repository override - use main branch with merged fixes
+# Git repository override - use our fork with latest fixes
 git_override(
     module_name = "rules_wasm_component",
-    commit = "8c6b7ff",  # Fixed commit with rules_cc 0.2.0 compatibility
+    commit = "27eefae46a6b542fedf066d924a3c07a7b3d6f6a",  # Latest: hermetic Go tools + go_sum support
     remote = "https://github.com/pulseengine/rules_wasm_component.git",
 )
 

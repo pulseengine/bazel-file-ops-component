@@ -76,17 +76,11 @@ jobs:
 
     - name: Build All Components
       run: |
-        # Build TinyGo component
-        bazel build //tinygo:file_ops_tinygo
-        bazel build //tinygo:file_ops_component_wasm
+        # Build TinyGo component (all aliases point to file_ops_component)
+        bazel build //tinygo:file_ops_component
 
-        # Build Rust component (if exists)
-        if [ -d "rust" ] && bazel query //rust:file_ops_rust &>/dev/null; then
-          bazel build //rust:file_ops_rust
-          bazel build //rust:file_ops_component_wasm
-        else
-          echo "Rust components not available - skipping Rust builds"
-        fi
+        # Note: Rust implementation is not yet available
+        # Future: Add Rust component builds when implemented
 
     - name: Create Performance Test Data
       run: |
@@ -122,19 +116,15 @@ jobs:
         echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
         echo "|-----------|-----------|-------------|-------|" >> perf_results.md
 
-        # File copy benchmarks
-        hyperfine --export-json tinygo_copy_benchmark.json \
-          --setup 'rm -f perf_test_data/copy_target.txt' \
-          './bazel-bin/tinygo/file_ops_tinygo copy_file --src perf_test_data/small.txt --dest perf_test_data/copy_target.txt'
-
-        # JSON batch operation benchmark
-        hyperfine --export-json tinygo_batch_benchmark.json \
-          './bazel-bin/tinygo/file_ops_tinygo process_json_batch --config perf_test_data/batch_ops.json'
-
-        # WebAssembly runtime benchmark
+        # WebAssembly runtime benchmark using the component
         if command -v wasmtime &> /dev/null; then
           hyperfine --export-json tinygo_wasm_benchmark.json \
-            'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component_wasm.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt'
+            --warmup 3 \
+            'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt'
+
+          echo "✅ TinyGo component benchmarks completed" >> perf_results.md
+        else
+          echo "⚠️ wasmtime not available, skipping runtime benchmarks" >> perf_results.md
         fi
 
     - name: Benchmark Rust Implementation  
@@ -182,16 +172,17 @@ jobs:
         fi
 
         # Binary size comparison
-        if [ -f bazel-bin/tinygo/file_ops_component_wasm.wasm ]; then
-          TINYGO_SIZE=$(stat -c%s bazel-bin/tinygo/file_ops_component_wasm.wasm 2>/dev/null || stat -f%z bazel-bin/tinygo/file_ops_component_wasm.wasm)
+        if [ -f bazel-bin/tinygo/file_ops_component.wasm ]; then
+          TINYGO_SIZE=$(stat -c%s bazel-bin/tinygo/file_ops_component.wasm 2>/dev/null || stat -f%z bazel-bin/tinygo/file_ops_component.wasm)
           echo "### Binary Size Comparison" >> perf_results.md
           echo "- TinyGo WASM: $(echo $TINYGO_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
         fi
 
-        if [ -f bazel-bin/rust/file_ops_component_wasm.wasm ]; then
-          RUST_SIZE=$(stat -c%s bazel-bin/rust/file_ops_component_wasm.wasm 2>/dev/null || stat -f%z bazel-bin/rust/file_ops_component_wasm.wasm)
-          echo "- Rust WASM: $(echo $RUST_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
-        fi
+        # Rust component not yet implemented
+        # if [ -f bazel-bin/rust/file_ops_component.wasm ]; then
+        #   RUST_SIZE=$(stat -c%s bazel-bin/rust/file_ops_component.wasm 2>/dev/null || stat -f%z bazel-bin/rust/file_ops_component.wasm)
+        #   echo "- Rust WASM: $(echo $RUST_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
+        # fi
 
     - name: Upload Performance Results
       uses: actions/upload-artifact@v4
@@ -259,10 +250,9 @@ jobs:
 
     - name: Build Components for Profiling
       run: |
-        bazel build //tinygo:file_ops_tinygo
-        bazel build //tinygo:file_ops_component_wasm
+        bazel build //tinygo:file_ops_component
 
-    - name: Profile Native Binary Memory Usage
+    - name: Profile WebAssembly Component Memory Usage
       run: |
         echo "## Memory Usage Profiling" >> profile_results.md
         echo "" >> profile_results.md
@@ -270,19 +260,20 @@ jobs:
         # Create test data
         dd if=/dev/zero of=profile_test.dat bs=1M count=5
 
-        # Profile TinyGo native binary
-        /usr/bin/time -v ./bazel-bin/tinygo/file_ops_tinygo copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
-          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md
+        # Profile TinyGo WebAssembly component
+        echo "### TinyGo Component (WASM)" >> profile_results.md
+        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
+          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Profiling data not available" >> profile_results.md
 
     - name: Profile WebAssembly Runtime Memory
       run: |
         echo "" >> profile_results.md
-        echo "## WebAssembly Runtime Profiling" >> profile_results.md
+        echo "## WebAssembly Runtime Profiling (Detailed)" >> profile_results.md
         echo "" >> profile_results.md
 
-        # Profile WASM component memory usage
-        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component_wasm.wasm -- copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
-          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md
+        # Profile WASM component memory usage with detailed stats
+        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
+          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Detailed profiling data not available" >> profile_results.md
 
     - name: Upload Profiling Results
       uses: actions/upload-artifact@v4
@@ -325,21 +316,27 @@ jobs:
       with:
         tinygo-version: "0.38.0"
 
-    - name: Install Hyperfine
+    - name: Install Hyperfine and Wasmtime
       run: |
+        # Install hyperfine for benchmarking
         curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
         sudo dpkg -i hyperfine.deb
 
+        # Install wasmtime for WASM component execution
+        curl https://wasmtime.dev/install.sh -sSf | bash
+        echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+
     - name: Benchmark Baseline Performance
       run: |
-        bazel build //tinygo:file_ops_tinygo
+        bazel build //tinygo:file_ops_component
 
         # Create test data
         echo "Baseline test data" > baseline_test.txt
 
-        # Benchmark baseline
+        # Benchmark baseline using WASM component
         hyperfine --export-json baseline_results/baseline_benchmark.json \
-          './bazel-bin/tinygo/file_ops_tinygo copy_file --src baseline_test.txt --dest baseline_copy.txt'
+          --warmup 3 \
+          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src baseline_test.txt --dest baseline_copy.txt'
 
     - name: Checkout PR Branch
       run: |
@@ -348,11 +345,12 @@ jobs:
 
     - name: Benchmark PR Performance
       run: |
-        bazel build //tinygo:file_ops_tinygo
+        bazel build //tinygo:file_ops_component
 
-        # Benchmark PR changes
+        # Benchmark PR changes using WASM component
         hyperfine --export-json pr_results/pr_benchmark.json \
-          './bazel-bin/tinygo/file_ops_tinygo copy_file --src baseline_test.txt --dest pr_copy.txt'
+          --warmup 3 \
+          'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm -- copy_file --src baseline_test.txt --dest pr_copy.txt'
 
     - name: Analyze Performance Regression
       run: |

@@ -8,6 +8,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@rules_wasm_component//go:defs.bzl", "go_wasm_component")
 load("@rules_wasm_component//wasm:defs.bzl", "wasm_keygen", "wasm_sign", "wasm_verify")
 load("@rules_wasm_component//wkg:oci_signing.bzl", "wasm_component_signed_oci_image")
+load("@rules_wasm_component//wkg:defs.bzl", "wkg_publish")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -50,6 +51,7 @@ go_wasm_component(
     ],
     adapter = "@rules_wasm_component//wasm/adapters:wasi_snapshot_preview1",
     go_mod = "go.mod",
+    go_sum = "go.sum",
     optimization = "release",
     tags = ["manual"],  # Build explicitly for WASM
     world = "wasi:cli/command",
@@ -144,4 +146,15 @@ alias(
     name = "file_ops_signed",
     actual = ":file_ops_component_signed",
     visibility = ["//visibility:public"],
+)
+
+# Publish to wkg registry
+wkg_publish(
+    name = "publish_file_ops",
+    component = ":file_ops_component",
+    package_name = "pulseengine:file-ops",
+    version = "0.1.0",
+    description = "File operations WebAssembly component built with TinyGo",
+    authors = ["Pulse Engine"],
+    license = "Apache-2.0",
 )
