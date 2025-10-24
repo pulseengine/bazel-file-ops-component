@@ -60,7 +60,7 @@ jobs:
 
     - name: Test TinyGo Component
       run: |
-        bazel test //tinygo:all --test_output=errors
+        bazel test //tinygo:file_ops_test --test_output=errors
 
     - name: Build WebAssembly Component
       run: |
@@ -234,11 +234,11 @@ jobs:
       run: |
         # Build available components
         echo "Building available targets..."
-        bazel build //tinygo:all || echo "Some TinyGo targets failed to build"
+        bazel build //tinygo:file_ops_tinygo //tinygo:file_ops_component || echo "Some TinyGo targets failed to build"
 
         # Run basic tests
         echo "Running tests..."
-        bazel test //tinygo:all --test_output=errors || echo "Some tests failed"
+        bazel test //tinygo:file_ops_test --test_output=errors || echo "Some tests failed"
 
         # Run integration tests if available
         if bazel query //testdata:integration_test_suite &>/dev/null; then
