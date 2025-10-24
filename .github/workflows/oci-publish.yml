@@ -47,25 +47,24 @@ jobs:
 
         echo "Component built and ready for publishing"
 
-    - name: Publish Component to GitHub Container Registry
-      run: |
-        echo "Publishing to ${{ env.REGISTRY }}..."
+    # Publishing step disabled - no publish target exists yet
+    # TODO: Implement proper OCI publishing using wasm_component_publish rule
+    # - name: Publish Component to GitHub Container Registry
+    #   run: |
+    #     echo "Publishing to ${{ env.REGISTRY }}..."
+    #     # Use Bazel's OCI publishing capabilities
+    #     bazel run //tinygo:file_ops_oci_signed.publish
+    #     echo "✅ Component published to ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo"
 
-        # Use Bazel's OCI publishing capabilities
-        bazel run //tinygo:file_ops_oci_signed.publish
-
-        echo "✅ Component published to ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo"
-
-    - name: Verify Published Component
-      run: |
-        echo "Verifying published component signatures..."
-
-        # Verify the component signature using cosign
-        cosign verify \
-          --certificate-identity-regexp='.*' \
-          --certificate-oidc-issuer-regexp='.*' \
-          ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo:latest || \
-          echo "⚠️ Signature verification failed (expected for development)"
+    # - name: Verify Published Component
+    #   run: |
+    #     echo "Verifying published component signatures..."
+    #     # Verify the component signature using cosign
+    #     cosign verify \
+    #       --certificate-identity-regexp='.*' \
+    #       --certificate-oidc-issuer-regexp='.*' \
+    #       ${{ env.REGISTRY }}/pulseengine/bazel-file-ops-component-tinygo:latest || \
+    #       echo "⚠️ Signature verification failed (expected for development)"
 
   # Publish to WebAssembly package registries using Bazel rules
   publish-wasm-registries:
