@@ -148,6 +148,21 @@ wasm_embed_aot(
     tags = ["manual"],
 )
 
+# Alternative: use wasm_precompile_multi outputs (currently not functional - needs provider support)
+# wasm_embed_aot(
+#     name = "file_ops_component_aot_multi",
+#     aot_artifacts = {
+#         "linux-x64": ":file_ops_aot_multi.linux_x64",
+#         "linux-arm64": ":file_ops_aot_multi.linux_arm64",
+#         "darwin-x64": ":file_ops_aot_multi.darwin_x64",
+#         "darwin-arm64": ":file_ops_aot_multi.darwin_arm64",
+#         "windows-x64": ":file_ops_aot_multi.windows_x64",
+#         "portable": ":file_ops_aot_multi.pulley64",
+#     },
+#     component = ":file_ops_component",
+#     tags = ["manual"],
+# )
+
 # Test suite
 go_test(
     name = "file_ops_test",
