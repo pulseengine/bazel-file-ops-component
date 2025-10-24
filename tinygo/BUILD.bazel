@@ -189,39 +189,40 @@ go_test(
 #     deps = [":file_ops_lib"],
 # )
 
-# Generate signing keys for component security
-wasm_keygen(
-    name = "component_signing_keys",
-    openssh_format = True,  # Compatible with GitHub SSH keys
-    tags = ["manual"],  # Generated on demand
-)
+# Component signing targets disabled - wasmsign2 not available with download strategy
+# Signing is handled via Cosign at the OCI layer in the release workflow
+#
+# wasm_keygen(
+#     name = "component_signing_keys",
+#     openssh_format = True,
+#     tags = ["manual"],
+# )
+#
+# wasm_sign(
+#     name = "file_ops_component_signed",
+#     component = ":file_ops_component",
+#     detached = False,
+#     keys = ":component_signing_keys",
+#     tags = ["manual"],
+# )
+#
+# wasm_verify(
+#     name = "verify_file_ops_signature",
+#     keys = ":component_signing_keys",
+#     signed_component = ":file_ops_component_signed",
+#     tags = ["manual"],
+# )
 
-# Sign the WebAssembly component
-wasm_sign(
-    name = "file_ops_component_signed",
-    component = ":file_ops_component",
-    detached = False,  # Embed signature in component
-    keys = ":component_signing_keys",
-    tags = ["manual"],
-)
-
-# Verify component signature
-wasm_verify(
-    name = "verify_file_ops_signature",
-    keys = ":component_signing_keys",
-    signed_component = ":file_ops_component_signed",
-    tags = ["manual"],
-)
-
-# Create signed OCI image for registry publishing
+# Create OCI image for registry publishing
+# Note: Component-level signing (wasmsign2) is disabled because it requires strategy='bazel'
+# which is not yet production-ready. OCI-level signing is handled via Cosign in CI workflow.
 wasm_component_signed_oci_image(
     name = "file_ops_oci_signed",
     package_name = "bazel-file-ops-component-tinygo",
     component = ":file_ops_component",
-    component_signing_keys = ":component_signing_keys",
     namespace = "pulseengine",
     registry = "ghcr.io",
-    sign_component = True,
+    sign_component = False,  # Disabled: requires wasmsign2 with strategy='bazel'
     tags = ["manual"],
 )
 
