@@ -96,12 +96,21 @@ jobs:
         # Build TinyGo component (regular version)
         bazel build //tinygo:file_ops_component
 
+        # Get actual file path from bazel (not symlink)
+        COMPONENT_PATH=$(bazel cquery --output=files //tinygo:file_ops_component 2>/dev/null | head -1)
+        echo "COMPONENT_WASM=$COMPONENT_PATH" >> $GITHUB_ENV
+        echo "Built component at: $COMPONENT_PATH"
+
         # Build platform-specific AOT precompiled component
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
           bazel build //tinygo:file_ops_aot_linux_x64
+          AOT_PATH=$(bazel cquery --output=files //tinygo:file_ops_aot_linux_x64 2>/dev/null | head -1)
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           bazel build //tinygo:file_ops_aot_darwin_arm64
+          AOT_PATH=$(bazel cquery --output=files //tinygo:file_ops_aot_darwin_arm64 2>/dev/null | head -1)
         fi
+        echo "AOT_COMPONENT=$AOT_PATH" >> $GITHUB_ENV
+        echo "Built AOT component at: $AOT_PATH"
 
         # Note: Rust implementation is not yet available
         # Future: Add Rust component builds when implemented
@@ -144,14 +153,14 @@ jobs:
         if command -v wasmtime &> /dev/null; then
           # Test the command first to see if it works
           echo "Testing WASM component execution..."
-          if wasmtime run --dir=. --dir=perf_test_data bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
+          if wasmtime run --dir=. --dir=perf_test_data "$COMPONENT_WASM" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
             echo "✅ WASM component test passed, running benchmarks..."
 
             # Run benchmark with proper error handling
             hyperfine --export-json tinygo_wasm_benchmark.json \
               --warmup 3 \
               --show-output \
-              'wasmtime run --dir=. --dir=perf_test_data bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt' \
+              "wasmtime run --dir=. --dir=perf_test_data $COMPONENT_WASM copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt" \
               || echo "⚠️ Benchmark failed but continuing" >> perf_results.md
 
             echo "✅ TinyGo component benchmarks completed" >> perf_results.md
@@ -171,21 +180,12 @@ jobs:
         echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
         echo "|-----------|-----------|-------------|-------|" >> perf_results.md
 
-        # Determine AOT file path based on platform
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          AOT_FILE="bazel-bin/tinygo/file_ops_aot_linux_x64.cwasm"
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          AOT_FILE="bazel-bin/tinygo/file_ops_aot_darwin_arm64.cwasm"
-        else
-          echo "⚠️ Unsupported platform for AOT benchmarks" >> perf_results.md
-          exit 0
-        fi
-
-        # WebAssembly AOT runtime benchmark
+        # WebAssembly AOT runtime benchmark using path from build step
         if command -v wasmtime &> /dev/null; then
           # Test the AOT precompiled component first
           echo "Testing AOT precompiled component execution..."
-          if wasmtime run --allow-precompiled --dir=. --dir=perf_test_data "$AOT_FILE" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
+          echo "AOT component path: $AOT_COMPONENT"
+          if wasmtime run --allow-precompiled --dir=. --dir=perf_test_data "$AOT_COMPONENT" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
             echo "✅ AOT component test passed, running benchmarks..."
 
             # Run benchmark comparing regular vs AOT
@@ -195,7 +195,7 @@ jobs:
             hyperfine --export-json tinygo_aot_benchmark.json \
               --warmup 3 \
               --show-output \
-              "wasmtime run --allow-precompiled --dir=. --dir=perf_test_data $AOT_FILE copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
+              "wasmtime run --allow-precompiled --dir=. --dir=perf_test_data $AOT_COMPONENT copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
               || echo "⚠️ AOT benchmark failed but continuing" >> perf_results.md
 
             # Extract and compare results
