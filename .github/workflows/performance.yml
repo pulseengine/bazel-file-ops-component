@@ -70,9 +70,21 @@ jobs:
           brew install hyperfine
         fi
 
-        # Install wasmtime for runtime benchmarks
-        curl https://wasmtime.dev/install.sh -sSf | bash
-        echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+        # Use wasmtime from rules_wasm_component toolchain (already downloaded by Bazel)
+        # Extract the binary path from Bazel and copy to PATH
+        WASMTIME_PATH=$(bazel cquery --output=files @wasmtime//:wasmtime 2>/dev/null | head -1)
+
+        if [ -n "$WASMTIME_PATH" ] && [ -f "$WASMTIME_PATH" ]; then
+          echo "Using Bazel-provided wasmtime from: $WASMTIME_PATH"
+          sudo cp "$WASMTIME_PATH" /usr/local/bin/wasmtime
+          sudo chmod +x /usr/local/bin/wasmtime
+        else
+          echo "Error: Could not find wasmtime in Bazel cache"
+          exit 1
+        fi
+
+        # Verify it works
+        wasmtime --version
 
     - name: Build All Components
       run: |
