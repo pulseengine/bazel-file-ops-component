@@ -144,14 +144,14 @@ jobs:
         if command -v wasmtime &> /dev/null; then
           # Test the command first to see if it works
           echo "Testing WASM component execution..."
-          if wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
+          if wasmtime run --dir=. --dir=perf_test_data bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
             echo "✅ WASM component test passed, running benchmarks..."
 
             # Run benchmark with proper error handling
             hyperfine --export-json tinygo_wasm_benchmark.json \
               --warmup 3 \
               --show-output \
-              'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt' \
+              'wasmtime run --dir=. --dir=perf_test_data bazel-bin/tinygo/file_ops_component.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt' \
               || echo "⚠️ Benchmark failed but continuing" >> perf_results.md
 
             echo "✅ TinyGo component benchmarks completed" >> perf_results.md
@@ -185,7 +185,7 @@ jobs:
         if command -v wasmtime &> /dev/null; then
           # Test the AOT precompiled component first
           echo "Testing AOT precompiled component execution..."
-          if wasmtime run --allow-precompiled --dir=. "$AOT_FILE" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
+          if wasmtime run --allow-precompiled --dir=. --dir=perf_test_data "$AOT_FILE" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
             echo "✅ AOT component test passed, running benchmarks..."
 
             # Run benchmark comparing regular vs AOT
@@ -195,7 +195,7 @@ jobs:
             hyperfine --export-json tinygo_aot_benchmark.json \
               --warmup 3 \
               --show-output \
-              "wasmtime run --allow-precompiled --dir=. $AOT_FILE copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
+              "wasmtime run --allow-precompiled --dir=. --dir=perf_test_data $AOT_FILE copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
               || echo "⚠️ AOT benchmark failed but continuing" >> perf_results.md
 
             # Extract and compare results
