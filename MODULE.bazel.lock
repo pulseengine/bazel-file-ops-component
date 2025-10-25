@@ -14746,7 +14746,7 @@
     "@@rules_wasm_component+//wasm:extensions.bzl%wasmtime": {
       "general": {
         "bzlTransitiveDigest": "wRxTYf8zqgy7AvgnVQHz+FrpmCkfMTbdcF1olU7aUDE=",
-        "usagesDigest": "U9LSLBsuJxcOeFtSxeLXd8ovPKFxovyPQkalqICnO2Y=",
+        "usagesDigest": "kKbfakzR4Xl+aDGWcOKw7h9MYHMSv8Ytqt9eqSz0nyc=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},

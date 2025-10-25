@@ -70,24 +70,26 @@ jobs:
           brew install hyperfine
         fi
 
-        # Install wasmtime - use manual installation since @wasmtime toolchain not registered
-        # TODO: Register wasmtime toolchain in MODULE.bazel to reuse Bazel's download
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          WASMTIME_VERSION="v27.0.0"
-          curl -L "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz" -o wasmtime.tar.xz
-          tar -xf wasmtime.tar.xz
-          sudo mv "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime" /usr/local/bin/
-          rm -rf wasmtime.tar.xz "wasmtime-${WASMTIME_VERSION}-x86_64-linux"
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          WASMTIME_VERSION="v27.0.0"
-          curl -L "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-aarch64-macos.tar.xz" -o wasmtime.tar.xz
-          tar -xf wasmtime.tar.xz
-          sudo mv "wasmtime-${WASMTIME_VERSION}-aarch64-macos/wasmtime" /usr/local/bin/
-          rm -rf wasmtime.tar.xz "wasmtime-${WASMTIME_VERSION}-aarch64-macos"
-        fi
+        # Use wasmtime from Bazel toolchain (registered in MODULE.bazel)
+        # This ensures version consistency and reuses Bazel's cached download
+        echo "Extracting wasmtime from Bazel toolchain..."
 
-        # Verify it works
-        wasmtime --version
+        # Get Bazel output base and wasmtime relative path
+        OUTPUT_BASE=$(bazel info output_base 2>/dev/null)
+        WASMTIME_REL=$(bazel cquery --output=files @wasmtime_toolchain//:wasmtime 2>/dev/null | head -1)
+        WASMTIME_PATH="$OUTPUT_BASE/$WASMTIME_REL"
+
+        if [ -f "$WASMTIME_PATH" ]; then
+          echo "Found wasmtime at: $WASMTIME_PATH"
+          sudo cp "$WASMTIME_PATH" /usr/local/bin/wasmtime
+          sudo chmod +x /usr/local/bin/wasmtime
+          wasmtime --version
+        else
+          echo "Error: Could not find wasmtime binary from Bazel at: $WASMTIME_PATH"
+          echo "Output base: $OUTPUT_BASE"
+          echo "Relative path: $WASMTIME_REL"
+          exit 1
+        fi
 
     - name: Build All Components
       run: |

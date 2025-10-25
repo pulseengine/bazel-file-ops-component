@@ -83,6 +83,18 @@ register_toolchains(
     "@wasi_sdk//:cc_toolchain",
 )
 
+# Wasmtime runtime toolchain for running and testing WASM components
+wasmtime = use_extension("@rules_wasm_component//wasm:extensions.bzl", "wasmtime")
+wasmtime.register(
+    name = "wasmtime",
+    strategy = "download",
+    version = "35.0.0",  # Latest version with verified checksums
+)
+use_repo(wasmtime, "wasmtime_toolchain")
+
+# Register wasmtime toolchain
+register_toolchains("@wasmtime_toolchain//:wasmtime_toolchain")
+
 # Register C++ toolchains explicitly for cross-platform compatibility
 # This ensures Linux CI has proper C++ toolchain resolution for Rust binaries
 register_toolchains("@bazel_tools//tools/cpp:all")
