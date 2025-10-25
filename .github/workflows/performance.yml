@@ -70,17 +70,20 @@ jobs:
           brew install hyperfine
         fi
 
-        # Use wasmtime from rules_wasm_component toolchain (already downloaded by Bazel)
-        # Extract the binary path from Bazel and copy to PATH
-        WASMTIME_PATH=$(bazel cquery --output=files @wasmtime//:wasmtime 2>/dev/null | head -1)
-
-        if [ -n "$WASMTIME_PATH" ] && [ -f "$WASMTIME_PATH" ]; then
-          echo "Using Bazel-provided wasmtime from: $WASMTIME_PATH"
-          sudo cp "$WASMTIME_PATH" /usr/local/bin/wasmtime
-          sudo chmod +x /usr/local/bin/wasmtime
-        else
-          echo "Error: Could not find wasmtime in Bazel cache"
-          exit 1
+        # Install wasmtime - use manual installation since @wasmtime toolchain not registered
+        # TODO: Register wasmtime toolchain in MODULE.bazel to reuse Bazel's download
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+          WASMTIME_VERSION="v27.0.0"
+          curl -L "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz" -o wasmtime.tar.xz
+          tar -xf wasmtime.tar.xz
+          sudo mv "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime" /usr/local/bin/
+          rm -rf wasmtime.tar.xz "wasmtime-${WASMTIME_VERSION}-x86_64-linux"
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          WASMTIME_VERSION="v27.0.0"
+          curl -L "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-aarch64-macos.tar.xz" -o wasmtime.tar.xz
+          tar -xf wasmtime.tar.xz
+          sudo mv "wasmtime-${WASMTIME_VERSION}-aarch64-macos/wasmtime" /usr/local/bin/
+          rm -rf wasmtime.tar.xz "wasmtime-${WASMTIME_VERSION}-aarch64-macos"
         fi
 
         # Verify it works
