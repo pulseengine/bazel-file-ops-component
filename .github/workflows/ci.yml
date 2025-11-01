@@ -212,7 +212,7 @@ jobs:
         targets: wasm32-wasi
 
     - name: Download All Artifacts
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         path: artifacts/
 
@@ -379,7 +379,7 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Download All Build Artifacts
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         path: artifacts/
 
