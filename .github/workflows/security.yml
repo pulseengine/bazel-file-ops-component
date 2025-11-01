@@ -53,7 +53,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Gosec Results to GitHub Security Tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always() && hashFiles('go-results.sarif') != ''
       with:
         sarif_file: go-results.sarif
@@ -79,7 +79,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Trivy Results to GitHub Security Tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always() && hashFiles('trivy-results.sarif') != ''
       with:
         sarif_file: 'trivy-results.sarif'
