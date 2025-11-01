@@ -290,7 +290,7 @@ jobs:
         retention-days: 30
 
     - name: Comment Performance Results on PR
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
       uses: actions/github-script@v8
       with:
         script: |
@@ -419,7 +419,12 @@ jobs:
 
         # Install wasmtime for WASM component execution
         curl https://wasmtime.dev/install.sh -sSf | bash
+        # Add to PATH for subsequent steps
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+        # Add to PATH for current step
+        export PATH="$HOME/.wasmtime/bin:$PATH"
+        # Verify installation
+        wasmtime --version
 
     - name: Benchmark Baseline Performance
       run: |
