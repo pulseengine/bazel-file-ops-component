@@ -431,11 +431,23 @@ jobs:
         bazel build //tinygo:file_ops_component
 
         # Create test data
+        mkdir -p baseline_results
         echo "Baseline test data" > baseline_test.txt
+
+        # Test wasmtime command first to ensure it works
+        echo "Testing wasmtime command..."
+        wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest baseline_copy.txt || {
+          echo "ERROR: wasmtime command failed"
+          exit 1
+        }
+
+        # Clean up test output before benchmark
+        rm -f baseline_copy.txt
 
         # Benchmark baseline using WASM component
         hyperfine --export-json baseline_results/baseline_benchmark.json \
           --warmup 3 \
+          --show-output \
           'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest baseline_copy.txt'
 
     - name: Checkout PR Branch
@@ -447,9 +459,20 @@ jobs:
       run: |
         bazel build //tinygo:file_ops_component
 
+        # Test wasmtime command first
+        echo "Testing wasmtime command on PR branch..."
+        wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest pr_copy.txt || {
+          echo "ERROR: wasmtime command failed on PR branch"
+          exit 1
+        }
+
+        # Clean up test output before benchmark
+        rm -f pr_copy.txt
+
         # Benchmark PR changes using WASM component
         hyperfine --export-json pr_results/pr_benchmark.json \
           --warmup 3 \
+          --show-output \
           'wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest pr_copy.txt'
 
     - name: Analyze Performance Regression
