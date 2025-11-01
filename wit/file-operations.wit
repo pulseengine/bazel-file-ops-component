@@ -199,6 +199,21 @@ interface file-operations {
     /// List files in a directory with optional pattern matching
     list-directory: func(dir: string, pattern: option<string>) -> result<list<string>, string>;
 
+    /// Read entire file contents as a string
+    read-file: func(path: string) -> result<string, string>;
+
+    /// Write string contents to a file (overwrites existing file)
+    write-file: func(path: string, content: string) -> result<_, string>;
+
+    /// Append string content to an existing file (creates if doesn't exist)
+    append-to-file: func(path: string, content: string) -> result<_, string>;
+
+    /// Concatenate multiple files into a single destination file
+    concatenate-files: func(sources: list<string>, dest: string) -> result<_, string>;
+
+    /// Move or rename a file or directory from source to destination
+    move-path: func(src: string, dest: string) -> result<_, string>;
+
     /// Validate path for security (check for path traversal attempts)
     validate-path: func(path: string, allowed-dirs: list<string>) -> result<_, string>;
 }

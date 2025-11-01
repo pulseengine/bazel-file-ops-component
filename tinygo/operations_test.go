@@ -302,3 +302,239 @@ func TestRemovePath(t *testing.T) {
 		t.Errorf("RemovePath should not error on non-existent file: %v", err)
 	}
 }
+
+func TestReadFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create test file with content
+	testPath := filepath.Join(tempDir, "test.txt")
+	testContent := "Hello, World!\nLine 2\nLine 3"
+	if err := os.WriteFile(testPath, []byte(testContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Test reading file
+	content, err := ReadFile(testPath)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	if content != testContent {
+		t.Errorf("Content mismatch: got %q, want %q", content, testContent)
+	}
+
+	// Test reading non-existent file
+	_, err = ReadFile(filepath.Join(tempDir, "nonexistent.txt"))
+	if err == nil {
+		t.Error("ReadFile should fail for non-existent file")
+	}
+}
+
+func TestWriteFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Test writing to new file
+	testPath := filepath.Join(tempDir, "output.txt")
+	testContent := "Test content\nSecond line"
+	if err := WriteFile(testPath, testContent); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	// Verify file was created with correct content
+	content, err := os.ReadFile(testPath)
+	if err != nil {
+		t.Fatalf("Failed to read written file: %v", err)
+	}
+
+	if string(content) != testContent {
+		t.Errorf("Content mismatch: got %q, want %q", string(content), testContent)
+	}
+
+	// Test overwriting existing file
+	newContent := "Overwritten content"
+	if err := WriteFile(testPath, newContent); err != nil {
+		t.Fatalf("WriteFile (overwrite) failed: %v", err)
+	}
+
+	content, err = os.ReadFile(testPath)
+	if err != nil {
+		t.Fatalf("Failed to read overwritten file: %v", err)
+	}
+
+	if string(content) != newContent {
+		t.Errorf("Overwrite content mismatch: got %q, want %q", string(content), newContent)
+	}
+}
+
+func TestWriteFileCreatesParentDir(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Test writing to file in non-existent subdirectory
+	testPath := filepath.Join(tempDir, "subdir", "output.txt")
+	testContent := "Test content"
+	if err := WriteFile(testPath, testContent); err != nil {
+		t.Fatalf("WriteFile should create parent directory: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(testPath); os.IsNotExist(err) {
+		t.Error("File was not created")
+	}
+}
+
+func TestAppendToFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	testPath := filepath.Join(tempDir, "append.txt")
+
+	// Test appending to non-existent file (should create it)
+	firstContent := "First line\n"
+	if err := AppendToFile(testPath, firstContent); err != nil {
+		t.Fatalf("AppendToFile (create) failed: %v", err)
+	}
+
+	// Verify file was created
+	content, err := os.ReadFile(testPath)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	if string(content) != firstContent {
+		t.Errorf("Content mismatch: got %q, want %q", string(content), firstContent)
+	}
+
+	// Test appending to existing file
+	secondContent := "Second line\n"
+	if err := AppendToFile(testPath, secondContent); err != nil {
+		t.Fatalf("AppendToFile (append) failed: %v", err)
+	}
+
+	// Verify content was appended
+	content, err = os.ReadFile(testPath)
+	if err != nil {
+		t.Fatalf("Failed to read appended file: %v", err)
+	}
+
+	expectedContent := firstContent + secondContent
+	if string(content) != expectedContent {
+		t.Errorf("Appended content mismatch: got %q, want %q", string(content), expectedContent)
+	}
+}
+
+func TestConcatenateFiles(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create source files
+	sources := []struct {
+		path    string
+		content string
+	}{
+		{filepath.Join(tempDir, "file1.txt"), "Content from file 1\n"},
+		{filepath.Join(tempDir, "file2.txt"), "Content from file 2\n"},
+		{filepath.Join(tempDir, "file3.txt"), "Content from file 3\n"},
+	}
+
+	for _, src := range sources {
+		if err := os.WriteFile(src.path, []byte(src.content), 0644); err != nil {
+			t.Fatalf("Failed to create source file %s: %v", src.path, err)
+		}
+	}
+
+	// Concatenate files
+	destPath := filepath.Join(tempDir, "concatenated.txt")
+	sourcePaths := []string{sources[0].path, sources[1].path, sources[2].path}
+
+	if err := ConcatenateFiles(sourcePaths, destPath); err != nil {
+		t.Fatalf("ConcatenateFiles failed: %v", err)
+	}
+
+	// Verify concatenated content
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read concatenated file: %v", err)
+	}
+
+	expectedContent := sources[0].content + sources[1].content + sources[2].content
+	if string(content) != expectedContent {
+		t.Errorf("Concatenated content mismatch:\ngot: %q\nwant: %q", string(content), expectedContent)
+	}
+}
+
+func TestConcatenateFilesEmptySources(t *testing.T) {
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "output.txt")
+
+	// Test with empty sources list
+	err := ConcatenateFiles([]string{}, destPath)
+	if err == nil {
+		t.Error("ConcatenateFiles should fail with empty sources")
+	}
+}
+
+func TestMovePath(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create source file
+	srcPath := filepath.Join(tempDir, "source.txt")
+	testContent := "Test content for move"
+	if err := os.WriteFile(srcPath, []byte(testContent), 0644); err != nil {
+		t.Fatalf("Failed to create source file: %v", err)
+	}
+
+	// Test moving file
+	destPath := filepath.Join(tempDir, "destination.txt")
+	if err := MovePath(srcPath, destPath); err != nil {
+		t.Fatalf("MovePath failed: %v", err)
+	}
+
+	// Verify source no longer exists
+	if PathExists(srcPath) != PathNotFound {
+		t.Error("Source file should have been removed")
+	}
+
+	// Verify destination exists with correct content
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("Failed to read destination file: %v", err)
+	}
+
+	if string(content) != testContent {
+		t.Errorf("Content mismatch: got %q, want %q", string(content), testContent)
+	}
+}
+
+func TestMovePathDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create source directory with files
+	srcDir := filepath.Join(tempDir, "sourcedir")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+
+	testFile := filepath.Join(srcDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Test moving directory
+	destDir := filepath.Join(tempDir, "destdir")
+	if err := MovePath(srcDir, destDir); err != nil {
+		t.Fatalf("MovePath (directory) failed: %v", err)
+	}
+
+	// Verify source no longer exists
+	if PathExists(srcDir) != PathNotFound {
+		t.Error("Source directory should have been removed")
+	}
+
+	// Verify destination exists
+	if PathExists(destDir) != PathDirectory {
+		t.Error("Destination directory should exist")
+	}
+
+	// Verify file in destination
+	destFile := filepath.Join(destDir, "test.txt")
+	if PathExists(destFile) != PathFile {
+		t.Error("File should exist in destination directory")
+	}
+}

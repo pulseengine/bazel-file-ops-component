@@ -200,6 +200,163 @@ func ListDirectory(dir string, pattern *string) ([]string, error) {
 	return result, nil
 }
 
+// ReadFile reads the entire contents of a file as a string
+// Implements the read-file WIT interface function
+func ReadFile(path string) (string, error) {
+	// Security validation
+	if err := ValidatePath(path, []string{}); err != nil {
+		return "", fmt.Errorf("security validation failed: %w", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	return string(content), nil
+}
+
+// WriteFile writes string contents to a file, overwriting if it exists
+// Implements the write-file WIT interface function
+func WriteFile(path, content string) error {
+	// Security validation
+	if err := ValidatePath(path, []string{}); err != nil {
+		return fmt.Errorf("security validation failed: %w", err)
+	}
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// AppendToFile appends string content to an existing file (creates if doesn't exist)
+// Implements the append-to-file WIT interface function
+func AppendToFile(path, content string) error {
+	// Security validation
+	if err := ValidatePath(path, []string{}); err != nil {
+		return fmt.Errorf("security validation failed: %w", err)
+	}
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	}
+
+	// Open file in append mode (create if doesn't exist)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s for appending: %w", path, err)
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(content); err != nil {
+		return fmt.Errorf("failed to append to file %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// ConcatenateFiles concatenates multiple source files into a single destination file
+// Implements the concatenate-files WIT interface function
+func ConcatenateFiles(sources []string, dest string) error {
+	// Security validation for destination
+	if err := ValidatePath(dest, []string{}); err != nil {
+		return fmt.Errorf("security validation failed for destination: %w", err)
+	}
+
+	if len(sources) == 0 {
+		return fmt.Errorf("no source files provided for concatenation")
+	}
+
+	// Ensure destination directory exists
+	destDir := filepath.Dir(dest)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	}
+
+	// Create destination file
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %s: %w", dest, err)
+	}
+	defer destFile.Close()
+
+	// Read and concatenate each source file
+	for i, source := range sources {
+		// Security validation for each source
+		if err := ValidatePath(source, []string{}); err != nil {
+			return fmt.Errorf("security validation failed for source %d (%s): %w", i, source, err)
+		}
+
+		content, err := os.ReadFile(source)
+		if err != nil {
+			return fmt.Errorf("failed to read source file %s: %w", source, err)
+		}
+
+		if _, err := destFile.Write(content); err != nil {
+			return fmt.Errorf("failed to write content from %s to destination: %w", source, err)
+		}
+	}
+
+	return nil
+}
+
+// MovePath moves or renames a file or directory from source to destination
+// Implements the move-path WIT interface function
+func MovePath(src, dest string) error {
+	// Security validation
+	if err := ValidatePath(src, []string{}); err != nil {
+		return fmt.Errorf("security validation failed for source: %w", err)
+	}
+	if err := ValidatePath(dest, []string{}); err != nil {
+		return fmt.Errorf("security validation failed for destination: %w", err)
+	}
+
+	// Ensure destination parent directory exists
+	destDir := filepath.Dir(dest)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	}
+
+	// Attempt rename (works if on same filesystem)
+	err := os.Rename(src, dest)
+	if err != nil {
+		// If rename fails (e.g., cross-filesystem), fall back to copy + remove
+		srcInfo, statErr := os.Stat(src)
+		if statErr != nil {
+			return fmt.Errorf("failed to stat source %s: %w", src, statErr)
+		}
+
+		if srcInfo.IsDir() {
+			// Copy directory recursively
+			if err := CopyDirectory(src, dest); err != nil {
+				return fmt.Errorf("failed to copy directory during move: %w", err)
+			}
+		} else {
+			// Copy file
+			if err := CopyFile(src, dest); err != nil {
+				return fmt.Errorf("failed to copy file during move: %w", err)
+			}
+		}
+
+		// Remove source after successful copy
+		if err := RemovePath(src); err != nil {
+			return fmt.Errorf("failed to remove source after move: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // Helper functions
 
 // copyDirectoryContents recursively copies directory contents

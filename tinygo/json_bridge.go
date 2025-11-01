@@ -27,6 +27,8 @@ type Operation struct {
 	Args       []string `json:"args,omitempty"`
 	WorkDir    string   `json:"work_dir,omitempty"`
 	OutputFile string   `json:"output_file,omitempty"`
+	Content    string   `json:"content,omitempty"`    // For write_file, append_to_file
+	Sources    []string `json:"sources,omitempty"`    // For concatenate_files
 }
 
 // WorkspaceInfo represents the result of workspace operations
@@ -108,7 +110,7 @@ func GetJsonSchema() string {
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["copy_file", "mkdir", "copy_directory_contents", "run_command"]
+            "enum": ["copy_file", "mkdir", "copy_directory_contents", "run_command", "read_file", "write_file", "append_to_file", "concatenate_files", "move_path"]
           },
           "src_path": {"type": "string"},
           "dest_path": {"type": "string"},
@@ -116,7 +118,9 @@ func GetJsonSchema() string {
           "command": {"type": "string"},
           "args": {"type": "array", "items": {"type": "string"}},
           "work_dir": {"type": "string"},
-          "output_file": {"type": "string"}
+          "output_file": {"type": "string"},
+          "content": {"type": "string"},
+          "sources": {"type": "array", "items": {"type": "string"}}
         }
       }
     }
@@ -180,6 +184,52 @@ func validateOperation(op Operation, index int) error {
 		if op.Command == "" {
 			return fmt.Errorf("operation %d: run_command requires command", index)
 		}
+	case "read_file":
+		if op.Path == "" {
+			return fmt.Errorf("operation %d: read_file requires path", index)
+		}
+		if !filepath.IsAbs(op.Path) {
+			return fmt.Errorf("operation %d: path must be absolute: %s", index, op.Path)
+		}
+	case "write_file":
+		if op.Path == "" {
+			return fmt.Errorf("operation %d: write_file requires path", index)
+		}
+		if filepath.IsAbs(op.Path) {
+			return fmt.Errorf("operation %d: path must be relative: %s", index, op.Path)
+		}
+	case "append_to_file":
+		if op.Path == "" {
+			return fmt.Errorf("operation %d: append_to_file requires path", index)
+		}
+		if filepath.IsAbs(op.Path) {
+			return fmt.Errorf("operation %d: path must be relative: %s", index, op.Path)
+		}
+	case "concatenate_files":
+		if len(op.Sources) == 0 {
+			return fmt.Errorf("operation %d: concatenate_files requires sources", index)
+		}
+		if op.DestPath == "" {
+			return fmt.Errorf("operation %d: concatenate_files requires dest_path", index)
+		}
+		for i, source := range op.Sources {
+			if !filepath.IsAbs(source) {
+				return fmt.Errorf("operation %d: source %d must be absolute: %s", index, i, source)
+			}
+		}
+		if filepath.IsAbs(op.DestPath) {
+			return fmt.Errorf("operation %d: dest_path must be relative: %s", index, op.DestPath)
+		}
+	case "move_path":
+		if op.SrcPath == "" || op.DestPath == "" {
+			return fmt.Errorf("operation %d: move_path requires src_path and dest_path", index)
+		}
+		if !filepath.IsAbs(op.SrcPath) {
+			return fmt.Errorf("operation %d: src_path must be absolute: %s", index, op.SrcPath)
+		}
+		if filepath.IsAbs(op.DestPath) {
+			return fmt.Errorf("operation %d: dest_path must be relative: %s", index, op.DestPath)
+		}
 	default:
 		return fmt.Errorf("operation %d: unknown operation type: %s", index, op.Type)
 	}
@@ -198,6 +248,16 @@ func executeJsonOperation(op Operation, workspaceDir string) ([]string, error) {
 		return executeJsonCopyDirectoryContents(op, workspaceDir)
 	case "run_command":
 		return executeJsonRunCommand(op, workspaceDir)
+	case "read_file":
+		return executeJsonReadFile(op, workspaceDir)
+	case "write_file":
+		return executeJsonWriteFile(op, workspaceDir)
+	case "append_to_file":
+		return executeJsonAppendToFile(op, workspaceDir)
+	case "concatenate_files":
+		return executeJsonConcatenateFiles(op, workspaceDir)
+	case "move_path":
+		return executeJsonMovePath(op, workspaceDir)
 	default:
 		return nil, fmt.Errorf("unsupported operation type: %s", op.Type)
 	}
@@ -294,4 +354,69 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 	}
 
 	return []string{}, nil
+}
+
+// executeJsonReadFile executes read_file operation
+func executeJsonReadFile(op Operation, workspaceDir string) ([]string, error) {
+	// Read file uses absolute path (from validation)
+	content, err := ReadFile(op.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	// If output_file is specified, write content there
+	if op.OutputFile != "" {
+		outputPath := filepath.Join(workspaceDir, op.OutputFile)
+		if err := WriteFile(outputPath, content); err != nil {
+			return nil, fmt.Errorf("failed to write output: %w", err)
+		}
+		return []string{outputPath}, nil
+	}
+
+	// Otherwise just return the source path as processed
+	return []string{op.Path}, nil
+}
+
+// executeJsonWriteFile executes write_file operation
+func executeJsonWriteFile(op Operation, workspaceDir string) ([]string, error) {
+	path := filepath.Join(workspaceDir, op.Path)
+
+	if err := WriteFile(path, op.Content); err != nil {
+		return nil, err
+	}
+
+	return []string{path}, nil
+}
+
+// executeJsonAppendToFile executes append_to_file operation
+func executeJsonAppendToFile(op Operation, workspaceDir string) ([]string, error) {
+	path := filepath.Join(workspaceDir, op.Path)
+
+	if err := AppendToFile(path, op.Content); err != nil {
+		return nil, err
+	}
+
+	return []string{path}, nil
+}
+
+// executeJsonConcatenateFiles executes concatenate_files operation
+func executeJsonConcatenateFiles(op Operation, workspaceDir string) ([]string, error) {
+	dest := filepath.Join(workspaceDir, op.DestPath)
+
+	if err := ConcatenateFiles(op.Sources, dest); err != nil {
+		return nil, err
+	}
+
+	return []string{dest}, nil
+}
+
+// executeJsonMovePath executes move_path operation
+func executeJsonMovePath(op Operation, workspaceDir string) ([]string, error) {
+	dest := filepath.Join(workspaceDir, op.DestPath)
+
+	if err := MovePath(op.SrcPath, dest); err != nil {
+		return nil, err
+	}
+
+	return []string{dest}, nil
 }
