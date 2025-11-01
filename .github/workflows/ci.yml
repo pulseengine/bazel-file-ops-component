@@ -38,6 +38,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup TinyGo
       uses: acifani/setup-tinygo@v2
@@ -197,6 +198,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup TinyGo
       uses: acifani/setup-tinygo@v2
@@ -279,6 +281,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable

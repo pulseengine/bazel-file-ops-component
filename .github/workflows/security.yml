@@ -27,6 +27,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -105,6 +106,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -168,6 +170,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -263,6 +266,7 @@ jobs:
       uses: actions/setup-go@v6
       with:
         go-version: '1.23'
+        cache-dependency-path: tinygo/go.sum
 
     - name: Generate SLSA Provenance for Go
       run: |
