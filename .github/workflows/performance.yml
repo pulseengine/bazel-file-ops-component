@@ -509,6 +509,7 @@ jobs:
         fi
 
     - name: Comment Regression Analysis
+      if: github.actor != 'dependabot[bot]'
       uses: actions/github-script@v8
       with:
         script: |
