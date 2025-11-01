@@ -30,10 +30,12 @@ func CopyFile(src, dest string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
-	// Ensure destination directory exists
+	// Ensure destination directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	if destDir != "." && destDir != "/" {
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+		}
 	}
 
 	// Open source file
@@ -224,10 +226,12 @@ func WriteFile(path, content string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
-	// Ensure parent directory exists
+	// Ensure parent directory exists (skip if it's current dir)
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	if dir != "." && dir != "/" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+		}
 	}
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
@@ -245,10 +249,12 @@ func AppendToFile(path, content string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
-	// Ensure parent directory exists
+	// Ensure parent directory exists (skip if it's current dir)
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+	if dir != "." && dir != "/" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
+		}
 	}
 
 	// Open file in append mode (create if doesn't exist)
@@ -277,10 +283,12 @@ func ConcatenateFiles(sources []string, dest string) error {
 		return fmt.Errorf("no source files provided for concatenation")
 	}
 
-	// Ensure destination directory exists
+	// Ensure destination directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	if destDir != "." && destDir != "/" {
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+		}
 	}
 
 	// Create destination file
@@ -321,10 +329,12 @@ func MovePath(src, dest string) error {
 		return fmt.Errorf("security validation failed for destination: %w", err)
 	}
 
-	// Ensure destination parent directory exists
+	// Ensure destination parent directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+	if destDir != "." && destDir != "/" {
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
+		}
 	}
 
 	// Attempt rename (works if on same filesystem)
