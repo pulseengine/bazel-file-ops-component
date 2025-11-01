@@ -440,7 +440,7 @@ jobs:
         # Test wasmtime command first to ensure it works
         echo "Testing wasmtime command..."
         PWD_PATH=$(pwd)
-        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest baseline_copy.txt || {
+        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/baseline_copy.txt || {
           echo "ERROR: wasmtime command failed"
           exit 1
         }
@@ -452,7 +452,7 @@ jobs:
         hyperfine --export-json baseline_results/baseline_benchmark.json \
           --warmup 3 \
           --show-output \
-          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest baseline_copy.txt"
+          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/baseline_copy.txt"
 
     - name: Checkout PR Branch
       run: |
@@ -466,7 +466,7 @@ jobs:
         # Test wasmtime command first
         echo "Testing wasmtime command on PR branch..."
         PWD_PATH=$(pwd)
-        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest pr_copy.txt || {
+        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/pr_copy.txt || {
           echo "ERROR: wasmtime command failed on PR branch"
           exit 1
         }
@@ -478,7 +478,7 @@ jobs:
         hyperfine --export-json pr_results/pr_benchmark.json \
           --warmup 3 \
           --show-output \
-          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src baseline_test.txt --dest pr_copy.txt"
+          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/pr_copy.txt"
 
     - name: Analyze Performance Regression
       run: |
