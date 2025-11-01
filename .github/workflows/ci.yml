@@ -90,7 +90,7 @@ jobs:
         fi
 
     - name: Upload TinyGo Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: tinygo-component-${{ matrix.os }}
         path: |
@@ -169,7 +169,7 @@ jobs:
   #       wasm-tools component wit bazel-bin/rust/file_ops_component_wasm.wasm
   #
   #   - name: Upload Rust Artifacts
-  #     uses: actions/upload-artifact@v4
+  #     uses: actions/upload-artifact@v5
   #     with:
   #       name: rust-component-${{ matrix.os }}
   #       path: |
@@ -359,7 +359,7 @@ jobs:
       run: npm run build
 
     - name: Upload documentation artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: documentation
         path: docs-site/dist/
