@@ -25,7 +25,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Bazel
       uses: bazel-contrib/setup-bazel@0.15.0
@@ -108,7 +108,7 @@ jobs:
   #
   #   steps:
   #   - name: Checkout code
-  #     uses: actions/checkout@v5
+  #     uses: actions/checkout@v6
   #
   #   - name: Setup Bazel
   #     uses: bazel-contrib/setup-bazel@0.15.0
@@ -185,7 +185,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Bazel
       uses: bazel-contrib/setup-bazel@0.15.0
@@ -268,7 +268,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Bazel
       uses: bazel-contrib/setup-bazel@0.15.0
@@ -341,7 +341,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Node.js
       uses: actions/setup-node@v6
@@ -376,7 +376,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Download All Build Artifacts
       uses: actions/download-artifact@v6
@@ -434,7 +434,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Setup Bazel
       uses: bazel-contrib/setup-bazel@0.15.0
