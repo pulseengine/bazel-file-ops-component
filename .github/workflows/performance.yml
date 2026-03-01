@@ -41,7 +41,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@0.15.0
+      uses: bazel-contrib/setup-bazel@0.18.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
@@ -321,7 +321,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@0.15.0
+      uses: bazel-contrib/setup-bazel@0.18.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
@@ -403,7 +403,7 @@ jobs:
         mkdir -p baseline_results
 
     - name: Setup Tools
-      uses: bazel-contrib/setup-bazel@0.15.0
+      uses: bazel-contrib/setup-bazel@0.18.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}-baseline
