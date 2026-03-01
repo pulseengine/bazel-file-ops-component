@@ -1,12 +1,21 @@
-# Bazel File Operations Component
+<div align="center">
 
-Universal file operations for Bazel build systems via WebAssembly components with enhanced security and cross-platform support.
+# bazel-file-ops-component
 
-<!-- Multi-file Go component compilation now supported -->
+<sup>Universal file operations for Bazel via WebAssembly components</sup>
 
-[![CI Status](https://github.com/pulseengine/bazel-file-ops-component/workflows/CI/badge.svg)](https://github.com/pulseengine/bazel-file-ops-component/actions)
-[![Documentation](https://img.shields.io/badge/docs-available-blue.svg)](https://bazel-file-ops.pulseengine.eu)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+&nbsp;
+
+![Bazel](https://img.shields.io/badge/Bazel-43A047?style=flat-square&logo=bazel&logoColor=white&labelColor=1a1b27)
+![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=flat-square&logo=webassembly&logoColor=white&labelColor=1a1b27)
+![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square&labelColor=1a1b27)
+
+</div>
+
+&nbsp;
+
+> [!NOTE]
+> Part of the PulseEngine toolchain. Provides sandboxed file operations for Bazel builds across all platforms.
 
 ## Overview
 
@@ -14,12 +23,12 @@ This repository provides WebAssembly components for secure, cross-platform file 
 
 ## Key Features
 
-- **🔒 Enhanced Security**: WebAssembly sandboxing with wasmtime preopen directories
-- **🌍 Cross-Platform**: Works identically on Linux, macOS, and Windows
-- **⚡ Dual Implementation**: Choose between TinyGo (security-focused) and Rust (performance-optimized)
-- **🔄 Backward Compatible**: Supports existing JSON batch processing workflows
-- **🎯 Individual Operations**: Direct function calls via WIT interface
-- **🏗️ Build System Integration**: Easy integration with any Bazel rule set
+- **Enhanced Security**: WebAssembly sandboxing with wasmtime preopen directories
+- **Cross-Platform**: Works identically on Linux, macOS, and Windows
+- **Dual Implementation**: Choose between TinyGo (security-focused) and Rust (performance-optimized)
+- **Backward Compatible**: Supports existing JSON batch processing workflows
+- **Individual Operations**: Direct function calls via WIT interface
+- **Build System Integration**: Easy integration with any Bazel rule set
 
 ## Quick Start
 
@@ -284,4 +293,8 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 ---
 
-Built with ❤️ by the [Pulse Engine](https://pulseengine.eu) team for the Bazel community.
+<div align="center">
+
+<sub>Part of <a href="https://github.com/pulseengine">PulseEngine</a> &mdash; formally verified WebAssembly toolchain for safety-critical systems</sub>
+
+</div>
