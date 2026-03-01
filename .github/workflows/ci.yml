@@ -46,7 +46,7 @@ jobs:
         tinygo-version: ${{ env.TINYGO_VERSION }}
 
     - name: Cache Bazel
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cache/bazel
@@ -124,7 +124,7 @@ jobs:
   #       targets: wasm32-wasi
   #
   #   - name: Cache Bazel
-  #     uses: actions/cache@v4
+  #     uses: actions/cache@v5
   #     with:
   #       path: |
   #         ~/.cache/bazel
@@ -134,7 +134,7 @@ jobs:
   #         bazel-rust-${{ runner.os }}-
   #
   #   - name: Cache Cargo
-  #     uses: actions/cache@v4
+  #     uses: actions/cache@v5
   #     with:
   #       path: |
   #         ~/.cargo/registry/index/
