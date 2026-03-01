@@ -15,8 +15,8 @@ module(
 
 # Core Bazel dependencies - updated to match rules_wasm_component expectations
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.4")
-bazel_dep(name = "bazel_skylib", version = "1.8.1")
+bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
 
 # Enable C++ toolchain auto-configuration for cross-platform support
 cc_configure = use_extension("@rules_cc//cc:extensions.bzl", "cc_configure")

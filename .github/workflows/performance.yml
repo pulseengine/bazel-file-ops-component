@@ -22,13 +22,16 @@ on:
         - comparison
 
 env:
-  BAZEL_VERSION: "8.4.0"
+  USE_BAZEL_VERSION: "8.4.0"
 
 jobs:
   # Performance benchmarking
   performance-benchmark:
     name: Performance Benchmark
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -385,6 +388,9 @@ jobs:
     name: Performance Regression Detection
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
     - name: Checkout PR
