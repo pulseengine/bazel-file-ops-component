@@ -284,7 +284,7 @@ jobs:
         # fi
 
     - name: Upload Performance Results
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: performance-results-${{ matrix.os }}
         path: |
@@ -376,7 +376,7 @@ jobs:
           grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Detailed profiling data not available" >> profile_results.md
 
     - name: Upload Profiling Results
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: resource-profiling-results
         path: |
