@@ -97,7 +97,7 @@ jobs:
         cat file_ops_component_aot.wasm.sha256
 
     - name: Log in to Container Registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
