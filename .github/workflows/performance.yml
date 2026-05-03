@@ -28,6 +28,7 @@ jobs:
   # Performance benchmarking
   performance-benchmark:
     name: Performance Benchmark
+    # Stays on hosted: Bazel + sudo apt + macOS matrix; smithy has none of these.
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -314,6 +315,7 @@ jobs:
   # Memory and resource usage profiling
   resource-profiling:
     name: Resource Usage Profiling
+    # Stays on hosted: Bazel + sudo apt-get install valgrind; not installed on smithy.
     runs-on: ubuntu-latest
 
     steps:
@@ -386,6 +388,7 @@ jobs:
   # Performance regression detection
   regression-detection:
     name: Performance Regression Detection
+    # Stays on hosted: Bazel + sudo dpkg/apt-get; not available on smithy.
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
