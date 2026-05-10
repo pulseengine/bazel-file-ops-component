@@ -14,7 +14,7 @@ jobs:
   # Security vulnerability scanning
   security-scan:
     name: Security Vulnerability Scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, rust-cpu]
     permissions:
       contents: read
       security-events: write
@@ -96,7 +96,7 @@ jobs:
   # Dependency vulnerability and license scanning
   dependency-check:
     name: Dependency Security Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, rust-cpu]
 
     steps:
     - name: Checkout code
@@ -157,7 +157,7 @@ jobs:
   # Automated dependency updates
   dependency-update:
     name: Automated Dependency Updates
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, rust-cpu]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
@@ -256,7 +256,7 @@ jobs:
   # Supply chain security
   supply-chain-security:
     name: Supply Chain Security
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, rust-cpu]
 
     steps:
     - name: Checkout code
@@ -278,7 +278,11 @@ jobs:
       run: |
         # Install SBOM tools - use fixed version for reliability
         SYFT_VERSION="v1.18.1"
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin ${SYFT_VERSION}
+        # smithy runner has no write access to /usr/local/bin; install into $HOME/.local/bin
+        mkdir -p "$HOME/.local/bin"
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin" ${SYFT_VERSION}
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        export PATH="$HOME/.local/bin:$PATH"
 
         # Generate SBOM for the repository
         syft . -o spdx-json=sbom.spdx.json -o cyclonedx-json=sbom.cyclonedx.json
@@ -299,8 +303,11 @@ jobs:
       run: |
         # Install cosign for signature verification
         curl -O -L https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
-        sudo mv cosign-linux-amd64 /usr/local/bin/cosign
-        sudo chmod +x /usr/local/bin/cosign
+        # smithy runner has no sudo; install into $HOME/.local/bin and add to PATH
+        mkdir -p "$HOME/.local/bin"
+        mv cosign-linux-amd64 "$HOME/.local/bin/cosign"
+        chmod +x "$HOME/.local/bin/cosign"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
         echo "Signature verification tools installed"
         # Future: Add actual signature verification for dependencies
@@ -308,7 +315,7 @@ jobs:
   # Security policy and compliance
   security-policy:
     name: Security Policy Compliance
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, light]
 
     steps:
     - name: Checkout code

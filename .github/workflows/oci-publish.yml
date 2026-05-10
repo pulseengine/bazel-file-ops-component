@@ -15,6 +15,7 @@ jobs:
   # Build and publish WebAssembly components using rules_wasm_component native publishing
   publish-wasm-components:
     name: Build & Publish WASM Components to OCI
+    # Stays on hosted: Bazel is not installed on smithy.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,6 +70,7 @@ jobs:
   # Publish to WebAssembly package registries using Bazel rules
   publish-wasm-registries:
     name: Publish to WASM Registries
+    # Stays on hosted: Bazel is not installed on smithy.
     runs-on: ubuntu-latest
     needs: [publish-wasm-components]
     if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')

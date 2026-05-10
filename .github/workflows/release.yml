@@ -17,6 +17,7 @@ env:
 jobs:
   build-and-release:
     name: Build & Release WASM Component
+    # Stays on hosted: Bazel + sudo apt-get install build-essential; not available on smithy.
     runs-on: ubuntu-latest
     permissions:
       contents: write
