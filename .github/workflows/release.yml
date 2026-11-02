@@ -26,7 +26,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
     - name: Setup C++ Build Tools
       run: |
@@ -41,17 +41,17 @@ jobs:
         repository-cache: true
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         go-version: '1.23'
 
     - name: Setup TinyGo
-      uses: acifani/setup-tinygo@v2
+      uses: acifani/setup-tinygo@db56321a62b9a67922bb9ac8f9d085e218807bb3 # v2
       with:
         tinygo-version: '0.38.0'
 
     - name: Install Cosign
-      uses: sigstore/cosign-installer@v3
+      uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
     - name: Build TinyGo WASM Component
       run: |
@@ -98,7 +98,7 @@ jobs:
         cat file_ops_component_aot.wasm.sha256
 
     - name: Log in to Container Registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
@@ -232,7 +232,7 @@ jobs:
         echo "✅ Signature verification completed"
 
     - name: Upload Release Assets
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
       with:
         files: |
           file_ops_component.wasm
