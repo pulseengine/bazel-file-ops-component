@@ -212,7 +212,8 @@ jobs:
               echo "- **AOT WASM**: ${AOT_TIME}s" >> perf_results.md
 
               # Calculate speedup if both values are available
-              if [[ "$REGULAR_TIME" != "N/A" ]] && [[ "$AOT_TIME" != "N/A" ]]; then
+              # Skip the ratio when either mean is missing, null or zero (bc aborts on divide by 0)
+              if awk -v a="$REGULAR_TIME" -v b="$AOT_TIME" 'BEGIN { exit !(a+0 > 0 && b+0 > 0) }'; then
                 SPEEDUP=$(echo "scale=2; $REGULAR_TIME / $AOT_TIME" | bc)
                 echo "- **Speedup**: ${SPEEDUP}x faster with AOT" >> perf_results.md
               fi
@@ -497,8 +498,13 @@ jobs:
         BASELINE_TIME=$(jq -r '.results[0].mean' baseline_results/baseline_benchmark.json)
         PR_TIME=$(jq -r '.results[0].mean' pr_results/pr_benchmark.json)
 
-        # Calculate percentage change
-        CHANGE=$(echo "scale=2; (($PR_TIME - $BASELINE_TIME) / $BASELINE_TIME) * 100" | bc)
+        # Calculate percentage change; no usable baseline means no change to report
+        if awk -v b="$BASELINE_TIME" -v p="$PR_TIME" 'BEGIN { exit !(b+0 > 0 && p+0 > 0) }'; then
+          CHANGE=$(echo "scale=2; (($PR_TIME - $BASELINE_TIME) / $BASELINE_TIME) * 100" | bc)
+        else
+          echo "No usable baseline or PR mean (baseline=$BASELINE_TIME, pr=$PR_TIME); reporting 0% change"
+          CHANGE=0
+        fi
 
         echo "## 📈 Performance Regression Analysis" > regression_report.md
         echo "" >> regression_report.md
