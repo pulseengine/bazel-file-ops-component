@@ -86,12 +86,19 @@ jobs:
         category: trivy-security
 
     - name: Run Semgrep Security Analysis
-      uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
-      with:
-        publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
-        generateBaseline: ${{ github.event_name == 'workflow_dispatch' }}
+      # Installed from PyPI: the semgrep-action container cannot be pulled on
+      # the rootless self-hosted runner (newuidmap: write to uid_map failed).
+      env:
+        SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      run: |
+        python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+        "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet semgrep
+        if [ -n "$SEMGREP_APP_TOKEN" ]; then
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" ci
+        else
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config auto --error
+        fi
       continue-on-error: true
-      # Note: SEMGREP_APP_TOKEN secret needs to be configured in repository settings
 
   # Dependency vulnerability and license scanning
   dependency-check:
@@ -116,7 +123,7 @@ jobs:
     - name: Go Dependency Check
       run: |
         # Install Nancy vulnerability scanner
-        go install github.com/sonatypecommunity/nancy@latest
+        go install github.com/sonatype-nexus-community/nancy@v1.0.52  # last release supporting Go 1.23
 
         # Check for known vulnerabilities in Go dependencies
         cd tinygo
@@ -141,12 +148,9 @@ jobs:
 
     - name: License Compliance Check
       run: |
-        # Install license scanner
-        npm install -g license-checker
-
         # Install and run go-licenses tool
         echo "Installing go-licenses tool..."
-        go install github.com/google/go-licenses@latest
+        go install github.com/google/go-licenses@v1.6.0
 
         # Check for license compliance in dependencies
         echo "Scanning Go module licenses..."
