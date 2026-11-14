@@ -14,7 +14,7 @@ jobs:
   # Security vulnerability scanning
   security-scan:
     name: Security Vulnerability Scan
-    runs-on: [self-hosted, linux, x64, rust-cpu]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
     permissions:
       contents: read
       security-events: write
@@ -103,7 +103,7 @@ jobs:
   # Dependency vulnerability and license scanning
   dependency-check:
     name: Dependency Security Check
-    runs-on: [self-hosted, linux, x64, rust-cpu]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
 
     steps:
     - name: Checkout code
@@ -161,7 +161,7 @@ jobs:
   # Automated dependency updates
   dependency-update:
     name: Automated Dependency Updates
-    runs-on: [self-hosted, linux, x64, rust-cpu]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
@@ -260,7 +260,7 @@ jobs:
   # Supply chain security
   supply-chain-security:
     name: Supply Chain Security
-    runs-on: [self-hosted, linux, x64, rust-cpu]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
 
     steps:
     - name: Checkout code
@@ -319,11 +319,14 @@ jobs:
   # Security policy and compliance
   security-policy:
     name: Security Policy Compliance
-    runs-on: [self-hosted, linux, x64, light]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-latest' }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+    - name: Check no fork PR reaches a self-hosted runner
+      run: python3 scripts/check_selfhosted_fork_guard.py
 
     - name: Check Security Policy
       run: |

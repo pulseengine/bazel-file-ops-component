@@ -340,7 +340,7 @@ jobs:
   # Documentation build and deployment
   docs-build:
     name: Documentation Build
-    runs-on: [self-hosted, linux, x64, rust-cpu]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
 
     steps:
     - name: Checkout code
@@ -371,7 +371,7 @@ jobs:
   # Release creation and artifact publishing
   release:
     name: Create Release
-    runs-on: [self-hosted, linux, x64, light]
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-latest' }}
     needs: [tinygo-component, integration-test, quality-gate]  # rust-component disabled
     if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
