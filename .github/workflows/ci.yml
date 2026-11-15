@@ -42,7 +42,7 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Setup TinyGo
-      uses: acifani/setup-tinygo@db56321a62b9a67922bb9ac8f9d085e218807bb3 # v2
+      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
       with:
         tinygo-version: ${{ env.TINYGO_VERSION }}
 
@@ -203,7 +203,7 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Setup TinyGo
-      uses: acifani/setup-tinygo@db56321a62b9a67922bb9ac8f9d085e218807bb3 # v2
+      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
       with:
         tinygo-version: ${{ env.TINYGO_VERSION }}
 
