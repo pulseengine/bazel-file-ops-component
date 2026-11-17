@@ -1,0 +1,8 @@
+# Semgrep's built-in ignores (replaced, not extended, by this file).
+:include .gitignore
+.git/
+node_modules/
+vendor/
+bazel-*/
+# Planted bad inputs: these must fail scans by design (ci-controls.toml).
+ci-controls/

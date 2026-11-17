@@ -193,7 +193,9 @@ func SetupPackageJson(config PackageConfig, workDir string) error {
 	// Add additional fields
 	for _, field := range config.AdditionalFields {
 		var value interface{}
-		if err := json.Unmarshal([]byte(field.Value), &value); err != nil {
+		// Decoding into interface{} yields only maps, slices and scalars; Go's
+		// encoding/json has no type-driven gadget deserialization.
+		if err := json.Unmarshal([]byte(field.Value), &value); err != nil { // nosemgrep: go-unsafe-deserialization-interface
 			// If not valid JSON, treat as string
 			value = field.Value
 		}

@@ -1,0 +1,9 @@
+# Planted bad input for control "semgrep-actions-mutable-tag" (ci-controls.toml).
+# A third-party action referenced by a mutable tag instead of a commit SHA.
+name: planted
+on: push
+jobs:
+  planted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@master

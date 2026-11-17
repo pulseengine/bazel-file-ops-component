@@ -6,6 +6,8 @@ version: 2
 updates:
   # Go module dependencies
   - package-ecosystem: "gomod"
+    cooldown:
+      default-days: 7
     directory: "/tinygo"
     schedule:
       interval: "weekly"
@@ -47,6 +49,8 @@ updates:
           - "^[^@]+/"
   # Rust dependencies (if Rust implementation exists)
   - package-ecosystem: "cargo"
+    cooldown:
+      default-days: 7
     directory: "/rust"
     schedule:
       interval: "weekly"
@@ -67,6 +71,8 @@ updates:
 
   # NPM dependencies for documentation site
   - package-ecosystem: "npm"
+    cooldown:
+      default-days: 7
     directory: "/docs-site"
     schedule:
       interval: "weekly"
@@ -85,6 +91,8 @@ updates:
 
   # GitHub Actions workflow dependencies
   - package-ecosystem: "github-actions"
+    cooldown:
+      default-days: 7
     directory: "/"
     schedule:
       interval: "weekly"

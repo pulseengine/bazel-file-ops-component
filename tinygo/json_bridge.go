@@ -322,7 +322,9 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 	}
 
 	// Create command
-	cmd := exec.Command(op.Command, op.Args...)
+	// run_command is a documented operation: it runs the command the build
+	// configuration names, with arguments passed as argv (no shell).
+	cmd := exec.Command(op.Command, op.Args...) // nosemgrep: dangerous-exec-command
 	cmd.Dir = workDir
 
 	// Handle output

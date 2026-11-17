@@ -30,7 +30,7 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
         toolchain: "1.82.0"
 
@@ -53,7 +53,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Gosec Results to GitHub Security Tab
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
       if: always() && hashFiles('go-results.sarif') != ''
       with:
         sarif_file: go-results.sarif
@@ -69,7 +69,7 @@ jobs:
         fi
 
     - name: Run Trivy Vulnerability Scanner
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -79,7 +79,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload Trivy Results to GitHub Security Tab
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
       if: always() && hashFiles('trivy-results.sarif') != ''
       with:
         sarif_file: 'trivy-results.sarif'
@@ -92,13 +92,18 @@ jobs:
         SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
       run: |
         python3 -m venv "$RUNNER_TEMP/semgrep-venv"
-        "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet semgrep
+        "$RUNNER_TEMP/semgrep-venv/bin/pip" install --quiet semgrep==1.183.0
         if [ -n "$SEMGREP_APP_TOKEN" ]; then
           "$RUNNER_TEMP/semgrep-venv/bin/semgrep" ci
         else
           "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config auto --error
         fi
-      continue-on-error: true
+
+    - name: Semgrep GitHub Actions rules (blocking)
+      # Deterministic, metrics-free subset of the scan above. Its planted bad
+      # input is control "semgrep-actions-mutable-tag" in ci-controls.toml.
+      run: |
+        "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan --config p/github-actions --metrics off --error .github
 
   # Dependency vulnerability and license scanning
   dependency-check:
@@ -116,7 +121,7 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
         toolchain: "1.82.0"
 
@@ -177,7 +182,7 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
         toolchain: "1.82.0"
 
@@ -284,7 +289,12 @@ jobs:
         SYFT_VERSION="v1.18.1"
         # smithy runner has no write access to /usr/local/bin; install into $HOME/.local/bin
         mkdir -p "$HOME/.local/bin"
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin" ${SYFT_VERSION}
+        # Pinned release tarball verified by sha256 (was: install.sh from
+        # syft's main branch piped to sh, so the installer itself was mutable).
+        SYFT_SHA256=066c251652221e4d44fcc4d115ce3df33a91769da38c830a8533199db2f65aab
+        curl -fsSLo syft.tar.gz "https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION#v}_linux_amd64.tar.gz"
+        echo "${SYFT_SHA256}  syft.tar.gz" | sha256sum -c -
+        tar xzf syft.tar.gz -C "$HOME/.local/bin" syft
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         export PATH="$HOME/.local/bin:$PATH"
 
