@@ -35,7 +35,7 @@ jobs:
       pull-requests: write
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
 
     steps:
     - name: Checkout code
@@ -68,7 +68,7 @@ jobs:
     - name: Install Performance Tools
       run: |
         # Install hyperfine for benchmarking
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+        if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
           curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
           sudo dpkg -i hyperfine.deb
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
@@ -107,7 +107,7 @@ jobs:
         echo "Built component at: $COMPONENT_PATH"
 
         # Build platform-specific AOT precompiled component
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+        if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
           bazel build //tinygo:file_ops_aot_linux_x64
           AOT_PATH=$(bazel cquery --output=files //tinygo:file_ops_aot_linux_x64 2>/dev/null | head -1)
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
@@ -252,7 +252,7 @@ jobs:
       if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'comparison' || github.event.inputs.benchmark_type == ''
       run: |
         # Install jq for JSON processing
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+        if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
           sudo apt-get update && sudo apt-get install -y jq
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           brew install jq
@@ -317,7 +317,7 @@ jobs:
   resource-profiling:
     name: Resource Usage Profiling
     # Stays on hosted: Bazel + sudo apt-get install valgrind; not installed on smithy.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout code
@@ -396,7 +396,7 @@ jobs:
   regression-detection:
     name: Performance Regression Detection
     # Stays on hosted: Bazel + sudo dpkg/apt-get; not available on smithy.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
