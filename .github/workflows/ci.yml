@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]  # Windows not supported by rules_wasm_component
+        os: [ubuntu-24.04, macos-latest]  # Windows not supported by rules_wasm_component
 
     steps:
     - name: Checkout code
@@ -105,7 +105,7 @@ jobs:
   #   runs-on: ${{ matrix.os }}
   #   strategy:
   #     matrix:
-  #       os: [ubuntu-latest, macos-latest]
+  #       os: [ubuntu-24.04, macos-latest]
   #
   #   steps:
   #   - name: Checkout code
@@ -182,7 +182,7 @@ jobs:
   integration-test:
     name: Integration Testing
     # Stays on hosted: Bazel is not installed on smithy.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [tinygo-component]  # rust-component disabled
 
     steps:
@@ -267,7 +267,7 @@ jobs:
   quality-gate:
     name: Quality & Security Gate
     # Stays on hosted: Bazel (buildifier + bazel run targets) is not installed on smithy.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout code
@@ -340,7 +340,7 @@ jobs:
   # Documentation build and deployment
   docs-build:
     name: Documentation Build
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
 
     steps:
     - name: Checkout code
@@ -371,7 +371,7 @@ jobs:
   # Release creation and artifact publishing
   release:
     name: Create Release
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-24.04' }}
     needs: [tinygo-component, integration-test, quality-gate]  # rust-component disabled
     if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
@@ -391,14 +391,14 @@ jobs:
         mkdir -p release/
 
         # Package TinyGo components
-        for os in ubuntu-latest macos-latest windows-latest; do
+        for os in ubuntu-24.04 macos-latest windows-latest; do
           if [ -d "artifacts/tinygo-component-$os" ]; then
             tar -czf "release/file-ops-tinygo-$os.tar.gz" -C "artifacts/tinygo-component-$os" .
           fi
         done
 
         # Package Rust components
-        for os in ubuntu-latest macos-latest windows-latest; do
+        for os in ubuntu-24.04 macos-latest windows-latest; do
           if [ -d "artifacts/rust-component-$os" ]; then
             tar -czf "release/file-ops-rust-$os.tar.gz" -C "artifacts/rust-component-$os" .
           fi
@@ -432,7 +432,7 @@ jobs:
   performance-monitor:
     name: Performance Monitoring
     # Stays on hosted: Bazel is not installed on smithy.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [integration-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
