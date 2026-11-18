@@ -42,7 +42,7 @@ jobs:
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
     - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@0.19.0
+      uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
@@ -60,7 +60,7 @@ jobs:
         tinygo-version: "0.38.0"
 
     - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
         toolchain: "1.82.0"
         targets: wasm32-wasi
@@ -324,7 +324,7 @@ jobs:
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
     - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@0.19.0
+      uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}
@@ -347,8 +347,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y valgrind time
 
-        # Install wasmtime with profiling support
-        curl https://wasmtime.dev/install.sh -sSf | bash
+        # Install wasmtime from a pinned release, verified by sha256
+        # (was: curl https://wasmtime.dev/install.sh | bash, unpinned).
+        WASMTIME_VERSION=v50.0.1
+        WASMTIME_SHA256=685466455dd42a14774a86c36c8f2e45cbb9bd6d92a850139315df60a75498a5
+        curl -fsSLo wasmtime.tar.xz "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz"
+        echo "${WASMTIME_SHA256}  wasmtime.tar.xz" | sha256sum -c -
+        mkdir -p "$HOME/.wasmtime/bin"
+        tar xJf wasmtime.tar.xz --strip-components=1 -C "$HOME/.wasmtime/bin" "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime"
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
 
     - name: Build Components for Profiling
@@ -401,13 +407,15 @@ jobs:
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
     - name: Checkout Base Branch
+      env:
+        BASE_REF: ${{ github.base_ref }}
       run: |
-        git fetch origin ${{ github.base_ref }}
-        git checkout origin/${{ github.base_ref }}
+        git fetch origin "$BASE_REF"
+        git checkout "origin/$BASE_REF"
         mkdir -p baseline_results
 
     - name: Setup Tools
-      uses: bazel-contrib/setup-bazel@0.19.0
+      uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
       with:
         bazelisk-cache: true
         disk-cache: ${{ github.workflow }}-baseline
@@ -430,8 +438,14 @@ jobs:
         curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
         sudo dpkg -i hyperfine.deb
 
-        # Install wasmtime for WASM component execution
-        curl https://wasmtime.dev/install.sh -sSf | bash
+        # Install wasmtime from a pinned release, verified by sha256
+        # (was: curl https://wasmtime.dev/install.sh | bash, unpinned).
+        WASMTIME_VERSION=v50.0.1
+        WASMTIME_SHA256=685466455dd42a14774a86c36c8f2e45cbb9bd6d92a850139315df60a75498a5
+        curl -fsSLo wasmtime.tar.xz "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz"
+        echo "${WASMTIME_SHA256}  wasmtime.tar.xz" | sha256sum -c -
+        mkdir -p "$HOME/.wasmtime/bin"
+        tar xJf wasmtime.tar.xz --strip-components=1 -C "$HOME/.wasmtime/bin" "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime"
         # Add to PATH for subsequent steps
         echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
         # Add to PATH for current step

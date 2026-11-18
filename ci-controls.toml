@@ -1,0 +1,11 @@
+# Planted bad inputs for CI checks, run with pulseengine/plant (`plant`).
+# Each control runs its check on a clean copy of HEAD (must pass) and on a
+# copy with its plant directory overlaid (must fail).
+
+[[control]]
+id      = "semgrep-actions-mutable-tag"
+check   = "Security Vulnerability Scan"
+run     = "semgrep scan --config p/github-actions --metrics off --error .github"
+plant   = "ci-controls/semgrep-actions-mutable-tag"
+stderr_or_stdout_matches = "mutable-action-tag|third-party-action-not-pinned"
+timeout = 900
