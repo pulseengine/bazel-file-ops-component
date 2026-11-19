@@ -8,8 +8,12 @@ on:
       - '.github/workflows/docs.yml'
   pull_request:
     branches: [ main ]
+    # A workflow skipped by this paths filter reports no check at all, and a
+    # ruleset or aggregator reads that absence as passing. Never make a job in
+    # this workflow a required check while the filter is here.
     paths:
       - 'docs-site/**'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
