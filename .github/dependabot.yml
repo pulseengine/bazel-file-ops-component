@@ -1,106 +1,25 @@
 version: 2
-# One PR per logical release across all directories: version-locked families
-# (wasm-tools, wasmtime) and all github-actions pins in / must not split into
-# one PR per directory. (Learned from loom/witness/mcp/relay/rules_wasm_component,
-# where one release arrived as 4-8 PRs.)
+# Grouped monthly updates (fleet template, owner decision 2026-11-21; shape
+# from pulseengine/rivet). One entry per ecosystem with its directories in one
+# `directories:` list, so a release opens one PR, not one per directory. Every
+# entry runs monthly (the 1st, 02:00 UTC), keeps at most 2 PRs open and waits
+# 7 days after a release (cooldown). Lockstep groups would come first, because
+# Dependabot puts a dependency in the FIRST group it matches; then one
+# minor-patch group. Majors stay ungrouped, one PR each, so a breaking change is
+# read on its own. Security updates ignore the schedule and the limit.
+#
+# No cargo entry: the repository has no Cargo.toml (the old entry pointed at
+# /rust, which does not exist).
 updates:
-  # Go module dependencies
-  - package-ecosystem: "gomod"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 2
     cooldown:
       default-days: 7
-    directory: "/tinygo"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "pulseengine/maintainers"
-    assignees:
-      - "pulseengine/maintainers"
-    commit-message:
-      prefix: "go"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "go"
-      - "automated"
-
-    groups:
-      wasm-tools-family:
-        patterns:
-          - "wasmparser"
-          - "wasm-encoder"
-          - "wasmprinter"
-          - "wit-component"
-          - "wit-parser"
-          - "wasm-metadata"
-          - "wat"
-          - "walrus"
-      wasmtime:
-        patterns:
-          - "wasmtime"
-          - "wasmtime-*"
-      github-actions-all:
-        # groups cannot be scoped by package-ecosystem; action names are
-        # owner/name (contain a slash, never start with @), which cargo crates
-        # and unscoped npm packages never match.
-        patterns:
-          - "^[^@]+/"
-  # Rust dependencies (if Rust implementation exists)
-  - package-ecosystem: "cargo"
-    cooldown:
-      default-days: 7
-    directory: "/rust"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "pulseengine/maintainers"
-    assignees:
-      - "pulseengine/maintainers"
-    commit-message:
-      prefix: "rust"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "rust"
-      - "automated"
-
-  # NPM dependencies for documentation site
-  - package-ecosystem: "npm"
-    cooldown:
-      default-days: 7
-    directory: "/docs-site"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "pulseengine/maintainers"
-    commit-message:
-      prefix: "docs"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "documentation"
-      - "automated"
-
-  # GitHub Actions workflow dependencies
-  - package-ecosystem: "github-actions"
-    cooldown:
-      default-days: 7
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "wednesday"
-      time: "06:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "pulseengine/maintainers"
     commit-message:
       prefix: "ci"
       include: "scope"
@@ -108,3 +27,59 @@ updates:
       - "dependencies"
       - "ci-cd"
       - "automated"
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gomod
+    directories:
+      - /tinygo
+    schedule:
+      interval: monthly
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "go"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "go"
+      - "automated"
+    groups:
+      minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directories:
+      - /docs-site
+    schedule:
+      interval: monthly
+      time: "02:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "docs"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "documentation"
+      - "automated"
+    groups:
+      # @astrojs/starlight peer-depends on astro (0.43.1: astro ^7.2.10), so they
+      # move together (#127 and #128 arrived as two PRs on the same day).
+      astro:
+        patterns:
+          - "astro"
+          - "@astrojs/*"
+      minor-patch:
+        update-types:
+          - minor
+          - patch
