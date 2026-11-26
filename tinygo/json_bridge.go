@@ -263,9 +263,24 @@ func executeJsonOperation(op Operation, workspaceDir string) ([]string, error) {
 	}
 }
 
+// workspacePath joins rel onto the workspace and requires the result to resolve
+// inside it, after following symlinks. Every destination in a JSON config goes
+// through here; sources stay absolute paths anywhere, because Bazel hands in
+// execroot inputs.
+func workspacePath(workspaceDir, rel, what string) (string, error) {
+	p := filepath.Join(workspaceDir, rel)
+	if err := requireWithin(workspaceDir, p, what); err != nil {
+		return "", err
+	}
+	return p, nil
+}
+
 // executeJsonCopyFile executes copy_file operation
 func executeJsonCopyFile(op Operation, workspaceDir string) ([]string, error) {
-	dest := filepath.Join(workspaceDir, op.DestPath)
+	dest, err := workspacePath(workspaceDir, op.DestPath, "dest_path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := CopyFile(op.SrcPath, dest); err != nil {
 		return nil, err
@@ -276,7 +291,10 @@ func executeJsonCopyFile(op Operation, workspaceDir string) ([]string, error) {
 
 // executeJsonMkdir executes mkdir operation
 func executeJsonMkdir(op Operation, workspaceDir string) ([]string, error) {
-	path := filepath.Join(workspaceDir, op.Path)
+	path, err := workspacePath(workspaceDir, op.Path, "path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := CreateDirectory(path); err != nil {
 		return nil, err
@@ -287,7 +305,10 @@ func executeJsonMkdir(op Operation, workspaceDir string) ([]string, error) {
 
 // executeJsonCopyDirectoryContents executes copy_directory_contents operation
 func executeJsonCopyDirectoryContents(op Operation, workspaceDir string) ([]string, error) {
-	dest := filepath.Join(workspaceDir, op.DestPath)
+	dest, err := workspacePath(workspaceDir, op.DestPath, "dest_path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := CopyDirectory(op.SrcPath, dest); err != nil {
 		return nil, err
@@ -311,7 +332,11 @@ func executeJsonCopyDirectoryContents(op Operation, workspaceDir string) ([]stri
 // executeJsonRunCommand executes run_command operation
 // Note: This may be limited in WASI environment
 func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) {
-	// Determine working directory
+	// work_dir and output_file must resolve inside the workspace or its
+	// parent: rules_wasm_component's wit_bindgen.bzl writes its output to
+	// "../<out>" next to the workspace (owner decision 2026-11-26).
+	bound := filepath.Dir(workspaceDir)
+
 	workDir := workspaceDir
 	if op.WorkDir != "" {
 		if filepath.IsAbs(op.WorkDir) {
@@ -320,16 +345,23 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 			workDir = filepath.Join(workspaceDir, op.WorkDir)
 		}
 	}
+	if err := requireWithin(bound, workDir, "work_dir"); err != nil {
+		return nil, err
+	}
 
-	// Create command
 	// run_command is a documented operation: it runs the command the build
-	// configuration names, with arguments passed as argv (no shell).
+	// configuration names, with arguments passed as argv (no shell). The
+	// config author is the Bazel rule that writes it.
+	// #nosec G204 -- the command is the one the Bazel rule names, run as argv
 	cmd := exec.Command(op.Command, op.Args...) // nosemgrep: dangerous-exec-command
 	cmd.Dir = workDir
 
 	// Handle output
 	if op.OutputFile != "" {
 		outputPath := filepath.Join(workspaceDir, op.OutputFile)
+		if err := requireWithin(bound, outputPath, "output_file"); err != nil {
+			return nil, err
+		}
 
 		// Ensure output directory exists
 		if err := CreateDirectory(filepath.Dir(outputPath)); err != nil {
@@ -343,7 +375,7 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 		}
 
 		// Write output to file
-		if err := os.WriteFile(outputPath, output, 0644); err != nil {
+		if err := os.WriteFile(outputPath, output, 0640); err != nil {
 			return nil, fmt.Errorf("failed to write output file: %w", err)
 		}
 
@@ -368,7 +400,10 @@ func executeJsonReadFile(op Operation, workspaceDir string) ([]string, error) {
 
 	// If output_file is specified, write content there
 	if op.OutputFile != "" {
-		outputPath := filepath.Join(workspaceDir, op.OutputFile)
+		outputPath, err := workspacePath(workspaceDir, op.OutputFile, "output_file")
+		if err != nil {
+			return nil, err
+		}
 		if err := WriteFile(outputPath, content); err != nil {
 			return nil, fmt.Errorf("failed to write output: %w", err)
 		}
@@ -381,7 +416,10 @@ func executeJsonReadFile(op Operation, workspaceDir string) ([]string, error) {
 
 // executeJsonWriteFile executes write_file operation
 func executeJsonWriteFile(op Operation, workspaceDir string) ([]string, error) {
-	path := filepath.Join(workspaceDir, op.Path)
+	path, err := workspacePath(workspaceDir, op.Path, "path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := WriteFile(path, op.Content); err != nil {
 		return nil, err
@@ -392,7 +430,10 @@ func executeJsonWriteFile(op Operation, workspaceDir string) ([]string, error) {
 
 // executeJsonAppendToFile executes append_to_file operation
 func executeJsonAppendToFile(op Operation, workspaceDir string) ([]string, error) {
-	path := filepath.Join(workspaceDir, op.Path)
+	path, err := workspacePath(workspaceDir, op.Path, "path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := AppendToFile(path, op.Content); err != nil {
 		return nil, err
@@ -403,7 +444,10 @@ func executeJsonAppendToFile(op Operation, workspaceDir string) ([]string, error
 
 // executeJsonConcatenateFiles executes concatenate_files operation
 func executeJsonConcatenateFiles(op Operation, workspaceDir string) ([]string, error) {
-	dest := filepath.Join(workspaceDir, op.DestPath)
+	dest, err := workspacePath(workspaceDir, op.DestPath, "dest_path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := ConcatenateFiles(op.Sources, dest); err != nil {
 		return nil, err
@@ -414,7 +458,10 @@ func executeJsonConcatenateFiles(op Operation, workspaceDir string) ([]string, e
 
 // executeJsonMovePath executes move_path operation
 func executeJsonMovePath(op Operation, workspaceDir string) ([]string, error) {
-	dest := filepath.Join(workspaceDir, op.DestPath)
+	dest, err := workspacePath(workspaceDir, op.DestPath, "dest_path")
+	if err != nil {
+		return nil, err
+	}
 
 	if err := MovePath(op.SrcPath, dest); err != nil {
 		return nil, err

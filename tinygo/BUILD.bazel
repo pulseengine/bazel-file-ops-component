@@ -167,6 +167,7 @@ wasm_embed_aot(
 go_test(
     name = "file_ops_test",
     srcs = [
+        "confinement_test.go",
         "json_bridge_test.go",
         "operations_test.go",
     ],

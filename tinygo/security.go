@@ -3,10 +3,81 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
+
+// resolvePath returns the absolute, symlink-resolved form of p. Trailing
+// components that do not exist yet are appended unresolved to the deepest
+// existing ancestor, so a destination that is about to be created can be
+// checked. A dangling symlink on the way is an error: following it later
+// could land anywhere.
+func resolvePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	existing := abs
+	var rest []string
+	for {
+		resolved, err := filepath.EvalSymlinks(existing)
+		if err == nil {
+			return filepath.Join(append([]string{resolved}, rest...)...), nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		if _, lerr := os.Lstat(existing); lerr == nil { // #nosec G703 -- Lstat is part of the containment check
+			return "", fmt.Errorf("dangling symlink: %s", existing)
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return abs, nil
+		}
+		rest = append([]string{filepath.Base(existing)}, rest...)
+		existing = parent
+	}
+}
+
+// isWithin reports whether p resolves to root or to a path below it. Both
+// sides are resolved with resolvePath and compared with filepath.Rel, so
+// "/work-other" is not inside "/work" and a symlink out of root is caught.
+func isWithin(root, p string) bool {
+	r, err := resolvePath(root)
+	if err != nil {
+		return false
+	}
+	q, err := resolvePath(p)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(r, q)
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// requireWithin returns an error unless p resolves inside root.
+func requireWithin(root, p, what string) error {
+	if !isWithin(root, p) {
+		return fmt.Errorf("%s %s resolves outside %s", what, p, root)
+	}
+	return nil
+}
+
+// isWithinAny reports whether p resolves inside at least one of roots.
+func isWithinAny(roots []string, p string) bool {
+	for _, root := range roots {
+		if isWithin(root, p) {
+			return true
+		}
+	}
+	return false
+}
 
 // SecurityLevel represents different levels of security enforcement
 type SecurityLevel int
@@ -139,39 +210,24 @@ func GetSecurityContext() SecurityContext {
 
 // validatePathStandard performs standard security validation
 func validatePathStandard(path string, allowedDirs []string) error {
-	// Basic path traversal check already done
-	// Standard level allows most operations
+	// Basic path traversal check already done. Explicit allowed directories
+	// are enforced at every level; the JSON bridge and workspace preparation
+	// add the workspace bound themselves.
+	if len(allowedDirs) > 0 && !isWithinAny(allowedDirs, path) {
+		return fmt.Errorf("path %s not within allowed directories", path)
+	}
 	return nil
 }
 
 // validatePathHigh performs high security validation
 func validatePathHigh(path string, allowedDirs []string) error {
-	// Check if path is within allowed directories
-	if len(allowedDirs) > 0 {
-		allowed := false
-		for _, allowedDir := range allowedDirs {
-			if strings.HasPrefix(filepath.Clean(path), filepath.Clean(allowedDir)) {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			return fmt.Errorf("path %s not within allowed directories", path)
-		}
+	if len(allowedDirs) > 0 && !isWithinAny(allowedDirs, path) {
+		return fmt.Errorf("path %s not within allowed directories", path)
 	}
 
-	// Check against current security context
-	if len(currentSecurityContext.AccessibleDirs) > 0 {
-		accessible := false
-		for _, accessibleDir := range currentSecurityContext.AccessibleDirs {
-			if strings.HasPrefix(filepath.Clean(path), filepath.Clean(accessibleDir)) {
-				accessible = true
-				break
-			}
-		}
-		if !accessible {
-			return fmt.Errorf("path %s not accessible in current security context", path)
-		}
+	if len(currentSecurityContext.AccessibleDirs) > 0 &&
+		!isWithinAny(currentSecurityContext.AccessibleDirs, path) {
+		return fmt.Errorf("path %s not accessible in current security context", path)
 	}
 
 	return nil
@@ -284,12 +340,10 @@ func validateCommandOperation(paths []string) error {
 
 // isPathAccessible checks if a path is accessible for reading
 func isPathAccessible(path string) bool {
-	for _, accessibleDir := range currentSecurityContext.AccessibleDirs {
-		if strings.HasPrefix(filepath.Clean(path), filepath.Clean(accessibleDir)) {
-			return true
-		}
+	if len(currentSecurityContext.AccessibleDirs) == 0 {
+		return true // Allow if no restrictions
 	}
-	return len(currentSecurityContext.AccessibleDirs) == 0 // Allow if no restrictions
+	return isWithinAny(currentSecurityContext.AccessibleDirs, path)
 }
 
 // isPathWritable checks if a path is writable

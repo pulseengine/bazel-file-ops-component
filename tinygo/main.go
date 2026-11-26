@@ -106,7 +106,7 @@ func handleProcessJsonConfig() {
 		os.Exit(1)
 	}
 
-	configContent, err := os.ReadFile(configFile)
+	configContent, err := os.ReadFile(configFile) // #nosec G304 G703 -- reads the config file named on the command line
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
 		os.Exit(1)
@@ -131,7 +131,7 @@ func handlePrepareWorkspace() {
 		os.Exit(1)
 	}
 
-	configContent, err := os.ReadFile(configFile)
+	configContent, err := os.ReadFile(configFile) // #nosec G304 G703 -- reads the config file named on the command line
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
 		os.Exit(1)
@@ -167,7 +167,7 @@ func isJSONConfigFile(path string) bool {
 	}
 
 	// Check if it's an existing file (for paths without .json extension)
-	info, err := os.Stat(path)
+	info, err := os.Stat(path) // #nosec G703 -- probes the command-line argument to detect a config file
 	if err == nil && !info.IsDir() {
 		return true
 	}
@@ -178,7 +178,7 @@ func isJSONConfigFile(path string) bool {
 // handleProcessJsonConfigDirect processes a JSON config file directly from path
 // This is used when the file path is provided as the first argument
 func handleProcessJsonConfigDirect(configFile string) {
-	configContent, err := os.ReadFile(configFile)
+	configContent, err := os.ReadFile(configFile) // #nosec G304 G703 -- reads the config file named on the command line
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading config file: %v\n", err)
 		os.Exit(1)

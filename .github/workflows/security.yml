@@ -32,16 +32,15 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Run Gosec Security Scanner (Go)
-      # Report-only for findings (-no-fail), so the 33 findings of the first
-      # working run (2026-11-26) go to the Security tab while their fixes are
-      # tracked; drop -no-fail once they are resolved (owner decision
-      # 2026-11-26). An install or package-load error still fails the step.
-      # Until 2026-11-26 this step installed github.com/securecodewarrior/gosec,
-      # a path that no longer resolves, and continue-on-error hid the failure.
+      # Blocking: any finding fails the step. tinygo/gosec.json sets the file
+      # mode threshold for G302 and G306 to 0640 (owner decision 2026-11-26);
+      # each #nosec in the code carries its reason. Until 2026-11-26 this step
+      # installed github.com/securecodewarrior/gosec, a path that no longer
+      # resolves, and continue-on-error hid the failure.
       run: |
         go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
         cd tinygo
-        gosec -no-fail -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
+        gosec -conf gosec.json -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
 
     - name: Upload Gosec Results to GitHub Security Tab
       uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
