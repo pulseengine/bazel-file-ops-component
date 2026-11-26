@@ -1,5 +1,12 @@
 name: CI/CD Pipeline
 
+# Required status checks for main: ruleset "main-required-checks" (id
+# 28146575, owner approved the list 2026-11-26), mirrored one context per line
+# in .github/required-contexts.txt. That file holds context names only, no
+# comments: sieve v0.4.4 reads every non-empty line as a context. Each required
+# job (here and in security.yml) runs on every pull request to main, with no
+# paths filter and no job-level `if:`.
+
 on:
   push:
     branches: [ main, develop ]
