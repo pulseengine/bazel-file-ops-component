@@ -1,0 +1,12 @@
+# Required status checks for main, one context per line (mirror of the ruleset;
+# owner approved the list 2026-11-26). Each runs on every pull request to main,
+# with no paths filter and no job-level `if:`.
+Quality & Security Gate
+TinyGo Component Build & Test (ubuntu-24.04)
+TinyGo Component Build & Test (macos-latest)
+Integration Testing
+Documentation Build
+Dependency Security Check
+Security Vulnerability Scan
+Supply Chain Security
+Security Policy Compliance

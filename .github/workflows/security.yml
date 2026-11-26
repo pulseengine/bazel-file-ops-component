@@ -29,28 +29,14 @@ jobs:
         go-version: '1.23'
         cache-dependency-path: tinygo/go.sum
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
-      with:
-        toolchain: "1.82.0"
-
     - name: Run Gosec Security Scanner (Go)
+      # Blocking: gosec exits non-zero on a finding or a load error. Until
+      # 2026-11-26 this step installed github.com/securecodewarrior/gosec, a
+      # path that no longer resolves, and continue-on-error hid the failure.
       run: |
-        # Install gosec
-        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-
-        # Run gosec security scan
-        cd tinygo && gosec -fmt sarif -out ../go-results.sarif ./... || true
-        cd ..
-
-        # Verify output was created
-        if [ -f go-results.sarif ]; then
-          echo "✅ Gosec scan completed successfully"
-        else
-          echo "⚠️ Gosec scan did not produce output, creating empty SARIF"
-          echo '{"version":"2.1.0","runs":[]}' > go-results.sarif
-        fi
-      continue-on-error: true
+        go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+        cd tinygo
+        gosec -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
 
     - name: Upload Gosec Results to GitHub Security Tab
       uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
@@ -59,16 +45,22 @@ jobs:
         sarif_file: go-results.sarif
         category: go-security
 
-    - name: Run Cargo Audit (Rust)
-      run: |
-        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
-          cargo install cargo-audit
-          cd rust && cargo audit --format json --output audit-results.json || true
-        else
-          echo "Rust directory not found - skipping Cargo audit"
-        fi
+    - name: Trivy gate (CRITICAL and HIGH with a fix available)
+      # Blocking. The SARIF step below cannot gate: in SARIF mode trivy-action
+      # drops the severity filter (limit-severities-for-sarif defaults to
+      # false), so an exit-code there would fail on every LOW finding.
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+        exit-code: '1'
 
     - name: Run Trivy Vulnerability Scanner
+      # Report only: every severity goes to the Security tab.
+      if: always()
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: 'fs'
@@ -76,7 +68,7 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH,MEDIUM'
-      continue-on-error: true
+        exit-code: '0'
 
     - name: Upload Trivy Results to GitHub Security Tab
       uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
@@ -120,36 +112,13 @@ jobs:
         go-version: '1.23'
         cache-dependency-path: tinygo/go.sum
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
-      with:
-        toolchain: "1.82.0"
-
     - name: Go Dependency Check
+      # Blocking. tinygo/go.mod has no requirements today, so nancy audits 0
+      # modules; it starts to bite when the first dependency is added.
       run: |
-        # Install Nancy vulnerability scanner
         go install github.com/sonatype-nexus-community/nancy@v1.0.52  # last release supporting Go 1.23
-
-        # Check for known vulnerabilities in Go dependencies
         cd tinygo
         go list -json -m all | nancy sleuth
-      continue-on-error: true
-
-    - name: Rust Dependency Check
-      run: |
-        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
-          cargo install cargo-audit cargo-deny
-          cd rust
-
-          # Check for vulnerabilities
-          cargo audit
-
-          # Check licenses and dependency policies
-          cargo deny check
-        else
-          echo "Rust directory not found - skipping Rust dependency checks"
-        fi
-      continue-on-error: true
 
     - name: License Compliance Check
       run: |
@@ -276,12 +245,6 @@ jobs:
       with:
         go-version: '1.23'
         cache-dependency-path: tinygo/go.sum
-
-    - name: Generate SLSA Provenance for Go
-      run: |
-        echo "SLSA provenance generation requires separate workflow"
-        echo "Creating placeholder for future SLSA integration"
-      continue-on-error: true
 
     - name: Run SBOM Generation
       run: |
