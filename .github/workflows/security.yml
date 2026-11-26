@@ -32,13 +32,16 @@ jobs:
         cache-dependency-path: tinygo/go.sum
 
     - name: Run Gosec Security Scanner (Go)
-      # Blocking: gosec exits non-zero on a finding or a load error. Until
-      # 2026-11-26 this step installed github.com/securecodewarrior/gosec, a
-      # path that no longer resolves, and continue-on-error hid the failure.
+      # Report-only for findings (-no-fail), so the 33 findings of the first
+      # working run (2026-11-26) go to the Security tab while their fixes are
+      # tracked; drop -no-fail once they are resolved (owner decision
+      # 2026-11-26). An install or package-load error still fails the step.
+      # Until 2026-11-26 this step installed github.com/securecodewarrior/gosec,
+      # a path that no longer resolves, and continue-on-error hid the failure.
       run: |
         go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
         cd tinygo
-        gosec -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
+        gosec -no-fail -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
 
     - name: Upload Gosec Results to GitHub Security Tab
       uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
