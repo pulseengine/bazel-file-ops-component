@@ -1,0 +1,4 @@
+error[syntax] 0..1 ";"
+  message: syntax: unexpected `;`
+  expected: command
+  help: put a command before it

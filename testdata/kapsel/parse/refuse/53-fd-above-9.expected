@@ -1,0 +1,3 @@
+error[syntax] 7..9 "12"
+  message: syntax: file descriptors above 9 are not in kapsel's shell subset
+  help: use a single-digit file descriptor, e.g. 2>

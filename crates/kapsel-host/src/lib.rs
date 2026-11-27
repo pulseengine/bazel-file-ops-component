@@ -114,6 +114,15 @@ impl wit::Host for HostState {
         self.shell.set_var(&name, &word(&value)).map_err(trap)
     }
 
+    fn scope_push(&mut self) -> wasmtime::Result<()> {
+        self.shell.scope_push();
+        Ok(())
+    }
+
+    fn scope_pop(&mut self) -> wasmtime::Result<()> {
+        self.shell.scope_pop().map_err(trap)
+    }
+
     fn set_status(&mut self, status: u32) -> wasmtime::Result<()> {
         self.shell.status = status as i32;
         Ok(())
@@ -185,9 +194,11 @@ impl Session {
     #[doc(hidden)]
     pub fn call_direct(&mut self, argv: &[&str]) -> u32 {
         let sh = self.shell.as_mut().expect("session shell");
-        sh.begin_run();
         let w: Vec<WWord> = argv.iter().map(|a| shell::lit(a)).collect();
-        sh.call(&w, &[], &[], 0, 0).expect("call_direct")
+        let st = sh.call(&w, &[], &[], 0, 0).expect("call_direct");
+        // what a compiled plan does after each pipeline
+        sh.status = if st >= 256 { (st - 256) as i32 } else { st as i32 };
+        st
     }
 
     /// Instantiates a compiled plan component and runs its `run` export.
@@ -205,11 +216,11 @@ impl Session {
                 .map_err(|e| HostError(format!("instantiate: {e:#}")))?;
             plan.call_run(&mut store).map_err(|e| HostError(format!("run: {e:#}")))
         })();
+        // `$?` is whatever the plan last passed to `set-status`; the host
+        // never updates it on its own. Per-run pipes, lists and scopes are
+        // dropped here (the next `begin_run` would clear them too).
         let mut shell = store.into_data().shell;
-        if let Ok(st) = &result {
-            // `$?` for the next line is this plan's status.
-            shell.status = *st as i32;
-        }
+        shell.begin_run();
         self.shell = Some(shell);
         result
     }

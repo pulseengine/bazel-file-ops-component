@@ -26,6 +26,12 @@ impl Session {
     fn sh(&mut self) -> &mut Shell {
         self.shell_mut()
     }
+    pub fn t_scope_push(&mut self) {
+        self.sh().scope_push()
+    }
+    pub fn t_scope_pop(&mut self) {
+        self.sh().scope_pop().expect("scope_pop")
+    }
     pub fn t_pipe(&mut self) -> u32 {
         self.sh().new_pipe()
     }
@@ -66,6 +72,8 @@ impl Session {
             })
             .collect();
         let w: Vec<WWord> = argv.iter().map(|a| tword(a)).collect();
-        self.sh().call(&w, &[], &reds, stdin, stdout).expect("call")
+        let st = self.sh().call(&w, &[], &reds, stdin, stdout).expect("call");
+        self.sh().status = if st >= 256 { (st - 256) as i32 } else { st as i32 };
+        st
     }
 }

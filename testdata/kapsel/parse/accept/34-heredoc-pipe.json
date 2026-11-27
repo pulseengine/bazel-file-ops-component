@@ -1,0 +1,159 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 3
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "one\ntwo\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 18,
+                      "end": 26
+                    }
+                  },
+                  "quoted": false,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 4,
+                  "end": 9
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 9
+            }
+          },
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "wc"
+                  }
+                ],
+                "span": {
+                  "start": 12,
+                  "end": 14
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "-l"
+                  }
+                ],
+                "span": {
+                  "start": 15,
+                  "end": 17
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 12,
+              "end": 17
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 17
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 17
+      }
+    },
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 30,
+                  "end": 34
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "after"
+                  }
+                ],
+                "span": {
+                  "start": 35,
+                  "end": 40
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 30,
+              "end": 40
+            }
+          }
+        ],
+        "span": {
+          "start": 30,
+          "end": 40
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 30,
+        "end": 40
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 40
+  }
+}

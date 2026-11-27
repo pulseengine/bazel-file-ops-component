@@ -1,0 +1,73 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 3
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "literal $X `x` \\$\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 12,
+                      "end": 30
+                    }
+                  },
+                  "quoted": true,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 4,
+                  "end": 11
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 11
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 11
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 11
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 34
+  }
+}

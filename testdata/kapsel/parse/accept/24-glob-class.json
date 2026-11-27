@@ -1,0 +1,129 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "ls"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 2
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "class",
+                      "set": "abc"
+                    }
+                  },
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "star"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": ".rs"
+                  }
+                ],
+                "span": {
+                  "start": 3,
+                  "end": 12
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "class",
+                      "set": "!x"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": "y"
+                  }
+                ],
+                "span": {
+                  "start": 13,
+                  "end": 18
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "class",
+                      "set": "[:digit:]"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": "z"
+                  }
+                ],
+                "span": {
+                  "start": 19,
+                  "end": 31
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "class",
+                      "set": "]"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": "q"
+                  }
+                ],
+                "span": {
+                  "start": 32,
+                  "end": 36
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 36
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 36
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 36
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 36
+  }
+}

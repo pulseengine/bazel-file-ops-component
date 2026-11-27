@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R016",
+    "severity": "warn",
+    "message": "`ls missing-dir` reads a path that may not exist in a pipeline stage that is not the last, so a failure here cannot change the pipeline's status",
+    "span": {
+      "start": 3,
+      "end": 14
+    },
+    "excerpt": "missing-dir",
+    "help": "test the path first (`[ -e missing-dir ] &&`) or make it the last stage",
+    "notes": [
+      "the status of a pipeline is its last stage, so a missing path in an earlier stage prints an error and still exits 0 (187 measured)"
+    ]
+  }
+]

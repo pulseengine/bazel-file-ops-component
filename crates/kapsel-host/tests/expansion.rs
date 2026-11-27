@@ -199,6 +199,34 @@ fn field_splitting_applies_to_command_arguments() {
 }
 
 #[test]
+fn scopes_restore_variables_exports_cwd_and_status_but_keep_pipes() {
+    let mut t = T::new();
+    t.write("sub/f", "");
+    let root = t.root();
+    t.s.t_set_var("X", &[Lit("1", true)]);
+    t.run(&["true"]);
+    t.s.t_scope_push();
+    t.s.t_set_var("X", &[Lit("2", true)]);
+    t.run(&["export", "NEW=1"]);
+    t.run(&["cd", "sub"]);
+    t.run(&["false"]);
+    // a pipe made and written inside the scope is still valid after the pop
+    let p = t.s.t_pipe();
+    t.s.t_pipe_write(p, b"captured\n");
+    // nested scope
+    t.s.t_scope_push();
+    t.s.t_set_var("X", &[Lit("3", true)]);
+    t.s.t_scope_pop();
+    assert_eq!(t.s.var("X").as_deref(), Some("2"));
+    t.s.t_scope_pop();
+    assert_eq!(t.s.var("X").as_deref(), Some("1"));
+    assert!(!t.s.is_exported("NEW") && t.s.var("NEW").is_none());
+    assert_eq!(t.s.cwd(), root);
+    assert_eq!(t.s.status(), 0);
+    assert_eq!(t.s.t_pipe_read(p), b"captured\n");
+}
+
+#[test]
 fn bad_pipe_handle_traps_instead_of_guessing() {
     let mut t = T::new();
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| t.s.t_call(&[lit("cat")], &[], 99, 0)));

@@ -1,0 +1,88 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "double_quoted",
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "grüße"
+                      }
+                    ]
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 14
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "single_quoted",
+                    "text": "π"
+                  }
+                ],
+                "span": {
+                  "start": 15,
+                  "end": 19
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "ünï"
+                  }
+                ],
+                "span": {
+                  "start": 20,
+                  "end": 25
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 25
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 25
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 25
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 25
+  }
+}

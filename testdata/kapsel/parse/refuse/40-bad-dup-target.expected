@@ -1,0 +1,4 @@
+error[syntax] 9..13 "file"
+  message: syntax: `>&` needs a single-digit file descriptor, found `file`
+  expected: fd number
+  help: to send both streams to a file use `> file 2>&1`

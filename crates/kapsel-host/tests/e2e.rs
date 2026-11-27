@@ -105,14 +105,11 @@ fn component_runs_a_builtin_through_the_host() {
 }
 
 #[test]
-fn component_status_comes_back_and_sets_dollar_question() {
+fn component_status_comes_back_but_the_host_leaves_dollar_question_to_the_plan() {
     let mut t = T::new();
     let c = plan(&[], &[vec![P::Lit("false")]]);
     assert_eq!(run(&mut t, &c), 1);
-    assert_eq!(t.s.status(), 1);
-    let c = plan(&[], &[vec![P::Lit("echo")], vec![P::Var("?")]]);
-    assert_eq!(run(&mut t, &c), 0);
-    assert_eq!(t.out.string(), "1\n");
+    assert_eq!(t.s.status(), 0); // only set-status changes `$?`
 }
 
 #[test]

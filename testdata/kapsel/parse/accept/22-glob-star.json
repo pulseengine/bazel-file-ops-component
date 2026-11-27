@@ -1,0 +1,87 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "ls"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 2
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "star"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": ".txt"
+                  }
+                ],
+                "span": {
+                  "start": 3,
+                  "end": 8
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "src/"
+                  },
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "star"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": "/mod.rs"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 21
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 21
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 21
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 21
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 21
+  }
+}

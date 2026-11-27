@@ -1,0 +1,135 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 3
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "today "
+                      },
+                      {
+                        "kind": "command_subst",
+                        "script": {
+                          "items": [
+                            {
+                              "first": {
+                                "negated": false,
+                                "commands": [
+                                  {
+                                    "kind": "simple",
+                                    "assignments": [],
+                                    "words": [
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "date"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 18,
+                                          "end": 22
+                                        }
+                                      }
+                                    ],
+                                    "redirects": [],
+                                    "span": {
+                                      "start": 18,
+                                      "end": 22
+                                    }
+                                  }
+                                ],
+                                "span": {
+                                  "start": 18,
+                                  "end": 22
+                                }
+                              },
+                              "rest": [],
+                              "span": {
+                                "start": 18,
+                                "end": 22
+                              }
+                            }
+                          ],
+                          "span": {
+                            "start": 18,
+                            "end": 22
+                          }
+                        }
+                      },
+                      {
+                        "kind": "literal",
+                        "text": " $x "
+                      },
+                      {
+                        "kind": "param",
+                        "name": "HOME"
+                      },
+                      {
+                        "kind": "literal",
+                        "text": " \"quoted\" \\n\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 10,
+                      "end": 48
+                    }
+                  },
+                  "quoted": false,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 4,
+                  "end": 9
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 9
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 9
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 9
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 52
+  }
+}

@@ -206,21 +206,35 @@ fn cp_r_does_not_write_through_a_link_inside_the_destination_tree() {
 }
 
 #[test]
-fn cp_r_refuses_to_recreate_a_symlink_that_points_outside() {
+fn cp_r_and_mv_refuse_to_recreate_symlinks() {
     let mut g = G::new();
-    std::fs::create_dir_all(g.p("work/src")).unwrap();
-    symlink(g.p("out/secret"), g.p("work/src/leak")).unwrap();
-    std::fs::write(g.p("work/src/ok"), "ok").unwrap();
-    let (st, _, err) = g.run(&["cp", "-r", "src", "copy"]);
+    // Planted: a relative link that is harmless where it is (resolves inside
+    // work/) but would resolve to base/out/secret one level deeper, and the
+    // reverse direction.
+    std::fs::create_dir_all(g.p("work/a")).unwrap();
+    std::fs::write(g.p("work/secret"), "inside\n").unwrap();
+    symlink("../secret", g.p("work/a/l")).unwrap();
+    std::fs::write(g.p("work/a/ok"), "ok").unwrap();
+    std::fs::create_dir_all(g.p("work/deep/er")).unwrap();
+    let (st, _, err) = g.run(&["cp", "-r", "a", "deep/er/a2"]);
     assert_eq!(st, 1);
-    assert!(err.contains("points outside the session's grants"), "{err}");
-    assert!(!g.p("work/copy/leak").exists() && std::fs::symlink_metadata(g.p("work/copy/leak")).is_err());
-    // control: a link whose target is inside is copied as a link
-    std::fs::remove_file(g.p("work/src/leak")).unwrap();
-    symlink(g.p("work/src/ok"), g.p("work/src/inside")).unwrap();
-    std::fs::remove_dir_all(g.p("work/copy")).unwrap();
-    assert_eq!(g.run(&["cp", "-r", "src", "copy"]), (0, "".into(), "".into()));
-    assert!(std::fs::symlink_metadata(g.p("work/copy/inside")).unwrap().file_type().is_symlink());
+    assert!(err.contains("refusing to copy a symlink"), "{err}");
+    assert!(std::fs::symlink_metadata(g.p("work/deep/er/a2/l")).is_err());
+    // shallower: a link that is fine deep down, copied up
+    symlink("../../../out/secret", g.p("work/deep/er/m")).unwrap();
+    std::fs::create_dir_all(g.p("work/d2")).unwrap();
+    let (st, _, err) = g.run(&["cp", "-r", "deep", "d2/x"]);
+    assert_eq!(st, 1);
+    assert!(err.contains("refusing to copy a symlink"), "{err}");
+    // mv of a link to another directory is refused; in place is fine
+    let (st, _, err) = g.run(&["mv", "a/l", "deep"]);
+    assert_eq!((st, err.as_str()), (1, "kapsel: a/l: refusing to copy a symlink\n"));
+    assert!(std::fs::symlink_metadata(g.p("work/a/l")).is_ok());
+    assert_eq!(g.run(&["mv", "a/l", "a/l2"]), (0, "".into(), "".into()));
+    // control: a tree without links copies
+    std::fs::remove_file(g.p("work/a/l2")).unwrap();
+    assert_eq!(g.run(&["cp", "-r", "a", "deep/er/a3"]), (0, "".into(), "".into()));
+    assert_eq!(std::fs::read_to_string(g.p("work/deep/er/a3/ok")).unwrap(), "ok");
 }
 
 #[test]

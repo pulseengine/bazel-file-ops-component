@@ -1,0 +1,3 @@
+error[for-without-in] 0..5 "for x"
+  message: for-without-in: `for` without `in` (looping over the positional parameters) is not in kapsel's shell subset
+  help: name the items: `for x in "$@"; do ...; done`

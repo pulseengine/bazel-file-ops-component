@@ -102,6 +102,13 @@ pub fn lit(s: &str) -> WWord {
     vec![WPart::Lit(s.to_string(), true)]
 }
 
+struct Scope {
+    vars: BTreeMap<String, String>,
+    exported: BTreeSet<String>,
+    cwd: PathBuf,
+    status: i32,
+}
+
 pub struct Shell {
     pub grants: Grants,
     pub vars: BTreeMap<String, String>,
@@ -113,6 +120,7 @@ pub struct Shell {
     pub stderr: Sink,
     pipes: Vec<Rc<RefCell<Vec<u8>>>>,
     lists: Vec<Vec<String>>,
+    scopes: Vec<Scope>,
 }
 
 impl Shell {
@@ -128,13 +136,35 @@ impl Shell {
             stderr: Sink::new(io::stderr()),
             pipes: Vec::new(),
             lists: Vec::new(),
+            scopes: Vec::new(),
         }
     }
 
-    /// Clears the per-run state (pipes, lists).
+    /// Clears the per-run state (pipes, lists, open scopes).
     pub fn begin_run(&mut self) {
         self.pipes.clear();
         self.lists.clear();
+        self.scopes.clear();
+    }
+
+    /// Subshell semantics: snapshot variables, exported names, cwd and `$?`.
+    /// Pipes and lists are per run, so they survive a pop.
+    pub fn scope_push(&mut self) {
+        self.scopes.push(Scope {
+            vars: self.vars.clone(),
+            exported: self.exported.clone(),
+            cwd: self.cwd.clone(),
+            status: self.status,
+        });
+    }
+
+    pub fn scope_pop(&mut self) -> R<()> {
+        let s = self.scopes.pop().ok_or_else(|| HostError("scope-pop without scope-push".into()))?;
+        self.vars = s.vars;
+        self.exported = s.exported;
+        self.cwd = s.cwd;
+        self.status = s.status;
+        Ok(())
     }
 
     // ---- host imports -------------------------------------------------
@@ -433,11 +463,6 @@ impl Shell {
         };
         let _ = out.flush();
         let _ = err.flush();
-        if status >= 256 {
-            self.status = status - 256;
-        } else {
-            self.status = status;
-        }
         Ok(status as u32)
     }
 

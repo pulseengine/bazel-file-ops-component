@@ -1,6 +1,7 @@
 //! mkdir rm cp mv ls
 
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -111,19 +112,9 @@ fn copy_tree(g: &Grants, src: &Path, dst: &Path) -> Result<(), String> {
     let md = fs::symlink_metadata(src).map_err(ioe)?;
     let dest_check = g.check_dest_abs(dst);
     if md.file_type().is_symlink() {
-        let t = fs::read_link(src).map_err(ioe)?;
-        let target = grants::resolve(src.parent().unwrap_or(Path::new("/")), &t)
-            .map_err(|w| format!("symlink '{}': {}", src.display(), w.reason()))?;
-        if !g.can_read(&target) {
-            return Err(format!("symlink '{}' points outside the session's grants", src.display()));
-        }
-        match dest_check {
-            Ok(()) => {}
-            // Replacing a link with a link acts on the link itself.
-            Err(grants::GrantErr::Symlink) => fs::remove_file(dst).map_err(ioe)?,
-            Err(w) => return Err(format!("'{}': {}", dst.display(), w.reason())),
-        }
-        return std::os::unix::fs::symlink(t, dst).map_err(ioe);
+        // A relative target resolves differently at the destination than at
+        // the source, where it would have been checked: never recreate links.
+        return Err(format!("kapsel: {}: refusing to copy a symlink", src.display()));
     }
     dest_check.map_err(|w| format!("'{}': {}", dst.display(), w.reason()))?;
     if md.is_dir() {
@@ -236,6 +227,13 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
             status = 1;
             continue;
         }
+        if moving && smd.file_type().is_symlink() && sres.parent() != tres.parent() {
+            // Moving a link to another directory changes what a relative
+            // target means there.
+            let _ = writeln!(ctx.err, "kapsel: {s}: refusing to copy a symlink");
+            status = 1;
+            continue;
+        }
         let g = ctx.sh.grants.clone();
         let r = if moving {
             match fs::rename(&sres, &tres) {
@@ -255,6 +253,11 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
                 }
             }
             Err(e) => {
+                if e.starts_with("kapsel: ") {
+                    let _ = writeln!(ctx.err, "{e}");
+                    status = 1;
+                    continue;
+                }
                 let what = if moving { "move" } else { "create regular file" };
                 if moving {
                     ctx.msg(&format!("cannot {what} '{s}' to '{tshown}': {}", e));

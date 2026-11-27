@@ -1,0 +1,6 @@
+error[param-operator] 5..14 "${f%.txt}"
+  message: param-operator: parameter operators inside `${...}` are not in kapsel's shell subset
+  help: use basename, dirname or sed to cut the value
+error[param-operator] 15..23 "${f/a/b}"
+  message: param-operator: parameter operators inside `${...}` are not in kapsel's shell subset
+  help: use sed to replace text in the value

@@ -225,6 +225,94 @@ artifacts:
       - type: derives-from
         target: REQ-KS-014
 
+  - id: REQ-KS-060
+    type: requirement
+    title: "Every refusal, warning and run error says what is wrong, where, and what to do"
+    status: approved
+    release: v0.3.0
+    description: >
+      Diagnostics are rendered rustc-style: rule id, file:line:col, the source line with the span
+      underlined, related spans, a help line with a concrete fix and a note on why the rule
+      exists. `kapsel explain <rule>` prints the long form. Parse errors name the construct and
+      what was expected; built-in errors name the built-in, the operand and the supported flags
+      (owner, 2026-11-27: "a big one on error reporting wrong inputs").
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any finding or parse error lacks a span, a rule id or a help line, or a golden diagnostic changes without being blessed."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-061
+    type: requirement
+    title: "Commands that repeat an earlier command with a small difference are analysed together"
+    status: approved
+    release: v0.3.0
+    description: >
+      A salsa database holds every command of a script or session. The analysis compares command
+      shapes and reports retries without change, inconsistent flags, near-miss paths, duplicated
+      commands and destructive near-misses (KS-S001 to KS-S005), with the related command as a
+      secondary span (owner, 2026-11-27).
+    fields:
+      priority: should
+      category: functional
+      verification-criteria: "Fails if a planted case for a KS-S rule is not reported with its related span, a control is reported, or editing one command recomputes the analysis of unrelated commands."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-062
+    type: requirement
+    title: "Real mistakes from CI and agent sessions form a regression corpus"
+    status: approved
+    release: v0.3.0
+    description: >
+      testdata/kapsel/errors/ holds minimized, scrubbed cases from CI failures and failed agent
+      shell calls (smithy: 428,316 calls on 2 machines, 11,551 failed, 2026-11-27), each with
+      its expected outcome. New classes found later are added the same way. No raw transcript
+      text or log is committed.
+    fields:
+      priority: must
+      category: verification
+      verification-criteria: "Fails if a corpus case's outcome differs from its expect line, or a committed case contains a home path, hostname, user name or token."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-063
+    type: requirement
+    title: "Built-ins for file edits and structured data make python, perl and awk unnecessary for basic work"
+    status: approved
+    release: v0.3.0
+    description: >
+      Measured on this machine (80,836 agent shell calls, 2026-11-27): 19.1% used python, perl,
+      node or ruby, and most of that was file editing, not data work. Built-ins cover, in order
+      of calls replaced: in-place literal and regex substitution in a file, including multi-line
+      (about 6,800 uses); JSON get by path (3,359); JSON set, delete and merge (1,649); YAML get
+      (769); splice a file by line range (533); field and line-range selection now done with awk
+      (about 3,100); base64 and sha256; YAML and TOML set preserving comments. With them, `python`,
+      `perl`, `node` and `awk` stay refused (KS-R009) and the refusal names the built-in to use
+      (owner, 2026-11-27: "no python needed for basic stuff anymore, e.g. yaml or json").
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any of the measured operations above has no built-in, a YAML or TOML edit loses a comment, or a refusal of python, perl, node or awk for a covered purpose does not name the built-in."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-064
+    type: requirement
+    title: "The repository has no Python, and no Go once the JSON-config mode is Rust"
+    status: approved
+    release: v0.3.0
+    description: >
+      scripts/check_selfhosted_fork_guard.py becomes the first rule of kapsel's workflow scanner
+      (REQ-KS-015), ported with the Python script as the equivalence oracle. The TinyGo component
+      is deleted once the Rust JSON-config mode (REQ-KS-041) passes its equivalence test (owner,
+      2026-11-27: everything in v0.3.0).
+    fields:
+      priority: must
+      category: constraint
+      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag, or the Rust fork-guard rule disagrees with the Python script on any workflow in the fixtures."
+      upstream-ref: "kapsel#140"
+    links:
+      - type: derives-from
+        target: REQ-KS-041
+
   # --- v0.4.0: compile and run ---
 
   - id: REQ-KS-020
@@ -243,17 +331,22 @@ artifacts:
 
   - id: REQ-KS-021
     type: requirement
-    title: "Compiled modules are cached, signed and invalidated by their key"
-    status: draft
-    release: v0.4.0
+    title: "Compiled modules are signed with sigil, attest both input hashes, and are cached by the normalized one"
+    status: approved
+    release: v0.3.0
     description: >
-      The cache key covers the plan and the tool and interface versions; grants stay runtime
-      preopens and are never compiled in. A cached module is signed and is discarded when its
-      key no longer matches.
+      Every compiled module is signed with sigil (wsc) and carries a transformation attestation
+      whose inputs are the source (raw sha256) and the normalized plan (sha256 of the plan without
+      spans, source hash and warnings), whose output is the module, and whose tool entry names
+      the compiler version and the WIT version. The cache is keyed by normalized plan hash plus
+      compiler and WIT versions, so whitespace and comment changes reuse the module. A cached
+      module runs only after its signature verifies and its attested plan hash equals the key
+      (owner, 2026-11-27: sign with sigil, reference the input hash and a normalized hash, cache
+      for performance work).
     fields:
-      priority: should
+      priority: must
       category: non-functional
-      verification-criteria: "Fails if a module with a changed key is served from the cache, a grant appears in a compiled module, or an unsigned or wrongly signed module runs."
+      verification-criteria: "Fails if a module whose attested normalized-plan hash differs from the cache key is run, a whitespace-only change misses the cache, a grant appears in a compiled module, or an unsigned or wrongly signed module runs."
 
   - id: REQ-KS-022
     type: requirement
@@ -434,7 +527,7 @@ artifacts:
     type: requirement
     title: "The Rust implementation replaces the TinyGo JSON-config component after an equivalence test"
     status: approved
-    release: v1.0.0
+    release: v0.3.0
     description: >
       The existing JSON configs are the oracle: the Rust implementation produces the same files,
       errors and exit codes as the TinyGo artifact before it ships in its place.

@@ -1,0 +1,196 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "printf"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 6
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "single_quoted",
+                    "text": "a\\nb\\n"
+                  }
+                ],
+                "span": {
+                  "start": 7,
+                  "end": 15
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 15
+            }
+          },
+          {
+            "kind": "while",
+            "until": false,
+            "condition": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "read"
+                            }
+                          ],
+                          "span": {
+                            "start": 24,
+                            "end": 28
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "l"
+                            }
+                          ],
+                          "span": {
+                            "start": 29,
+                            "end": 30
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 24,
+                        "end": 30
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 24,
+                    "end": 30
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 24,
+                  "end": 30
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "echo"
+                            }
+                          ],
+                          "span": {
+                            "start": 35,
+                            "end": 39
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "param",
+                              "name": "l"
+                            }
+                          ],
+                          "span": {
+                            "start": 40,
+                            "end": 42
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 35,
+                        "end": 42
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 35,
+                    "end": 42
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 35,
+                  "end": 42
+                }
+              }
+            ],
+            "span": {
+              "start": 18,
+              "end": 48
+            }
+          },
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "sort"
+                  }
+                ],
+                "span": {
+                  "start": 51,
+                  "end": 55
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 51,
+              "end": 55
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 55
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 55
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 55
+  }
+}
