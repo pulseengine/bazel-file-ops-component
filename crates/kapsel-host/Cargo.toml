@@ -8,3 +8,14 @@ repository.workspace = true
 
 [dependencies]
 kapsel-plan.workspace = true
+wasmtime = { version = "50", default-features = false, features = ["runtime", "cranelift", "component-model", "std"] }
+regex = "1"
+
+[dev-dependencies]
+wat = "1"
+wit-component = "0.263"
+wit-parser = "0.263"
+tempfile = "3"
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true
+kapsel-compile.workspace = true
