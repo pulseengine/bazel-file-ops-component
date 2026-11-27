@@ -228,11 +228,11 @@ jobs:
       run: |
         # Build available components
         echo "Building available targets..."
-        bazel build //tinygo:file_ops_tinygo //tinygo:file_ops_component || echo "Some TinyGo targets failed to build"
+        bazel build //tinygo:file_ops_tinygo //tinygo:file_ops_component
 
         # Run basic tests
         echo "Running tests..."
-        bazel test //tinygo:file_ops_test --test_output=errors || echo "Some tests failed"
+        bazel test //tinygo:file_ops_test --test_output=errors
 
         # Run integration tests if available
         if bazel query //testdata:integration_test_suite &>/dev/null; then
@@ -243,7 +243,7 @@ jobs:
 
         # Run testdata tests if available
         if bazel query //testdata:all &>/dev/null; then
-          bazel test //testdata:all --test_output=errors || echo "Testdata tests not implemented"
+          bazel test //testdata:all --test_output=errors
         fi
 
         # Run Rust tests if available
@@ -383,25 +383,6 @@ jobs:
       uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
       with:
         files: release/*
-        body: |
-          ## File Operations WebAssembly Components
-
-          This release includes both TinyGo and Rust implementations of file operations components:
-
-          ### TinyGo Implementation
-          - **Security-focused**: Minimal attack surface and compact binaries
-          - **WASI Preview 2**: Native support for modern WebAssembly runtimes
-          - **JSON API**: Compatible with existing JSON batch operations
-
-          ### Rust Implementation
-          - **Performance-optimized**: Advanced streaming I/O and parallel processing
-          - **Feature-rich**: Comprehensive error handling and security validation
-          - **Enhanced API**: Extended capabilities beyond basic file operations
-
-          ### Usage
-          Download the appropriate package for your platform and integrate with your Bazel build system using the dual implementation toolchain.
-
-          See documentation for detailed integration instructions.
 
   # Performance monitoring and metrics
   performance-monitor:
