@@ -16,7 +16,7 @@ use kapsel_plan::{
 use sha2::{Digest, Sha256};
 
 mod args;
-use args::{rm_danger, sed_in_place, spec_for, split_args};
+use args::{leading_literal, rm_danger, sed_in_place, spec_for, split_args};
 
 pub use kapsel_plan::BUILTINS;
 
@@ -186,17 +186,29 @@ pub fn refuse_parse_errors(source: &str, errors: &[ast::ParseError]) -> CheckOut
     let findings = errors
         .iter()
         .map(|e| {
-            let mut f = finding(
-                source,
-                R000,
-                Severity::Refuse,
-                format!(
-                    "`{}` is outside kapsel's shell subset and is refused: {}",
-                    e.construct, e.message
-                ),
-                e.span,
-            );
+            // A trailing `&` is a background job: the more specific KS-R007.
+            let (rule, message) = if e.construct == "background" {
+                (
+                    R007,
+                    format!(
+                        "a trailing `&` starts a background job that outlives its plan and escapes the session: {}",
+                        e.message
+                    ),
+                )
+            } else {
+                (
+                    R000,
+                    format!(
+                        "`{}` is outside kapsel's shell subset and is refused: {}",
+                        e.construct, e.message
+                    ),
+                )
+            };
+            let mut f = finding(source, rule, Severity::Refuse, message, e.span);
             f.help = e.help.clone().or_else(|| {
+                if rule == R007 {
+                    return Some(help_for(R007, "&"));
+                }
                 Some(
                     "rewrite it with pipes, redirects, `&&`, `||`, `;`, quoting, `$(...)` and \
                      `for`/`while`/`until` only"
@@ -379,11 +391,21 @@ impl Cx<'_> {
     }
 
     fn lower_simple(&mut self, s: &ast::SimpleCommand, handled: bool, claimed: bool, last: bool) -> Call {
-        let assignments =
+        let assignments: Vec<(String, PWord)> =
             s.assignments.iter().map(|a| (a.name.clone(), self.lower_word(&a.value))).collect();
         let argv: Vec<PWord> = s.words.iter().map(|w| self.lower_word(w)).collect();
-        let redirects = s.redirects.iter().map(|r| self.lower_redirect(r, handled)).collect();
-        let tool = if argv.is_empty() { None } else { self.classify(s, &argv, claimed) };
+        let redirects: Vec<PRedirect> = s.redirects.iter().map(|r| self.lower_redirect(r, handled)).collect();
+        // A redirect-only command (`> f`) is `:` with redirects: POSIX creates or
+        // truncates the file and the status is 0.
+        let redirect_only = argv.is_empty() && assignments.is_empty() && !redirects.is_empty();
+        let argv = if redirect_only { vec![PWord::literal(":")] } else { argv };
+        let tool = if redirect_only {
+            Some(Tool::Builtin(":".to_string()))
+        } else if argv.is_empty() {
+            None
+        } else {
+            self.classify(s, &argv, claimed)
+        };
         let call = Call { tool, argv, assignments, redirects, span: s.span };
         self.check_option_globs(s);
         self.collect_grants(&call, s, last);
@@ -512,6 +534,25 @@ impl Cx<'_> {
     fn check_rm(&mut self, args: &[PWord], spans: &[ast::Span]) {
         let spec = spec_for("rm").expect("rm spec");
         let split = split_args(&spec, args, spans);
+        if split.opaque {
+            let at = args
+                .iter()
+                .zip(spans)
+                .find(|(a, _)| {
+                    let (h, n) = leading_literal(a);
+                    h.starts_with('-') && n < a.parts.len()
+                })
+                .map(|(_, s)| *s)
+                .unwrap_or_default();
+            self.refuse(
+                R003,
+                "`rm` has an option written with an expansion (like `-$X`): it may be `-r`, and the operands cannot be told from options, so a recursive delete cannot be ruled out"
+                    .to_string(),
+                at,
+            );
+            self.help(help_for(R003, ""));
+            return;
+        }
         let recursive = split.opts.iter().any(|o| {
             o == "--recursive"
                 || (o.starts_with('-')
@@ -729,11 +770,19 @@ impl Cx<'_> {
                     push(std::slice::from_ref(first), Access::Read);
                 }
             }
-            "cat" | "wc" | "ls" | "head" | "tail" | "cut" | "uniq" => push(&sp.positional, Access::Read),
+            "cat" | "wc" | "ls" | "head" | "tail" | "cut" => push(&sp.positional, Access::Read),
+            "uniq" => {
+                // uniq [IN [OUT]]: the second operand is written.
+                push(sp.positional.get(..1).unwrap_or(&[]), Access::Read);
+                push(sp.positional.get(1..2).unwrap_or(&[]), Access::Write);
+                if sp.positional.len() > 2 {
+                    return (out, true);
+                }
+            }
             "sort" => {
                 push(&sp.positional, Access::Read);
                 for (k, w, span) in &sp.values {
-                    if *k == 'o' {
+                    if *k == 'o' || *k == 'T' {
                         out.push((w.clone(), Access::Write, *span));
                     }
                 }
@@ -752,6 +801,22 @@ impl Cx<'_> {
                 }
                 let files: Vec<(&PWord, ast::Span)> = sp.positional.get(skip..).unwrap_or(&[]).to_vec();
                 let in_place = name == "sed" && sp.opts.iter().any(|o| sed_in_place(o));
+                if name == "sed" {
+                    // A script can write files (`w`) or run commands (`e`);
+                    // an expansion in it can be anything.
+                    let mut scripts: Vec<&PWord> =
+                        sp.values.iter().filter(|(k, _, _)| *k == 'e').map(|(_, w, _)| w).collect();
+                    if skip == 1 {
+                        scripts.extend(sp.positional.first().map(|(w, _)| *w));
+                    }
+                    for w in scripts {
+                        match w.as_literal() {
+                            None => return (out, true),
+                            Some(t) if args::sed_script_acts(&t) => return (out, true),
+                            Some(_) => {}
+                        }
+                    }
+                }
                 for (w, span) in &files {
                     out.push(((*w).clone(), Access::Read, *span));
                     if in_place {
@@ -933,7 +998,5 @@ fn glob_text(g: &ast::GlobPart) -> String {
     }
 }
 
-#[cfg(test)]
-mod testparse;
 #[cfg(test)]
 mod tests;

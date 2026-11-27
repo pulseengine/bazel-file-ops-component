@@ -1183,6 +1183,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kapsel-scan"
+version = "0.3.0-dev"
+dependencies = [
+ "rivet-yaml",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "kapsel-seal"
 version = "0.3.0-dev"
 dependencies = [
@@ -1730,6 +1739,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rivet-yaml"
+version = "0.43.3"
+source = "git+https://github.com/pulseengine/rivet?tag=v0.43.3#3422f42e8461b17ec08dcfb6be215535cc9ede38"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "rowan",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "rowan"
 version = "0.16.2"
 source = "git+https://github.com/pulseengine/rowan.git?branch=fix%2Fmiri-soundness-v3#9e7abd1161634377d278cde0c504c101ac003941"
@@ -1838,6 +1859,12 @@ dependencies = [
  "tempfile",
  "wait-timeout",
 ]
+
+[[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "ryu-js"

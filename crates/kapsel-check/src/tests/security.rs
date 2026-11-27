@@ -13,15 +13,12 @@ fn r003_normalizes_paths_and_globs() {
         "rm -rf //",
         "rm -rf /./",
         "rm -rf /*",
-        "rm -r ~/",
         "rm -rf ./*",
         "rm -rf a/../..",
-        "rm -rf ~/..",
         "rm -rf ../..",
         "rm -rf ..",
         "rm -rf .*",
         "rm -rf *",
-        "rm -rf ~/*",
         "rm -rf ../*",
         "rm -rf /../",
         "rm -rf a/b/../../..",
@@ -37,7 +34,6 @@ fn r003_normalizes_paths_and_globs() {
         "rm -rf ../x",
         "rm -rf a/../b",
         "rm -rf /tmp/*",
-        "rm -rf ~/x",
         "rm -f /",
         "rm -rf out/",
     ] {
@@ -153,7 +149,7 @@ fn r017_does_not_double_report_recursive_rm() {
 fn error_corpus_matches_expectations() {
     // Cases the test-only parser cannot read: they need `kapsel_syntax`
     // (003 backquotes, 006 `${name[1]}`). The count is pinned.
-    const SKIP: &[&str] = &["003-backquote-in-double-quotes.sh", "006-zsh-array-subscript.sh"];
+    const SKIP: &[&str] = &[];
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/errors/ci");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
@@ -193,7 +189,107 @@ fn error_corpus_matches_expectations() {
         }
     }
     assert_eq!(skipped, SKIP.len());
-    assert_eq!(skipped, 2, "skip list changed");
+    assert_eq!(skipped, 0, "skip list changed");
     assert_eq!(run_errors, 3, "run-error cases changed");
-    assert_eq!(tested, 20);
+    assert_eq!(tested, 22);
+}
+
+#[test]
+fn tilde_is_refused_by_the_parser_not_r003() {
+    let r = rules("rm -rf ~");
+    assert_eq!(r, ["KS-R000"], "{r:?}");
+}
+
+#[test]
+fn rm_danger_home_forms_on_hand_built_words() {
+    // The parser refuses `~`, but the normalization stays correct for any
+    // word that reaches it (defence in depth).
+    for p in ["~", "~/", "~/..", "~/../x", "~//.."] {
+        assert!(crate::args::rm_danger(&PWord::literal(p)).is_some(), "{p}");
+    }
+    for p in ["~/x", "~/a/..", "~x"] {
+        let d = crate::args::rm_danger(&PWord::literal(p));
+        // `~/a/..` is `~` again.
+        assert_eq!(d.is_some(), p == "~/a/..", "{p}: {d:?}");
+    }
+}
+
+#[test]
+fn mixed_option_words_are_options() {
+    // rm: an option written with an expansion may be -r.
+    for planted in ["rm -$X /tmp/x", "rm -rf -$X out", "rm \"-\"rf /", "rm -r\"$X\" out", "rm -$(echo r) out"] {
+        assert!(has(planted, "KS-R003", Severity::Refuse), "{planted:?}: {:?}", rules(planted));
+    }
+    for control in ["rm -f out", "rm -- -$X", "rm \"-f\" out", "rm out/$X"] {
+        assert!(!has_rule(control, "KS-R003"), "{control:?}");
+    }
+}
+
+/// (source, read, write, dynamic)
+const GRANTS3: &[(&str, &[&str], &[&str], bool)] = &[
+    // Mixed option words set dynamic; plain ones do not.
+    ("cat -$X f", &["f"], &[], true),
+    ("cat -n$X f", &["f"], &[], true),
+    ("cat \"-\"n f", &["f"], &[], false),
+    ("cat -i$X f", &["f"], &[], true),
+    ("head -n$X f", &["f"], &[], false),
+    ("sort -T$D in", &["in"], &[], true),
+    ("sed -i$X s/a/b/ f", &["f"], &["f"], true),
+    ("ls -$(echo l) d", &["d"], &[], true),
+    // A long option with an expansion glued on never swallows the next word.
+    ("sort --output$X in", &["in"], &[], true),
+    ("grep --file$X pats a", &["a"], &[], true),
+    ("cp --target-directory$X a b", &["a"], &["b"], true),
+    // Every option that names a path records its access.
+    ("uniq in out", &["in"], &["out"], false),
+    ("uniq in", &["in"], &[], false),
+    ("uniq a b c", &["a"], &["b"], true),
+    ("sort -T tmp in", &["in"], &["tmp"], false),
+    ("sort -Ttmp in", &["in"], &["tmp"], false),
+    ("sort --temporary-directory=t in", &["in"], &["t"], false),
+    ("sort -o o -T t in", &["in"], &["o", "t"], false),
+    ("sed -n s/a/b/p f", &["f"], &[], false),
+    ("sed s/a/b/w\\ out f", &[], &[], true),
+    ("sed s/a/b/e f", &[], &[], true),
+    ("sed 'w out' f", &[], &[], true),
+    ("sed -e s/a/b/ -e p f", &["f"], &[], false),
+    ("sed -f script.sed f", &["script.sed", "f"], &[], false),
+    ("sed -e $X f", &[], &[], true),
+];
+
+#[test]
+fn grants_round3_table() {
+    for (src, read, write, dynamic) in GRANTS3 {
+        let g = plan(src).grants;
+        assert_eq!(g.read, *read, "read of {src:?}");
+        assert_eq!(g.write, *write, "write of {src:?}");
+        assert_eq!(g.dynamic, *dynamic, "dynamic of {src:?}");
+    }
+}
+
+#[test]
+fn redirect_only_command_is_colon_with_redirects() {
+    let p = plan("> f");
+    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else { panic!() };
+    assert_eq!(c.tool, Some(Tool::Builtin(":".into())));
+    assert_eq!(c.argv, [PWord::literal(":")]);
+    assert_eq!(c.redirects.len(), 1);
+    assert_eq!(c.redirects[0].fd, 1);
+    assert_eq!(p.grants.write, ["f"]);
+    // An assignment-only command stays `tool: None`.
+    let p = plan("X=1");
+    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else { panic!() };
+    assert_eq!(c.tool, None);
+    assert!(c.argv.is_empty());
+}
+
+#[test]
+fn background_maps_to_r007() {
+    let src = "sleep 1 &";
+    let CheckOutcome::Refused(r) = run(src) else { panic!() };
+    assert_eq!(r.findings.len(), 1);
+    assert_eq!(r.findings[0].rule, "KS-R007");
+    assert_eq!(r.findings[0].severity, Severity::Refuse);
+    assert!(r.findings[0].help.is_some() && !r.findings[0].notes.is_empty());
+    assert_eq!(r.findings[0].excerpt, "&");
 }

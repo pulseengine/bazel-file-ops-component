@@ -1,0 +1,294 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.1.0)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  # Pre-rename path, dual-published through v0.3.x
+  LEGACY_IMAGE_NAME: pulseengine/bazel-file-ops-component
+
+jobs:
+  build-and-release:
+    name: Build & Release WASM Component
+    # Stays on hosted: Bazel + sudo apt-get install build-essential; not available on smithy.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write  # For Cosign keyless signing
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+    - name: Setup C++ Build Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gcc g++
+
+    - name: Setup Bazel
+      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
+      with:
+        bazelisk-cache: true
+        disk-cache: ${{ github.workflow }}
+        repository-cache: true
+
+    - name: Setup Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '1.23'
+
+    - name: Setup TinyGo
+      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
+      with:
+        tinygo-version: '0.38.0'
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+    - name: Build TinyGo WASM Component
+      run: |
+        echo "Building TinyGo WebAssembly component..."
+        bazel build //tinygo:file_ops_component
+
+        # Copy to a predictable location
+        cp bazel-bin/tinygo/file_ops_component.wasm ./file_ops_component.wasm
+
+        # Verify it's a valid WebAssembly module
+        file ./file_ops_component.wasm
+        ls -lh ./file_ops_component.wasm
+
+    - name: Build AOT-Embedded WASM Component
+      run: |
+        echo "Building AOT-embedded WebAssembly component with multi-architecture support..."
+
+        # Build multi-architecture AOT compiled artifacts
+        echo "Compiling WASM to native code for multiple architectures..."
+        bazel build //tinygo:file_ops_aot_multi
+
+        # Build the component with embedded AOT artifacts
+        echo "Embedding AOT artifacts as custom sections..."
+        # Enable C++ toolchain resolution (requires cc_configure in MODULE.bazel)
+        bazel build //tinygo:file_ops_component_aot
+
+        # Copy to a predictable location
+        cp bazel-bin/tinygo/file_ops_component_aot.wasm ./file_ops_component_aot.wasm
+
+        # Verify it's a valid WebAssembly module
+        file ./file_ops_component_aot.wasm
+        ls -lh ./file_ops_component_aot.wasm
+
+        # Show size comparison
+        echo "Size comparison:"
+        echo "  Regular WASM: $(ls -lh file_ops_component.wasm | awk '{print $5}')"
+        echo "  AOT-embedded: $(ls -lh file_ops_component_aot.wasm | awk '{print $5}')"
+
+    - name: Create SHA256 checksums
+      run: |
+        sha256sum file_ops_component.wasm > file_ops_component.wasm.sha256
+        sha256sum file_ops_component_aot.wasm > file_ops_component_aot.wasm.sha256
+        cat file_ops_component.wasm.sha256
+        cat file_ops_component_aot.wasm.sha256
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create OCI Image with WASM Component
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_TAG: ${{ inputs.tag }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        # Create an OCI artifact containing the WASM file
+        # Using oras which is designed for OCI artifacts
+
+        # Install oras
+        VERSION="1.2.2"
+        curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+        mkdir -p oras-install/
+        tar -zxf "oras_${VERSION}_linux_amd64.tar.gz" -C oras-install/
+        sudo mv oras-install/oras /usr/local/bin/
+        rm -rf "oras_${VERSION}_linux_amd64.tar.gz" oras-install/
+
+        # Determine tag
+        if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          TAG="$INPUT_TAG"
+        else
+          TAG="$RELEASE_TAG"
+        fi
+
+        # Primary path follows the repository (ghcr.io/pulseengine/kapsel).
+        # The pre-rename path is still published through v0.3.x so existing
+        # consumers keep receiving releases; its manifests carry an annotation
+        # that names the new path.
+        IMAGE_TAG="${REGISTRY}/${IMAGE_NAME}:${TAG}"
+        IMAGE_LATEST="${REGISTRY}/${IMAGE_NAME}:latest"
+        IMAGE_AOT_TAG="${REGISTRY}/${IMAGE_NAME}:${TAG}-aot"
+        IMAGE_AOT_LATEST="${REGISTRY}/${IMAGE_NAME}:latest-aot"
+        MOVED="org.opencontainers.image.description=Moved to ${REGISTRY}/${IMAGE_NAME}; this path is published through v0.3.x only"
+        MEDIA=application/vnd.wasm.component.layer.v1+wasm
+
+        SIGN_REFS=""
+        VERIFY_REFS=""
+        for NAME in "${IMAGE_NAME}" "${LEGACY_IMAGE_NAME}"; do
+          ANNOTATE=()
+          if [ "${NAME}" = "${LEGACY_IMAGE_NAME}" ]; then
+            ANNOTATE=(--annotation "${MOVED}")
+          fi
+          REF="${REGISTRY}/${NAME}"
+
+          echo "Publishing regular WASM component to ${REF}:${TAG}"
+          oras push "${REF}:${TAG}" "${ANNOTATE[@]}" \
+            --artifact-type "${MEDIA}" \
+            "file_ops_component.wasm:${MEDIA}"
+          oras tag "${REF}:${TAG}" latest
+
+          echo "Publishing AOT-embedded WASM component to ${REF}:${TAG}-aot"
+          oras push "${REF}:${TAG}-aot" "${ANNOTATE[@]}" \
+            --artifact-type "${MEDIA}" \
+            "file_ops_component_aot.wasm:${MEDIA}"
+          oras tag "${REF}:${TAG}-aot" latest-aot
+
+          SIGN_REFS="${SIGN_REFS} ${REF}:${TAG} ${REF}:latest ${REF}:${TAG}-aot ${REF}:latest-aot"
+          VERIFY_REFS="${VERIFY_REFS} ${REF}:${TAG} ${REF}:${TAG}-aot"
+        done
+
+        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+        echo "IMAGE_LATEST=${IMAGE_LATEST}" >> $GITHUB_ENV
+        echo "IMAGE_AOT_TAG=${IMAGE_AOT_TAG}" >> $GITHUB_ENV
+        echo "IMAGE_AOT_LATEST=${IMAGE_AOT_LATEST}" >> $GITHUB_ENV
+        echo "SIGN_REFS=${SIGN_REFS# }" >> $GITHUB_ENV
+        echo "VERIFY_REFS=${VERIFY_REFS# }" >> $GITHUB_ENV
+
+    - name: Sign OCI Image with Cosign
+      run: |
+        # Keyless signing with GitHub OIDC, every published reference
+        for REF in ${SIGN_REFS}; do
+          echo "Signing ${REF}"
+          cosign sign --yes "${REF}"
+        done
+
+    - name: Generate SLSA Provenance
+      run: |
+        # Create provenance attestation
+        cat > provenance.json <<EOF
+        {
+          "buildType": "${{ github.server_url }}/${{ github.repository }}/release@v1",
+          "builder": {
+            "id": "https://github.com/actions/runner"
+          },
+          "invocation": {
+            "configSource": {
+              "uri": "${{ github.server_url }}/${{ github.repository }}",
+              "digest": {
+                "sha1": "${{ github.sha }}"
+              }
+            }
+          },
+          "metadata": {
+            "buildStartedOn": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "completeness": {
+              "parameters": true,
+              "environment": false,
+              "materials": false
+            }
+          },
+          "materials": [
+            {
+              "uri": "${{ github.server_url }}/${{ github.repository }}",
+              "digest": {
+                "sha1": "${{ github.sha }}"
+              }
+            }
+          ]
+        }
+        EOF
+
+        # Attest the provenance for every versioned reference, both paths
+        for REF in ${VERIFY_REFS}; do
+          cosign attest --yes \
+            --predicate provenance.json \
+            --type slsaprovenance \
+            "${REF}"
+        done
+
+    - name: Verify Signatures
+      run: |
+        # Fails the release if any versioned reference lacks a signature or
+        # provenance from this repository's release workflow.
+        IDENTITY="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@"
+        for REF in ${VERIFY_REFS}; do
+          echo "Verifying ${REF}"
+          cosign verify \
+            --certificate-identity-regexp="${IDENTITY}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            "${REF}" > /dev/null
+          cosign verify-attestation \
+            --type slsaprovenance \
+            --certificate-identity-regexp="${IDENTITY}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            "${REF}" > /dev/null
+        done
+
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+      with:
+        files: |
+          file_ops_component.wasm
+          file_ops_component.wasm.sha256
+          file_ops_component_aot.wasm
+          file_ops_component_aot.wasm.sha256
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
+    - name: Create Release Summary
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_TAG: ${{ inputs.tag }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        # Determine tag
+        if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          TAG="$INPUT_TAG"
+        else
+          TAG="$RELEASE_TAG"
+        fi
+
+        echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Published Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Regular WASM Component:**" >> $GITHUB_STEP_SUMMARY
+        echo "- **File**: \`file_ops_component.wasm\` ($(ls -lh file_ops_component.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact**: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact (latest)**: \`${IMAGE_LATEST}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**AOT-Embedded WASM Component:**" >> $GITHUB_STEP_SUMMARY
+        echo "- **File**: \`file_ops_component_aot.wasm\` ($(ls -lh file_ops_component_aot.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact**: \`${IMAGE_AOT_TAG}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **OCI Artifact (latest)**: \`${IMAGE_AOT_LATEST}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platforms**: Linux x64/ARM64, macOS x64/ARM64, Windows x64, Pulley64" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ All OCI artifacts signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ SLSA provenance attestation for all variants" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ SHA256 checksums provided for all files" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Download WASM (Regular)](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Download WASM (AOT)](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Pull OCI (Regular)](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Pull OCI (AOT)](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-aot)" >> $GITHUB_STEP_SUMMARY
+        echo "- Pre-rename path, published through v0.3.x: ${REGISTRY}/${LEGACY_IMAGE_NAME}" >> $GITHUB_STEP_SUMMARY
