@@ -1,0 +1,25 @@
+[package]
+name = "kapsel-seal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Seals compiled kapsel modules with a sigil transformation attestation and signature, and caches them (REQ-KS-021)"
+
+[features]
+default = []
+# Seam for CI keyless signing (Fulcio + Rekor). Not implemented yet: see
+# `SigningKey::keyless`, which returns `SealError::KeylessUnavailable`.
+keyless = []
+
+[dependencies]
+kapsel-plan.workspace = true
+kapsel-compile.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+wsc = { version = "0.13.0", default-features = false, features = ["software-keys", "sync"] }
+wsc-attestation = { version = "0.13.0", features = ["signing"] }
+
+[dev-dependencies]
+wat = "1"
