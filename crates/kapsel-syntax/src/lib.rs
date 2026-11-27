@@ -15,5 +15,7 @@ pub fn parse(source: &str) -> Result<ast::Script, Vec<ast::ParseError>> {
         construct: "unimplemented".into(),
         message: "parser not implemented yet".into(),
         span: ast::Span::new(0, source.len() as u32),
+        expected: Vec::new(),
+        help: None,
     }])
 }
