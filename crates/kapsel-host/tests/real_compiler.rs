@@ -60,7 +60,6 @@ fn exit_stops_the_plan_with_its_status() {
 }
 
 #[test]
-#[ignore = "needs the compiler to emit scope-push/scope-pop around $(...) (host side is tested in expansion.rs)"]
 fn subshell_scope_restores_variables_and_cwd() {
     let mut t = T::new();
     t.write("sub/f", "");
