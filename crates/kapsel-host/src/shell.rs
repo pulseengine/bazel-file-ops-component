@@ -121,6 +121,7 @@ pub struct Shell {
     pipes: Vec<Rc<RefCell<Vec<u8>>>>,
     lists: Vec<Vec<String>>,
     scopes: Vec<Scope>,
+    pub exit_request: Option<i32>,
 }
 
 impl Shell {
@@ -137,11 +138,20 @@ impl Shell {
             pipes: Vec::new(),
             lists: Vec::new(),
             scopes: Vec::new(),
+            exit_request: None,
         }
     }
 
     /// Clears the per-run state (pipes, lists, open scopes).
     pub fn begin_run(&mut self) {
+        self.pipes.clear();
+        self.lists.clear();
+        self.scopes.clear();
+        self.exit_request = None;
+    }
+
+    /// Drops the per-run tables once a run is over.
+    pub fn end_run(&mut self) {
         self.pipes.clear();
         self.lists.clear();
         self.scopes.clear();
@@ -463,6 +473,9 @@ impl Shell {
         };
         let _ = out.flush();
         let _ = err.flush();
+        if status >= 256 {
+            self.exit_request = Some(status as i32 - 256);
+        }
         Ok(status as u32)
     }
 

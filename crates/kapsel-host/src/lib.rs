@@ -143,7 +143,14 @@ impl Session {
     /// process working directory. Streams are the process's own.
     pub fn new(grants: GrantSet) -> Result<Self, HostError> {
         let cwd = std::env::current_dir().map_err(|e| HostError(format!("current directory: {e}")))?;
-        Self::with_env(grants, cwd, std::env::vars())
+        let mut s = Self::with_env(grants, cwd, std::env::vars())?;
+        s.set_io(Box::new(std::io::stdin()), std::io::stdout(), std::io::stderr());
+        Ok(s)
+    }
+
+    /// Set when the last run executed `exit n`: the session should end with n.
+    pub fn exit_requested(&self) -> Option<i32> {
+        self.shell.as_ref().expect("session shell").exit_request
     }
 
     /// A session with an explicit working directory and environment.
@@ -220,7 +227,7 @@ impl Session {
         // never updates it on its own. Per-run pipes, lists and scopes are
         // dropped here (the next `begin_run` would clear them too).
         let mut shell = store.into_data().shell;
-        shell.begin_run();
+        shell.end_run();
         self.shell = Some(shell);
         result
     }

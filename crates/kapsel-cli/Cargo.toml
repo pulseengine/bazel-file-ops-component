@@ -13,7 +13,11 @@ path = "src/main.rs"
 [dependencies]
 kapsel-syntax.workspace = true
 kapsel-check.workspace = true
-kapsel-compile.workspace = true
+kapsel-seal = { path = "../kapsel-seal" }
 kapsel-host.workspace = true
 kapsel-plan.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2"
+tempfile = "3"
