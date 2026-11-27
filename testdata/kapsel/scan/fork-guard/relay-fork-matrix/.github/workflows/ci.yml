@@ -1,0 +1,12 @@
+name: t
+on: [push, pull_request]
+jobs:
+  a:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && contains(matrix.runner, 'self-hosted') && 'ubuntu-latest' || matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: [self-hosted, linux, x64, rust-cpu]
+          - runner: macos-latest
+    steps:
+      - run: echo hi

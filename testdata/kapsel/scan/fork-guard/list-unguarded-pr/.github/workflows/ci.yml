@@ -1,0 +1,7 @@
+name: t
+on: pull_request
+jobs:
+  a:
+    runs-on: [self-hosted, linux, x64, light]
+    steps:
+      - run: echo hi

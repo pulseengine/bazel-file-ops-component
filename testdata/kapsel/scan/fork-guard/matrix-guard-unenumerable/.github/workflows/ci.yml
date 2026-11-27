@@ -1,0 +1,10 @@
+name: t
+on: [push, pull_request]
+jobs:
+  a:
+    runs-on: ${{ ((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) || !contains(matrix.runner, 'self-hosted')) && matrix.runner || 'ubuntu-24.04' }}
+    strategy:
+      matrix:
+        runner: ${{ fromJSON(needs.x.outputs.runners) }}
+    steps:
+      - run: echo hi

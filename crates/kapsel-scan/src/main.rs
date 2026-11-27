@@ -50,7 +50,7 @@ fn main() -> ExitCode {
             let sites: Vec<_> = rep
                 .sites
                 .iter()
-                .map(|s| serde_json::json!({"file": s.file, "line": s.line, "ok": s.ok}))
+                .map(|s| serde_json::json!({"file": s.file, "line": s.line, "ok": s.ok, "reason": s.reason}))
                 .collect();
             docs.push(serde_json::json!({
                 "rule": rep.rule, "passed": c == 0, "sites": sites, "errors": rep.errors,

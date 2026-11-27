@@ -2,21 +2,27 @@
 //!
 //! Rule 1 is `fork-guard`, the Rust port of the former
 //! `scripts/check_selfhosted_fork_guard.py` (REQ-KS-015, REQ-KS-064). The
-//! workflow structure is read with rivet-yaml (DD-KS-014); `${{ ... }}`
-//! expressions are opaque strings and are never evaluated.
+//! workflow structure is read with rivet-yaml (DD-KS-014). A `runs-on` that
+//! can select `self-hosted` must not be able to do so for a fork PR: the
+//! `${{ }}` expression is evaluated with `event_name == 'pull_request'`, a head
+//! repository that differs from this one, and `strategy.matrix` values
+//! enumerated (see [`expr`]). Anything not understood fails.
 //!
-//! The port is stricter than the script, never looser: wherever the script's
-//! line regex and a YAML-aware reading disagree, the verdict is the stricter
-//! of the two (see `tests/equivalence.rs`).
+//! Against the old script this is stricter where the script's line regex is
+//! blind and wider where a guard is semantically correct but not byte-equal
+//! to the one text form; see `tests/equivalence.rs` for the classified table.
 
+pub mod expr;
+
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rivet_yaml::Value;
-use rivet_yaml::cst::{SyntaxKind, SyntaxNode, parse};
+use rivet_yaml::cst::{SyntaxKind, SyntaxNode, parse as cst_parse};
 
-pub const GUARD: &str = "${{ (github.event_name != 'pull_request' || \
-github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('[";
-pub const TAIL: &str = "]') || 'ubuntu-24.04' }}";
+use crate::expr::{
+    Template, V, eval, hosted_label, matrix_keys, parse, selects_non_hosted, template,
+};
 
 pub const RULES: &[&str] = &["fork-guard"];
 
@@ -26,6 +32,8 @@ pub struct Site {
     pub file: String,
     pub line: usize,
     pub ok: bool,
+    /// Why it failed (JSON output only; the text output keeps the script's format).
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -139,10 +147,9 @@ fn selects_self_hosted(on: &Value, matrix: Option<&Value>) -> bool {
     mentions(on, "matrix") && matrix.is_some_and(|m| mentions(m, "self-hosted"))
 }
 
-/// Keys named `runs-on` in the CST, in document order: (line, canonical
-/// single-line plain value).
-fn cst_sites(src: &str) -> Vec<(usize, Option<String>)> {
-    let (green, _) = parse(src);
+/// Keys named `runs-on` in the CST, in document order, with their line.
+fn cst_sites(src: &str) -> Vec<usize> {
+    let (green, _) = cst_parse(src);
     let root = SyntaxNode::new_root(green);
     let mut out = Vec::new();
     for node in root.descendants() {
@@ -157,25 +164,113 @@ fn cst_sites(src: &str) -> Vec<(usize, Option<String>)> {
             continue;
         }
         let off: usize = key.text_range().start().into();
-        let line = src[..off.min(src.len())].matches('\n').count() + 1;
-        // Canonical guard form: the value's raw text on one line, no comment
-        // after it. (The CST lexes `[`, `,` and quotes inside a plain
-        // `${{ ... }}` scalar as flow tokens, so the raw text is the value.)
-        let canon = node
-            .children()
-            .find(|c| c.kind() == SyntaxKind::Value)
-            .and_then(|v| {
-                let multi = v
-                    .descendants_with_tokens()
-                    .filter_map(|e| e.into_token())
-                    .any(|t| matches!(t.kind(), SyntaxKind::Newline | SyntaxKind::Comment));
-                let end: usize = v.text_range().end().into();
-                let rest = src[end..].split('\n').next().unwrap_or("");
-                (!multi && rest.trim().is_empty()).then(|| v.text().to_string().trim().to_string())
-            });
-        out.push((line, canon));
+        out.push(src[..off.min(src.len())].matches('\n').count() + 1);
     }
     out
+}
+
+fn to_v(v: &Value) -> V {
+    match v {
+        Value::Null => V::Null,
+        Value::Bool(b) => V::Bool(*b),
+        Value::String(s) => V::Str(s.clone()),
+        Value::Sequence(s) => V::Arr(s.iter().map(to_v).collect()),
+        Value::Number(n) => V::Str(n.to_string()),
+        _ => V::Unknown,
+    }
+}
+
+/// Every value `matrix.<key>` can take: the listed values plus `include`s.
+fn matrix_values(matrix: Option<&Value>, key: &str) -> Option<Vec<V>> {
+    let m = matrix?.as_mapping()?;
+    let mut out = Vec::new();
+    for (k, x) in m.iter() {
+        match k.as_str() {
+            Some("include") => {
+                for inc in x.as_sequence()? {
+                    for (k2, x2) in inc.as_mapping()?.iter() {
+                        if k2.as_str().is_some_and(|n| n.eq_ignore_ascii_case(key)) {
+                            out.push(to_v(x2));
+                        }
+                    }
+                }
+            }
+            Some("exclude") => {}
+            Some(n) if n.eq_ignore_ascii_case(key) => match x {
+                Value::Sequence(s) => out.extend(s.iter().map(to_v)),
+                // a `${{ fromJSON(..) }}` matrix: not enumerable
+                _ => return None,
+            },
+            _ => {}
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+/// Can this `runs-on` land on a non-hosted runner for a fork PR? `Err` carries
+/// the reason (fail closed: anything not understood is a failure).
+fn judge(on: &Value, matrix: Option<&Value>) -> Result<(), String> {
+    let src = match on {
+        Value::String(s) => s,
+        Value::Sequence(items) => {
+            let labels: Vec<V> = items
+                .iter()
+                .map(|i| match i.as_str() {
+                    Some(s) if !s.contains("${{") => V::Str(s.to_string()),
+                    _ => V::Unknown,
+                })
+                .collect();
+            return if selects_non_hosted(&V::Arr(labels)) {
+                Err("a label list selects self-hosted runners with no guard".into())
+            } else {
+                Ok(())
+            };
+        }
+        _ => return Err("runs-on is a mapping; its labels cannot be checked".into()),
+    };
+    let expr = match template(src)? {
+        Template::Plain(s) => {
+            return if hosted_label(&s) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "`{s}` is not a GitHub-hosted label and has no guard"
+                ))
+            };
+        }
+        Template::Expr(e) => parse(&e)?,
+    };
+    let mut keys = Vec::new();
+    matrix_keys(&expr, &mut keys);
+    let mut domains: Vec<(String, Vec<V>)> = Vec::new();
+    for k in keys {
+        let vals =
+            matrix_values(matrix, &k).ok_or_else(|| format!("matrix.{k} cannot be enumerated"))?;
+        domains.push((k, vals));
+    }
+    let total: usize = domains.iter().map(|(_, v)| v.len()).product();
+    if total > 4096 {
+        return Err("matrix too large to enumerate".into());
+    }
+    for n in 0..total {
+        let mut rest = n;
+        let mut env = HashMap::new();
+        let mut desc = Vec::new();
+        for (k, vals) in &domains {
+            let v = vals[rest % vals.len()].clone();
+            rest /= vals.len();
+            desc.push(format!("matrix.{k}={v:?}"));
+            env.insert(k.clone(), v);
+        }
+        if eval(&expr, &env).iter().any(selects_non_hosted) {
+            return Err(format!(
+                "a fork PR can select a non-hosted runner{}{}",
+                if desc.is_empty() { "" } else { " when " },
+                desc.join(", ")
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Scan one workflow file's text. Appends to `rep`.
@@ -195,8 +290,8 @@ pub fn fork_guard_file(name: &str, src: &str, rep: &mut Report) {
     collect(&doc, &mut found);
     let cst = cst_sites(src);
     if cst.len() != found.len() {
-        // Aliases, flow mappings or anything else that breaks the pairing:
-        // fail closed rather than guess a line.
+        // Flow mappings, anchored mappings holding a runs-on, anything that
+        // breaks the pairing: fail closed rather than guess a line.
         rep.errors.push(format!(
             "{name}: {} runs-on key(s) in the text but {} in the parsed value; cannot pair them",
             cst.len(),
@@ -204,18 +299,20 @@ pub fn fork_guard_file(name: &str, src: &str, rep: &mut Report) {
         ));
         return;
     }
-    for ((on, matrix), (line, canon)) in found.into_iter().zip(cst) {
+    for ((on, matrix), line) in found.into_iter().zip(cst) {
         if !selects_self_hosted(on, matrix) {
             continue;
         }
-        let guarded = canon
-            .as_deref()
-            .is_some_and(|v| v.starts_with(GUARD) && v.ends_with(TAIL))
-            && on.as_str().is_some();
+        let verdict = if prt {
+            Err("the workflow triggers on pull_request_target".to_string())
+        } else {
+            judge(on, matrix)
+        };
         rep.sites.push(Site {
             file: name.to_string(),
             line,
-            ok: guarded && !prt,
+            ok: verdict.is_ok(),
+            reason: verdict.err(),
         });
     }
 }

@@ -4,9 +4,13 @@
 //! the fixture (it finds the repository root from its own location, so it is
 //! placed at `<tmp>/scripts/`), and the Rust rule runs on the same fixture.
 //!
-//! Every fixture is classified below. The rule: Rust may be stricter than the
-//! script, never looser. `Looser` is the one documented exception class and
-//! must name the reason; adding to it needs an owner decision.
+//! Every fixture is classified below, and a case that is not listed fails.
+//! Rust may be stricter than the script. It is wider in exactly two named
+//! classes, each pinned by a test so the list cannot grow unnoticed:
+//!   - `Accepts`: the script's one text form rejects a guard that is
+//!     semantically correct (a fork PR cannot reach a non-hosted runner), and
+//!     the expression evaluator accepts it;
+//!   - `Looser`: the script's regex flags text that is not a YAML key.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -19,10 +23,14 @@ enum Kind {
     /// Same stdout, same stderr, same exit code.
     Same,
     /// The script passes, Rust fails (or both fail and Rust lists more FAIL
-    /// lines). `why` is the reason, which is the report.
+    /// lines). The string is the reason, which is the report.
     Stricter(&'static str),
-    /// The script fails, Rust passes: the script's line regex reads text that
-    /// is not a YAML key. Rust is looser here by design; see the test below.
+    /// Same verdict; Rust lists more sites, none of them better than the script's.
+    MoreSites(&'static str),
+    /// The script fails, Rust passes, because the guard is semantically correct.
+    Accepts(&'static str),
+    /// The script fails, Rust passes, because the script read text that is not
+    /// a YAML key. Rust is looser here by design.
     Looser(&'static str),
 }
 use Kind::*;
@@ -32,11 +40,15 @@ const MARKER: &str = "# --- original below ---\n";
 
 fn table() -> Vec<(&'static str, Kind)> {
     vec![
+        // Same: identical output and exit code.
         ("real-kapsel", Same),
         ("guarded", Same),
         ("list-flow-unguarded", Same),
+        ("list-unguarded-pr", Same),
         ("plain-unguarded", Same),
         ("fork-form", Same),
+        ("gale-fork-form", Same),
+        ("relay-fork-matrix", Same),
         ("prt-selfhosted", Same),
         ("prt-hosted-only", Same),
         ("prt-other-file", Same),
@@ -46,14 +58,23 @@ fn table() -> Vec<(&'static str, Kind)> {
         ("reusable-input", Same),
         ("no-selfhosted", Same),
         ("crlf-guarded", Same),
-        ("guard-trailing-comment", Same),
-        ("guard-quoted", Same),
         ("commented-out", Same),
         ("prt-comment-only", Same),
         ("prt-in-run-string", Same),
         ("yaml-extension", Same),
         ("empty-repo", Same),
         ("odd-spacing", Same),
+        ("hosted-fallback-not-hosted", Same),
+        ("hosted-fallback-selfhosted", Same),
+        ("inverted-guard", Same),
+        ("unknown-condition", Same),
+        ("nested-outer-unguarded", Same),
+        ("matrix-guard-custom-labels", Same),
+        ("matrix-guard-gale-custom", Same),
+        ("matrix-guard-unenumerable", Same),
+        ("matrix-os-lean-custom", Same),
+        ("matrix-os-rocq-custom", Same),
+        // Stricter: the script passes or lists fewer failing sites.
         (
             "matrix-selfhosted",
             Stricter(
@@ -75,21 +96,84 @@ fn table() -> Vec<(&'static str, Kind)> {
             Stricter("a workflow file must be one YAML document; rivet-yaml refuses a stream"),
         ),
         (
-            "folded-guard",
-            Stricter(
-                "guard written as a folded block scalar; only the plain one-line form is accepted",
-            ),
-        ),
-        (
             "flow-mapping-job",
             Stricter(
                 "runs-on inside a flow mapping `{runs-on: self-hosted}`; the line regex needs the key to start a line",
             ),
         ),
         (
-            "alias-runs-on",
-            Stricter("runs-on given by an alias (*r); the alias job also selects self-hosted"),
+            "anchor-unguarded",
+            Stricter(
+                "unguarded label list anchored and aliased; the alias job also selects self-hosted",
+            ),
         ),
+        // MoreSites
+        (
+            "folded-guard",
+            MoreSites(
+                "guard as a folded block scalar: correct, and a second site the script cannot see",
+            ),
+        ),
+        // Accepts: correct guards the script's text form rejects.
+        (
+            "hosted-fallback-latest",
+            Accepts("hosted fallback 'ubuntu-latest' instead of 'ubuntu-24.04'"),
+        ),
+        (
+            "guard-trailing-comment",
+            Accepts("trailing YAML comment after the expression"),
+        ),
+        (
+            "ordeal-comment",
+            Accepts("trailing YAML comment after the expression (ordeal ci.yml shape)"),
+        ),
+        (
+            "guard-quoted",
+            Accepts("the guard in double quotes: the same string"),
+        ),
+        (
+            "spar-nested",
+            Accepts(
+                "guard && (cond && A || B) || hosted: for a fork the guard is false, so the nested label arrays are unreachable",
+            ),
+        ),
+        (
+            "spar-nested-inner-unknown",
+            Accepts(
+                "as spar-nested with an unknown inner branch: unreachable for a fork PR, so still correct",
+            ),
+        ),
+        (
+            "matrix-guard-varve",
+            Accepts(
+                "matrix guard: every matrix.runner containing self-hosted falls back to hosted, the others are hosted labels",
+            ),
+        ),
+        (
+            "matrix-guard-gale-json",
+            Accepts("matrix guard with fromJSON(matrix.runner) and JSON strings in the matrix"),
+        ),
+        (
+            "matrix-os-lean",
+            Accepts(
+                "matrix.os == 'linux' && guard || matrix.os: every other matrix.os is a hosted label",
+            ),
+        ),
+        (
+            "matrix-os-rocq",
+            Accepts(
+                "matrix.os != 'ubuntu-latest' && matrix.os || guard: every other matrix.os is a hosted label",
+            ),
+        ),
+        (
+            "anchor-guarded",
+            Accepts("anchored guard and its alias get the guard's verdict"),
+        ),
+        (
+            "alias-runs-on",
+            Accepts("anchored guard and its alias get the guard's verdict"),
+        ),
+        // Looser: the script's false positive.
         (
             "block-scalar-text",
             Looser(
@@ -234,6 +318,31 @@ fn rust_agrees_with_or_is_stricter_than_the_oracle() {
                     "{case}: Rust lists fewer failing sites"
                 );
             }
+            MoreSites(_) => {
+                assert!(!same, "{case}: classified MoreSites but identical");
+                assert_eq!(rs.code, py.code, "{case}: verdict differs");
+                let ok = |o: &Out| lines(&o.stdout, "ok  ");
+                assert!(
+                    ok(&py).is_subset(&ok(&rs)),
+                    "{case}: the script passes a site Rust fails"
+                );
+                assert!(
+                    py_fail.is_subset(&rs_fail),
+                    "{case}: the script fails a site Rust passes"
+                );
+            }
+            Accepts(_) => {
+                assert_eq!(
+                    (py.code, rs.code),
+                    (1, 0),
+                    "{case}: classified Accepts but is not"
+                );
+                assert!(
+                    !py_fail.is_empty(),
+                    "{case}: the script must fail on a named site"
+                );
+                assert!(rs_fail.is_empty(), "{case}: Rust must pass every site");
+            }
             Looser(_) => {
                 assert_eq!(
                     (py.code, rs.code),
@@ -249,6 +358,8 @@ fn rust_agrees_with_or_is_stricter_than_the_oracle() {
             match &kind {
                 Same => "same".to_string(),
                 Stricter(w) => format!("stricter: {w}"),
+                MoreSites(w) => format!("more sites: {w}"),
+                Accepts(w) => format!("ACCEPTS correct guard: {w}"),
                 Looser(w) => format!("LOOSER (script false positive): {w}"),
             }
         ));
@@ -265,6 +376,29 @@ fn looser_cases_are_exactly_the_documented_ones() {
         .map(|(c, _)| *c)
         .collect();
     assert_eq!(looser, vec!["block-scalar-text"]);
+    // Every Accepts case is one of the six variants the owner approved.
+    let accepts: BTreeSet<&str> = table()
+        .iter()
+        .filter(|(_, k)| matches!(k, Accepts(_)))
+        .map(|(c, _)| *c)
+        .collect();
+    let expected: BTreeSet<&str> = [
+        "hosted-fallback-latest",
+        "guard-trailing-comment",
+        "ordeal-comment",
+        "guard-quoted",
+        "spar-nested",
+        "spar-nested-inner-unknown",
+        "matrix-guard-varve",
+        "matrix-guard-gale-json",
+        "matrix-os-lean",
+        "matrix-os-rocq",
+        "anchor-guarded",
+        "alias-runs-on",
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(accepts, expected);
 }
 
 #[test]
