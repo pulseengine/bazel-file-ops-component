@@ -45,6 +45,22 @@ fn tree(dir: &Path) -> BTreeMap<String, Vec<u8>> {
     out
 }
 
+/// The scratch directories differ by name (and dash prints the logical path,
+/// kapsel the physical one, e.g. /var vs /private/var on macOS), so a file
+/// holding `pwd` output would never agree. Replace either spelling with a
+/// placeholder before comparing.
+fn normalize(files: BTreeMap<String, Vec<u8>>, cwd: &Path) -> BTreeMap<String, Vec<u8>> {
+    let logical = cwd.to_string_lossy().into_owned();
+    let physical = cwd.canonicalize().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| logical.clone());
+    files
+        .into_iter()
+        .map(|(k, v)| {
+            let s = String::from_utf8_lossy(&v).replace(&physical, "<cwd>").replace(&logical, "<cwd>");
+            (k, if v == b"<dir>" { v } else { s.into_bytes() })
+        })
+        .collect()
+}
+
 struct Outcome {
     stdout: String,
     status: Option<i32>,
@@ -66,7 +82,7 @@ fn run(program: &Path, script: &Path, cwd: &Path, home: &Path) -> Outcome {
     Outcome {
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         status: out.status.code(),
-        files: tree(cwd),
+        files: normalize(tree(cwd), cwd),
     }
 }
 

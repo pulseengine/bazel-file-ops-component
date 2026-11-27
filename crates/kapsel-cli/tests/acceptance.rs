@@ -238,6 +238,41 @@ fn a_missing_key_file_is_an_internal_error() {
 }
 
 #[test]
+fn no_home_fails_closed_with_78_and_writes_nothing() {
+    let e = Env::new();
+    for args in [vec!["-c", "echo hi"], vec!["compile", "-c", "echo hi", "-o", "o.wasm"]] {
+        let mut c = Command::cargo_bin("kapsel").unwrap();
+        let o = c.current_dir(e.path()).env_clear().args(&args).output().unwrap();
+        assert_eq!(o.status.code(), Some(78), "{args:?}: {}", err(&o));
+        assert_eq!(err(&o), "kapsel: no KAPSEL_HOME or HOME; set KAPSEL_HOME\n");
+        assert_eq!(out(&o), "");
+    }
+    let names: Vec<_> = std::fs::read_dir(e.path()).unwrap().map(|x| x.unwrap().file_name()).collect();
+    assert!(names.is_empty(), "nothing may be created in the working directory: {names:?}");
+    // an empty value counts as unset
+    let mut c = Command::cargo_bin("kapsel").unwrap();
+    let o = c.current_dir(e.path()).env_clear().env("HOME", "").env("KAPSEL_HOME", "").args(["-c", "echo hi"]).output().unwrap();
+    assert_eq!(o.status.code(), Some(78));
+    // check does not need a home
+    let mut c = Command::cargo_bin("kapsel").unwrap();
+    let o = c.current_dir(e.path()).env_clear().args(["check", "-c", "echo hi"]).output().unwrap();
+    assert_eq!(o.status.code(), Some(0), "{}", err(&o));
+}
+
+#[test]
+fn dotdot_works_inside_the_grant() {
+    let e = Env::new();
+    e.write("a.txt", "A\n");
+    std::fs::create_dir(e.path().join("sub")).unwrap();
+    let o = e.cmd().args(["-c", "cd sub; cat ../a.txt; pwd > ../where.txt"]).output().unwrap();
+    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "A\n"), "{}", err(&o));
+    assert!(std::fs::read_to_string(e.path().join("where.txt")).unwrap().trim_end().ends_with("/sub"));
+    let o = e.cmd().args(["-c", "cd .."]).output().unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    assert!(err(&o).contains("kapsel: ..: outside the session's grants"), "{}", err(&o));
+}
+
+#[test]
 fn nothing_runs_when_check_refuses() {
     let e = Env::new();
     let o = e.cmd().args(["-c", "echo ran > marker; false || true"]).output().unwrap();

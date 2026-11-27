@@ -2,7 +2,7 @@
 //!
 //! Rules, settled in the TinyGo component (tinygo/security.go, GHSA-f5c6-8h5q-6486
 //! and GHSA-hm34-86h8-vwx2):
-//! - an operand with a `..` component is refused before resolution;
+//! - `..` is applied after the symlinks before it are followed (as the kernel does);
 //! - `resolve` expands every symlink on the way, dangling ones included, and
 //!   fails (denies) on a loop instead of guessing;
 //! - nothing is written through an existing symlink in the final component;
@@ -18,7 +18,6 @@ use crate::{GrantSet, HostError};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GrantErr {
     Outside,
-    DotDot,
     Symlink,
     Loop,
 }
@@ -28,7 +27,6 @@ impl GrantErr {
     pub fn reason(self) -> &'static str {
         match self {
             GrantErr::Outside => "outside the session's grants",
-            GrantErr::DotDot => "\"..\" components are not allowed",
             GrantErr::Symlink => "refusing to write through symlink",
             GrantErr::Loop => "cannot resolve (symlink loop)",
         }
@@ -42,9 +40,6 @@ pub struct Grants {
     pub read_only: Vec<PathBuf>,
 }
 
-pub fn has_dotdot(p: &str) -> bool {
-    p.split('/').any(|c| c == "..")
-}
 
 impl Grants {
     pub fn new(set: &GrantSet) -> Result<Self, HostError> {
@@ -73,9 +68,6 @@ impl Grants {
 
     /// Resolves an operand for reading and checks it against the grants.
     pub fn check_read(&self, cwd: &Path, arg: &str) -> Result<PathBuf, GrantErr> {
-        if has_dotdot(arg) {
-            return Err(GrantErr::DotDot);
-        }
         let r = resolve(cwd, Path::new(arg))?;
         if self.can_read(&r) { Ok(r) } else { Err(GrantErr::Outside) }
     }
@@ -84,9 +76,6 @@ impl Grants {
     /// symlink in the last component is refused (it would be written through);
     /// without it, the link itself is the target (rm, mv).
     pub fn check_write(&self, cwd: &Path, arg: &str, follow_last: bool) -> Result<PathBuf, GrantErr> {
-        if has_dotdot(arg) {
-            return Err(GrantErr::DotDot);
-        }
         let p = Path::new(arg);
         let nofollow = resolve_nofollow_last(cwd, p)?;
         if follow_last {

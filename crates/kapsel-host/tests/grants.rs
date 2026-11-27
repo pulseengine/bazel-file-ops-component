@@ -258,18 +258,42 @@ fn rm_r_never_follows_a_symlink_into_its_target() {
 // ---- `..` and loops ---------------------------------------------------------
 
 #[test]
-fn dotdot_operands_are_refused_before_resolution() {
+fn dotdot_is_resolved_physically_after_symlinks() {
     let mut g = G::new();
-    let msg = "kapsel: ../out/secret: \"..\" components are not allowed\n";
-    assert_eq!(g.run(&["cat", "../out/secret"]), (1, "".into(), msg.into()));
     std::fs::create_dir(g.p("work/sub")).unwrap();
+    // `..` out of the grant is refused by the grant check on the result
+    assert_eq!(g.run(&["cat", "../out/secret"]), (1, "".into(), outside("../out/secret")));
     assert_eq!(g.run(&["cat", "sub/../../out/secret"]).0, 1);
-    // `link/..` is the classic: checked lexically as <root>, used as <target>/..
-    symlink(g.p("out"), g.p("work/link")).unwrap();
-    assert_eq!(g.run(&["rm", "-rf", "link/../work"]).0, 1);
-    assert_eq!(g.run(&["mkdir", "a/../b"]).0, 1);
-    // even a harmless one is refused (as in tinygo 0.2.2)
-    assert_eq!(g.run(&["cat", "sub/../mine"]).0, 1);
+    // Planted: link -> <outside dir>. Lexically `link/../secret` is
+    // work/secret (inside); the kernel goes to the parent of the target,
+    // <base>/secret... here out/.. is base, so use a link to out/deeper.
+    std::fs::create_dir(g.p("out/deeper")).unwrap();
+    std::fs::write(g.p("out/secret2"), "outside\n").unwrap();
+    std::fs::write(g.p("work/secret2"), "inside\n").unwrap();
+    symlink(g.p("out/deeper"), g.p("work/link")).unwrap();
+    assert_eq!(g.run(&["cat", "link/../secret2"]), (1, "".into(), outside("link/../secret2")));
+    let (st, _, err) = g.run_redir(&["echo", "x"], "write", "link/../new");
+    assert_eq!((st, err.as_str()), (1, outside("link/../new").as_str()));
+    assert!(!g.p("out/new").exists() && !g.p("work/new").exists());
+    assert_eq!(g.run(&["mkdir", "link/../d"]).0, 1);
+    assert!(!g.p("out/d").exists());
+    // Controls: the same shape through a real directory works.
+    std::fs::create_dir(g.p("work/real")).unwrap();
+    assert_eq!(g.run(&["cat", "real/../secret2"]), (0, "inside\n".into(), "".into()));
+    assert_eq!(g.run(&["mkdir", "real/../d2"]), (0, "".into(), "".into()));
+    assert!(g.p("work/d2").is_dir());
+    // cd sub; cat ../a.txt and > ../where.txt work inside the grant
+    std::fs::write(g.p("work/a.txt"), "A\n").unwrap();
+    assert_eq!(g.run(&["cd", "sub"]).0, 0);
+    assert_eq!(g.run(&["cat", "../a.txt"]), (0, "A\n".into(), "".into()));
+    let (st, _, err) = g.run_redir(&["pwd"], "write", "../where.txt");
+    assert_eq!((st, err.as_str()), (0, ""));
+    assert_eq!(std::fs::read_to_string(g.p("work/where.txt")).unwrap(), format!("{}\n", g.abs("work/sub")));
+    // cd .. back to the top grant works; cd .. above it fails with the grants message
+    assert_eq!(g.run(&["cd", ".."]).0, 0);
+    assert_eq!(g.s.cwd(), g.p("work"));
+    assert_eq!(g.run(&["cd", ".."]), (1, "".into(), outside("..")));
+    assert_eq!(g.s.cwd(), g.p("work"));
 }
 
 #[test]

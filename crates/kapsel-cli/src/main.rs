@@ -200,6 +200,13 @@ impl Ctx {
 
     /// Compiles and seals a checked plan.
     fn compile(&self, plan: &Plan, source: &str) -> Result<Vec<u8>, i32> {
+        // Keys and the cache live under KAPSEL_HOME or HOME. Without either,
+        // fail closed instead of writing into the working directory.
+        let set = |v: &str| std::env::var_os(v).is_some_and(|x| !x.is_empty());
+        if !set("KAPSEL_HOME") && !set("HOME") {
+            eprintln!("kapsel: no KAPSEL_HOME or HOME; set KAPSEL_HOME");
+            return Err(exit::GRANTS);
+        }
         let key = self.key()?;
         match kapsel_seal::compile_sealed(plan, source, &Cache::default_location(), &key) {
             Ok((bytes, _)) => Ok(bytes),
