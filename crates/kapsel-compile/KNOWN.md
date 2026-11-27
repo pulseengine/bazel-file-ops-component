@@ -4,30 +4,13 @@ This table is pinned. `known_md_counts_are_pinned` in `tests/compile.rs` fails w
 moves, in either direction, until this file, the `KNOWN_WRONG` / `DECLINED` tables in
 `src/lib.rs` and the pinned numbers in the test change together.
 
-Known-wrong count: 4
+Known-wrong count: 0
 Declined count: 8
 
 ## Known wrong (compiled, differs from POSIX `sh`)
 
-The WIT (`kapsel:shell/host@0.1.0`) has no subshell scope, so the compiler cannot isolate a
-substitution or a pipeline stage from the session. Fixing these needs a WIT addition (e.g. a
-scope enter/leave pair), which the compiler workstream does not make on its own.
-
-### KW-1: `$(...)` is not a subshell
-Assignments and `$?` changes inside the body reach the session: `echo $(X=2); echo $X` prints
-`2`, dash prints an empty line. Pinned by `known_wrong_kw1_capture_assignment_reaches_session`.
-
-### KW-2: `exit n` inside `$(...)` stops the whole plan
-`echo $(exit 5); echo after` returns 5 and never prints `after`. In dash only the substitution
-exits. Pinned by `known_wrong_kw2_exit_in_capture_stops_plan`.
-
-### KW-3: captures run before the host expands the command's words
-`false; echo $? $(true)` prints `0`; dash prints `1`, because it expands `$?` before running the
-substitution. Pinned by `known_wrong_kw3_status_in_same_command_sees_capture`.
-
-### KW-4: pipeline stages are not subshells
-Assignments in a stage persist, and `exit 3 | cat; echo after` returns 3 without running `cat`
-or `echo`. Pinned by `known_wrong_kw4_exit_in_pipeline_stage_stops_plan`.
+None. KW-1 to KW-4 (no subshell scope for `$(...)` and pipeline stages) were fixed when the WIT
+gained `scope-push` / `scope-pop`; they are now the `subshell_*` behaviour tests.
 
 ## Declined (KC-001 unsupported-construct)
 

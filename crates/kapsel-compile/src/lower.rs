@@ -29,14 +29,18 @@ pub(crate) const F_SET_VAR: u32 = 2;
 pub(crate) const F_SET_STATUS: u32 = 3;
 pub(crate) const F_EXPAND_LIST: u32 = 4;
 pub(crate) const F_BIND_ITEM: u32 = 5;
-const F_RUN: u32 = 6;
-pub(crate) const IMPORTS: [&str; 6] = [
+pub(crate) const F_SCOPE_PUSH: u32 = 6;
+pub(crate) const F_SCOPE_POP: u32 = 7;
+const F_RUN: u32 = 8;
+pub(crate) const IMPORTS: [&str; 8] = [
     "pipe",
     "call",
     "set-var",
     "set-status",
     "expand-list",
     "bind-item",
+    "scope-push",
+    "scope-pop",
 ];
 
 /// wasmparser's limit on locals per function.
@@ -252,6 +256,10 @@ struct Cx {
     locals: u32,
     status: u32,
     fired: BTreeSet<&'static str>,
+    /// Open control structures (block, loop, if) at the current point.
+    depth: u32,
+    /// `depth` just inside each open scope's block, innermost last.
+    scopes: Vec<u32>,
 }
 
 impl Cx {
@@ -260,6 +268,11 @@ impl Cx {
     }
 
     fn emit(&mut self, i: Instruction<'static>) {
+        match i {
+            Instruction::Block(_) | Instruction::Loop(_) | Instruction::If(_) => self.depth += 1,
+            Instruction::End => self.depth = self.depth.saturating_sub(1),
+            _ => {}
+        }
         self.code.push(i);
     }
 
@@ -421,7 +434,13 @@ impl Cx {
         for (i, stage) in p.stages.iter().enumerate() {
             let sin = if i == 0 { stdin } else { pipes[i - 1] };
             let sout = if i + 1 == n { stdout } else { pipes[i] };
-            self.emit_stage(stage, sin, sout, span)?;
+            if n >= 2 {
+                // KC-R19: each stage of a multi-stage pipeline is a subshell.
+                self.fire(SCOPE_STAGE);
+                self.emit_scoped(|cx| cx.emit_stage(stage, sin, sout, span))?;
+            } else {
+                self.emit_stage(stage, sin, sout, span)?;
+            }
         }
         if p.negated {
             self.fire(PIPE_NEGATE);
@@ -469,7 +488,7 @@ impl Cx {
             let pipe = self.new_local();
             self.emit(Instruction::Call(F_PIPE));
             self.emit(Instruction::LocalSet(pipe));
-            self.emit_list(c.body, stdin, Handle::Local(pipe), span)?;
+            self.emit_scoped(|cx| cx.emit_list(c.body, stdin, Handle::Local(pipe), span))?;
             self.i32(c.slot);
             self.emit(Instruction::LocalGet(pipe));
             self.emit(Instruction::I32Store(mem(0)));
@@ -499,8 +518,9 @@ impl Cx {
         Ok(())
     }
 
-    /// KC-R07. Captures, the call, then the `exit` check: 256 + n stops the
-    /// plan with status n.
+    /// KC-R07. Captures, the call, then the `exit` check: 256 + n ends the
+    /// innermost scope with status n (KC-R20), or stops the plan with status
+    /// n when no scope is open (KC-R21).
     fn emit_call(&mut self, c: &Call, stdin: Handle, stdout: Handle) -> Result<(), CompileError> {
         let span = Some(c.span);
         let mut caps = Vec::new();
@@ -526,8 +546,36 @@ impl Cx {
         self.emit(Instruction::LocalGet(self.status));
         self.i32(256);
         self.emit(Instruction::I32Sub);
-        self.emit(Instruction::Return);
+        match self.scopes.last().copied() {
+            Some(scope_depth) => {
+                self.fire(EXIT_SCOPE);
+                self.emit(Instruction::LocalSet(self.status));
+                // Branch to the end of the scope's block; scope-pop follows it.
+                self.emit(Instruction::Br(self.depth - scope_depth));
+            }
+            None => {
+                self.fire(EXIT_PLAN);
+                self.emit(Instruction::Return);
+            }
+        }
         self.emit(Instruction::End);
+        Ok(())
+    }
+
+    /// Runs `body` in a subshell scope: `scope-push`, a block that an `exit`
+    /// inside branches out of, `scope-pop`. The status after the pop is the
+    /// body's status, or n after `exit n`.
+    fn emit_scoped(
+        &mut self,
+        body: impl FnOnce(&mut Self) -> Result<(), CompileError>,
+    ) -> Result<(), CompileError> {
+        self.emit(Instruction::Call(F_SCOPE_PUSH));
+        self.emit(Instruction::Block(BlockType::Empty));
+        self.scopes.push(self.depth);
+        body(self)?;
+        self.scopes.pop();
+        self.emit(Instruction::End);
+        self.emit(Instruction::Call(F_SCOPE_POP));
         Ok(())
     }
 
@@ -633,9 +681,10 @@ impl Cx {
         types.ty().function(i32s(4), []); // 2: set-var, bind-item
         types.ty().function(i32s(1), []); // 3: set-status
         types.ty().function(i32s(3), []); // 4: expand-list (retptr)
+        types.ty().function([], []); // 5: scope-push, scope-pop
 
         let mut imports = ImportSection::new();
-        for (name, ty) in IMPORTS.iter().zip([0, 1, 2, 3, 4, 2]) {
+        for (name, ty) in IMPORTS.iter().zip([0, 1, 2, 3, 4, 2, 5, 5]) {
             imports.import(HOST_INTERFACE, name, EntityType::Function(ty));
         }
 

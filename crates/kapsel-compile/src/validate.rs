@@ -54,6 +54,10 @@ enum Ev {
     Else,
     End,
     Return,
+    ScopePush,
+    ScopePop,
+    /// A branch to the end of the innermost open scope's block.
+    ExitScope,
 }
 
 fn mismatch(msg: impl Into<String>) -> CompileError {
@@ -112,9 +116,19 @@ fn render_redirect(fd: u32, op: u8, target: &str, target_fd: u32) -> String {
 struct Expected {
     evs: Vec<Ev>,
     pipes: u32,
+    /// Subshell scopes open at this point of the plan.
+    scopes: u32,
 }
 
 impl Expected {
+    fn scoped(&mut self, body: impl FnOnce(&mut Self)) {
+        self.evs.extend([Ev::ScopePush, Ev::Block]);
+        self.scopes += 1;
+        body(self);
+        self.scopes -= 1;
+        self.evs.extend([Ev::End, Ev::ScopePop]);
+    }
+
     fn pipe(&mut self) -> u32 {
         let k = self.pipes;
         self.pipes += 1;
@@ -139,7 +153,11 @@ impl Expected {
         for (i, s) in p.stages.iter().enumerate() {
             let sin = if i == 0 { stdin } else { pipes[i - 1] };
             let sout = if i + 1 == n { stdout } else { pipes[i] };
-            self.stage(s, sin, sout);
+            if n >= 2 {
+                self.scoped(|ex| ex.stage(s, sin, sout));
+            } else {
+                self.stage(s, sin, sout);
+            }
         }
         self.evs.push(Ev::SetStatus);
     }
@@ -151,7 +169,7 @@ impl Expected {
             for p in &w.parts {
                 if let PPart::Capture { body, .. } = p {
                     let k = self.pipe();
-                    self.list(body, stdin, Io::Pipe(k));
+                    self.scoped(|ex| ex.list(body, stdin, Io::Pipe(k)));
                     self.evs.push(Ev::StoreCapture(k));
                     ids.push(k);
                 }
@@ -184,7 +202,12 @@ impl Expected {
                     stdin,
                     stdout,
                 });
-                self.evs.extend([Ev::If, Ev::Return, Ev::End]);
+                let exit = if self.scopes > 0 {
+                    Ev::ExitScope
+                } else {
+                    Ev::Return
+                };
+                self.evs.extend([Ev::If, exit, Ev::End]);
             }
             PStage::Call(c) => {
                 let ids = self.captures(c.assignments.iter().map(|(_, w)| w), stdin);
@@ -467,6 +490,8 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
     let mut stack: Vec<Val> = Vec::new();
     let mut locals: BTreeMap<u32, Val> = BTreeMap::new();
     let mut slots: BTreeMap<u32, u32> = BTreeMap::new();
+    // Open control structures; true for a scope's block.
+    let mut control: Vec<bool> = Vec::new();
     let mut pipes = 0u32;
     let pop = |stack: &mut Vec<Val>| {
         stack
@@ -526,17 +551,41 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
                 slots.insert(addr, k);
                 evs.push(Ev::StoreCapture(k));
             }
-            Operator::Block { .. } => evs.push(Ev::Block),
-            Operator::Loop { .. } => evs.push(Ev::Loop),
+            Operator::Block { .. } => {
+                // A block opened right after scope-push is that scope's block.
+                control.push(evs.last() == Some(&Ev::ScopePush));
+                evs.push(Ev::Block);
+            }
+            Operator::Loop { .. } => {
+                control.push(false);
+                evs.push(Ev::Loop);
+            }
             Operator::If { .. } => {
                 pop(&mut stack)?;
+                control.push(false);
                 evs.push(Ev::If);
             }
             Operator::Else => evs.push(Ev::Else),
-            Operator::End => evs.push(Ev::End),
-            Operator::Br { .. } => {}
-            Operator::BrIf { .. } => {
-                pop(&mut stack)?;
+            Operator::End => {
+                control.pop();
+                evs.push(Ev::End);
+            }
+            Operator::Br { relative_depth } | Operator::BrIf { relative_depth } => {
+                if matches!(op, Operator::BrIf { .. }) {
+                    pop(&mut stack)?;
+                }
+                let d = relative_depth as usize;
+                if d >= control.len() {
+                    return Err(mismatch(format!("branch depth {d} leaves the function")));
+                }
+                let target = control.len() - 1 - d;
+                let crossed = control[target + 1..].iter().any(|s| *s);
+                if control[target] || crossed {
+                    if crossed {
+                        return Err(mismatch("a branch leaves more than one scope"));
+                    }
+                    evs.push(Ev::ExitScope);
+                }
             }
             Operator::Return => {
                 pop(&mut stack)?;
@@ -612,6 +661,8 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
                         let vp = konst(pop(&mut stack)?)?;
                         evs.push(Ev::BindItem(mem.string(vp, vl)?));
                     }
+                    "scope-push" => evs.push(Ev::ScopePush),
+                    "scope-pop" => evs.push(Ev::ScopePop),
                     other => return Err(mismatch(format!("call to unknown import `{other}`"))),
                 }
             }
