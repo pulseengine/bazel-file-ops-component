@@ -1,0 +1,473 @@
+artifacts:
+  # --- Shipped: path confinement of the JSON-config mode (0.2.1, 0.2.2) ---
+
+  - id: REQ-KS-001
+    type: requirement
+    title: "JSON-config destinations resolve inside workspace_dir"
+    status: verified
+    release: v0.2.2
+    description: >
+      Every destination of a JSON-config operation (copy_file, copy_directory_contents, mkdir,
+      write_file, append_to_file, concatenate_files, move_path, read_file's output_file) resolves
+      inside workspace_dir after symlinks are followed. A raw path with a ".." component is
+      refused before it is checked, and nothing is written or created through an existing
+      symlink, at any level of a directory copy.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any JSON-config destination writes, creates or moves a file outside workspace_dir through '..', an absolute path, a symlink or an existing symlink in the destination tree, without the run failing."
+      upstream-ref: "GHSA-f5c6-8h5q-6486, GHSA-hm34-86h8-vwx2"
+
+  - id: REQ-KS-002
+    type: requirement
+    title: "run_command's work_dir and output_file resolve inside the workspace or its parent"
+    status: verified
+    release: v0.2.2
+    description: >
+      The parent bound keeps rules_wasm_component's output_file "../<out>" working. The command
+      itself is the one the config names; the config's author is trusted (owner, 2026-11-26).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if run_command's work_dir or output_file resolves outside workspace_dir's parent without the run failing."
+
+  - id: REQ-KS-003
+    type: requirement
+    title: "move_path sources resolve inside workspace_dir"
+    status: verified
+    release: v0.2.2
+    description: >
+      A move removes its source, so unlike copy sources a move_path source must resolve inside
+      the workspace (owner, 2026-11-27).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if move_path removes a file from outside workspace_dir."
+
+  - id: REQ-KS-004
+    type: requirement
+    title: "Allowed-directory checks compare at a path-separator boundary"
+    status: verified
+    release: v0.2.1
+    description: >
+      Both sides are resolved (Abs plus EvalSymlinks) and compared with filepath.Rel, so an
+      allowed /work does not admit /work-other.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a path in a sibling with a shared name prefix (/work-other for /work) is accepted as inside."
+
+  - id: REQ-KS-005
+    type: requirement
+    title: "Created directories are 0750 and files 0640, and gosec blocks"
+    status: verified
+    release: v0.2.1
+    description: >
+      gosec runs blocking in the required checks with tinygo/gosec.json setting the G302/G306
+      threshold to 0640; each #nosec states its reason.
+    fields:
+      priority: should
+      category: non-functional
+      verification-criteria: "Fails if a created directory is wider than 0750 or a file wider than 0640, or if a gosec finding without a reasoned #nosec passes CI."
+
+  # --- v0.3.0: the check stage ---
+
+  - id: REQ-KS-010
+    type: requirement
+    title: "The parser accepts a defined POSIX subset and refuses everything else with a reason"
+    status: approved
+    release: v0.3.0
+    description: >
+      The subset is pipes, redirection, && and ||, ;, quoting, environment variables, globs,
+      heredocs, $(...) and for/while/until loops (owner, 2026-11-27, from about 208,750 measured
+      agent shell calls on 2 machines). Any other syntax is refused with a message naming the
+      construct; it is never handed to bash or zsh.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any construct outside the subset reaches execution, or a construct inside it is refused; checked against the planted corpus and the measured syntax list."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-011
+    type: requirement
+    title: "Analysis is separate from execution"
+    status: approved
+    release: v0.3.0
+    description: >
+      A check stage parses a command, applies the grammar and the policy, and names the grants,
+      built-ins and native tools it needs. It returns a plan or a refusal with reasons and runs
+      nothing.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if kapsel check performs any filesystem write, process spawn or network access for any input."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-012
+    type: requirement
+    title: "Constructs that destroy the error signal are refused"
+    status: approved
+    release: v0.3.0
+    description: >
+      `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
+      a reason. The rest of the list (swallowed failures, hidden errors, code from the network
+      or from strings, destructive expansion, escaping the session's lifetime, bypassing native
+      tool checks, killing by pattern) is settled per item as refuse or warn.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a script containing `|| true` or `|| :` gets a plan instead of a refusal, or a refusal has no rule id and reason."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-013
+    type: requirement
+    title: "The check stage's plan is a versioned JSON document"
+    status: proposed
+    release: v0.3.0
+    description: >
+      The plan lists each pipeline stage, the built-in or native tool it uses, the read and
+      write grants and native programs it needs, and every refusal or warning with its rule id.
+      A schema version field lets zwinger consume it (`zwinger explain PROFILE -- <command>`).
+    fields:
+      priority: should
+      category: interface
+      verification-criteria: "Fails if a plan does not validate against the published JSON schema, or omits a grant, native tool or refusal the command needs."
+
+  - id: REQ-KS-014
+    type: requirement
+    title: "kapsel takes a command with -c or from a script file, with defined exit codes"
+    status: proposed
+    release: v0.3.0
+    description: >
+      `kapsel check` and `kapsel run` accept `-c <command>` and a script-file argument (GitHub
+      Actions custom shells pass `{0}`). The exit codes for refusal, invalid grants (78) and
+      command failure are distinct and documented.
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if -c and a script file with the same content give different results, or two failure kinds share an exit code."
+
+  - id: REQ-KS-015
+    type: requirement
+    title: "The workflow scanner checks every run: block of a repository's workflows offline"
+    status: approved
+    release: v0.3.0
+    description: >
+      Phase 0 of the dogfooding rollout (owner, 2026-11-27): `kapsel check` over GitHub
+      workflow run: blocks with ${{ ... }} treated as opaque, producing one report per run.
+      Workflow YAML is read with rivet-yaml pinned by rivet tag (rivet#1099).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any run: block in a scanned repository is missing from the report, or a ${{ }} expression changes the verdict."
+
+  - id: REQ-KS-016
+    type: requirement
+    title: "Every refusal rule has a planted script and a planted control"
+    status: approved
+    release: v0.3.0
+    description: >
+      The refusal corpus is a plant pack in this repository: each rule has a script that must be
+      refused and a control that must pass, and CI fails if either flips.
+    fields:
+      priority: must
+      category: non-functional
+      verification-criteria: "Fails if any refusal rule lacks a planted script or a planted control, or CI passes while either flips."
+
+  - id: REQ-KS-017
+    type: requirement
+    title: "JSON-config mode accepts a relative workspace_dir and fails on an unknown operation"
+    status: approved
+    release: v0.3.0
+    description: >
+      rules_wasm_component writes workspace_dir "." with execroot-relative paths (#776). kapsel
+      resolves them against its working directory and keeps every destination inside the
+      workspace; an unknown operation is an error. This lets its file_ops toolchain swap the Go
+      wrapper for kapsel (owner, 2026-11-27).
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if a config with workspace_dir \".\" and execroot-relative paths is rejected, a destination escapes the workspace, or an unknown operation does not fail."
+      upstream-ref: "rules_wasm_component#775"
+      effect: behaviour
+
+  - id: REQ-KS-018
+    type: requirement
+    title: "Rust components follow the fleet exit-code rule"
+    status: approved
+    release: v0.3.0
+    description: >
+      Rust 1.100 or later pinned, std::process::exit on WASI, and every exit code asserted
+      through the shipped component (fleet rule, 2026-11-27). The toolchain layer is covalent
+      2026.11.28 or later.
+    fields:
+      priority: must
+      category: constraint
+      verification-criteria: "Fails if the pinned Rust toolchain is older than 1.100, or any exit code is not asserted through the shipped component."
+
+  # --- v0.4.0: compile and run ---
+
+  - id: REQ-KS-020
+    type: requirement
+    title: "A checked plan compiles to a WASM component that calls kapsel's interfaces"
+    status: proposed
+    release: v0.4.0
+    description: >
+      The compiler turns a plan into a component that imports the `command` interface for each
+      built-in and native-exec for each native tool. The same plan and the same interface
+      versions produce a byte-identical module.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if one plan compiled twice with the same interface versions gives two different modules, or a compiled module calls anything other than the command and native-exec imports."
+
+  - id: REQ-KS-021
+    type: requirement
+    title: "Compiled modules are cached, signed and invalidated by their key"
+    status: draft
+    release: v0.4.0
+    description: >
+      The cache key covers the plan and the tool and interface versions; grants stay runtime
+      preopens and are never compiled in. A cached module is signed and is discarded when its
+      key no longer matches.
+    fields:
+      priority: should
+      category: non-functional
+      verification-criteria: "Fails if a module with a changed key is served from the cache, a grant appears in a compiled module, or an unsigned or wrongly signed module runs."
+
+  - id: REQ-KS-022
+    type: requirement
+    title: "The executor runs only plans the check stage produced"
+    status: approved
+    release: v0.4.0
+    description: >
+      There is no path from a command line to execution that skips the check stage.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any input executes without a plan from the check stage."
+
+  - id: REQ-KS-023
+    type: requirement
+    title: "The host takes its grants from ZWINGER_GRANTS and fails closed"
+    status: approved
+    release: v0.4.0
+    description: >
+      The native host binary embeds the runtime and reads ZWINGER_GRANTS (schema
+      zwinger.grants.v1): each read entry becomes a read-only preopen PATH::PATH, each write
+      entry a read-write one. A missing or invalid plan, or an unknown schema, exits 78; it never
+      preopens the current directory instead.
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if a missing, invalid or unknown-schema ZWINGER_GRANTS does not exit 78, or any directory is preopened that the grants do not name."
+      upstream-ref: "kapsel#140 seam kapsel-zwinger/agent-shell"
+
+  - id: REQ-KS-024
+    type: requirement
+    title: "Tools implement one `command` WIT interface"
+    status: approved
+    release: v0.4.0
+    description: >
+      run(args, env, stdin, stdout, stderr) returns an exit code. Each tool exports it, the
+      shell imports the tools it knows, and the parts are composed into one component.
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if a built-in cannot be swapped for another component implementing the same interface without changing the shell."
+
+  - id: REQ-KS-025
+    type: requirement
+    title: "The most-used commands are built in"
+    status: proposed
+    release: v0.4.0
+    description: >
+      First batch, ranked by measured agent use: cat, echo, printf, head, tail, wc, ls, mkdir,
+      cp, mv, rm, grep, sed, sort, uniq, cut, tr, tee, date, seq, sleep, each with the flags
+      the measurement shows in use (for example grep -E -n -i -v -r -l -c -o -q, sed -n 'a,bp',
+      sort -u -r -n -k).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a built-in's output or exit code differs from GNU coreutils on its measured flag set, on the pinned test corpus."
+
+  - id: REQ-KS-026
+    type: requirement
+    title: "wasmtime and kiln agree on the whole corpus"
+    status: approved
+    release: v0.4.0
+    description: >
+      Every corpus script runs on wasmtime and on kiln (meld-fused, meld pinned). Any difference,
+      errno differences included, is a failure. The corpus is published as a release asset with
+      a sha256.
+    fields:
+      priority: must
+      category: non-functional
+      verification-criteria: "Fails if wasmtime and kiln differ in output, exit code or errno on any corpus script."
+
+  # --- v0.5.0: native tools ---
+
+  - id: REQ-KS-030
+    type: requirement
+    title: "Native tools run only through native-exec, enforced by the host"
+    status: approved
+    release: v0.5.0
+    description: >
+      kapsel's wasmtime host implements pulseengine:native-exec@0.1.0 (WIT in the kiln repo).
+      It spawns exactly the canonical path it checked and refuses a changed device or inode,
+      refuses an env name not on the program's list (not-allowed), always drops LD_* and DYLD_*,
+      requires cwd inside a granted preopen, passes explicit stream handles, and reports death
+      by signal as signaled(u8).
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if a program not on the allowlist runs, a replaced binary (changed device or inode) runs, an unlisted env name is passed, or cwd lies outside the grants."
+      upstream-ref: "kiln#741"
+
+  - id: REQ-KS-031
+    type: requirement
+    title: "One per-tool host profile schema, owned by kapsel and read by both hosts"
+    status: approved
+    release: v0.5.0
+    description: >
+      The profile names the canonical program path, the env names it may pass, forced args and
+      env, cwd containment, and whether its children may execute and from which trees. It is
+      loaded from ZWINGER_GRANTS.exec at startup, never taken from a request, and both kiln and
+      kapsel's host enforce it.
+    fields:
+      priority: must
+      category: interface
+      verification-criteria: "Fails if a profile value can be supplied by a request, or kiln and kapsel's host accept a different set of requests for the same profile."
+      upstream-ref: "kiln#741"
+
+  - id: REQ-KS-032
+    type: requirement
+    title: "On Linux each native child gets its own Landlock domain"
+    status: approved
+    release: v0.5.0
+    description: >
+      The host applies the tool's ruleset just before exec, stacking on zwinger's session domain
+      (owner, 2026-11-27: C now, D on Linux). macOS stays at host enforcement plus zwinger's
+      session layer.
+    fields:
+      priority: should
+      category: functional
+      verification-criteria: "Fails if, on Linux, a native child can execute a file outside its tool's trees."
+
+  - id: REQ-KS-033
+    type: requirement
+    title: "A per-session broker is the only writer of .git"
+    status: approved
+    release: v0.5.0
+    description: >
+      It takes structured requests, builds trees from the worktree itself, runs git with hooks,
+      fsmonitor, includes and attribute drivers off, and holds the signing key. One broker per
+      session on a local socket in the session socket directory (owner, 2026-11-27).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any process in the session writes .git, the broker accepts a tree, object or ref from the session, runs a hook, or exposes the signing key."
+
+  - id: REQ-KS-034
+    type: requirement
+    title: "Wrapper commands are checked as the command they wrap"
+    status: proposed
+    release: v0.5.0
+    description: >
+      timeout, xargs, nice, env, sudo and bash -c execute their argument. The check stage treats
+      each as the wrapped command, or refuses it; none is an allowlist entry in its own right.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a wrapper lets through a command the check stage would refuse when run directly."
+
+  - id: REQ-KS-035
+    type: requirement
+    title: "kapsel works as a GitHub Actions shell under zwinger"
+    status: approved
+    release: v0.5.0
+    description: >
+      `shell: kapsel {0}` in a workflow step, first in zwinger's and kapsel's own repositories
+      (Phase 2, owner, 2026-11-27).
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a `shell: kapsel {0}` step in kapsel's or zwinger's CI runs outside zwinger or leaves no plan in the job log."
+
+  # --- v1.0.0: protected ---
+
+  - id: REQ-KS-040
+    type: requirement
+    title: "A kapsel step counts as protected only when five conditions hold"
+    status: approved
+    release: v1.0.0
+    description: >
+      Planted refusals and controls pass; wasmtime and kiln agree on the pinned corpus; the step
+      runs under zwinger; native tools run only through native-exec; the check stage's plan is in
+      the job log.
+    fields:
+      priority: must
+      category: non-functional
+      verification-criteria: "Fails if a step marked protected misses any of the five conditions."
+
+  - id: REQ-KS-041
+    type: requirement
+    title: "The Rust implementation replaces the TinyGo JSON-config component after an equivalence test"
+    status: approved
+    release: v1.0.0
+    description: >
+      The existing JSON configs are the oracle: the Rust implementation produces the same files,
+      errors and exit codes as the TinyGo artifact before it ships in its place.
+    fields:
+      priority: must
+      category: constraint
+      verification-criteria: "Fails if the Rust implementation differs from the TinyGo artifact in files, errors or exit codes on any existing JSON config."
+
+  # --- Backlog: no release yet ---
+
+  - id: REQ-KS-050
+    type: requirement
+    title: "gale and synth run compiled plans without native-exec"
+    status: draft
+    description: >
+      On an MCU there are no processes to spawn. A gale variant uses host-provided calls into
+      firmware services, and synth compiles plans ahead of time with the kiln host. It needs its
+      own design pass.
+    release: backlog
+    fields:
+      priority: could
+      category: functional
+    links:
+      - type: derives-from
+        target: REQ-KS-020
+
+  - id: REQ-KS-051
+    type: requirement
+    title: "Bazel runs under kapsel with its own sandbox where the platform allows"
+    status: draft
+    description: >
+      On Linux bazel's linux-sandbox works under zwinger; on macOS it needs
+      --spawn_strategy=local, a stated weakening. bazel runs with --batch or a per-session server
+      shut down at the end.
+    release: backlog
+    fields:
+      priority: should
+      category: functional
+    links:
+      - type: derives-from
+        target: REQ-KS-030
+
+  - id: REQ-KS-052
+    type: requirement
+    title: "Second batch of built-ins"
+    status: draft
+    description: >
+      awk, jq, find, diff, base64, shasum and xargs as a built-in, ranked by the same usage
+      measurement, rerun on more machines first.
+    release: backlog
+    fields:
+      priority: could
+      category: functional
+    links:
+      - type: derives-from
+        target: REQ-KS-025
