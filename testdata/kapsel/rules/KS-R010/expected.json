@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R010",
+    "severity": "refuse",
+    "message": "a dynamic command name (the command is chosen by a parameter or a command substitution) cannot be checked before it runs and is refused",
+    "span": {
+      "start": 9,
+      "end": 13
+    },
+    "excerpt": "$CMD",
+    "help": "write the command name literally, e.g. `cp` instead of `$CMD`; put the variable in an argument instead",
+    "notes": [
+      "the command name decides what the grant check applies to, so it must be known before the plan is accepted"
+    ]
+  }
+]
