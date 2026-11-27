@@ -1,0 +1,11 @@
+name: t
+on: push
+jobs:
+  r:
+    uses: org/repo/.github/workflows/x.yml@v1
+    with:
+      runs-on: self-hosted
+  g:
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux"]') || 'ubuntu-24.04' }}
+    steps:
+      - run: echo hi

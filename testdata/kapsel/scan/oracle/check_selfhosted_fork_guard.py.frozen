@@ -1,3 +1,10 @@
+# FROZEN ORACLE for the kapsel-scan `fork-guard` rule (REQ-KS-064).
+# This is scripts/check_selfhosted_fork_guard.py as of kapsel bacccd0, verbatim
+# below the marker line. Do not edit and do not extend: the equivalence test
+# (crates/kapsel-scan/tests/equivalence.rs) checks its hash and runs it from a
+# temporary copy of each fixture. Stored with a .frozen suffix so the tree has
+# no .py file.
+# --- original below ---
 #!/usr/bin/env python3
 """check_selfhosted_fork_guard.py: no fork PR reaches a self-hosted runner.
 
