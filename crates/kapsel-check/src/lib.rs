@@ -186,17 +186,29 @@ pub fn refuse_parse_errors(source: &str, errors: &[ast::ParseError]) -> CheckOut
     let findings = errors
         .iter()
         .map(|e| {
-            let mut f = finding(
-                source,
-                R000,
-                Severity::Refuse,
-                format!(
-                    "`{}` is outside kapsel's shell subset and is refused: {}",
-                    e.construct, e.message
-                ),
-                e.span,
-            );
+            // A trailing `&` is a background job: the more specific KS-R007.
+            let (rule, message) = if e.construct == "background" {
+                (
+                    R007,
+                    format!(
+                        "a trailing `&` starts a background job that outlives its plan and escapes the session: {}",
+                        e.message
+                    ),
+                )
+            } else {
+                (
+                    R000,
+                    format!(
+                        "`{}` is outside kapsel's shell subset and is refused: {}",
+                        e.construct, e.message
+                    ),
+                )
+            };
+            let mut f = finding(source, rule, Severity::Refuse, message, e.span);
             f.help = e.help.clone().or_else(|| {
+                if rule == R007 {
+                    return Some(help_for(R007, "&"));
+                }
                 Some(
                     "rewrite it with pipes, redirects, `&&`, `||`, `;`, quoting, `$(...)` and \
                      `for`/`while`/`until` only"
@@ -379,10 +391,10 @@ impl Cx<'_> {
     }
 
     fn lower_simple(&mut self, s: &ast::SimpleCommand, handled: bool, claimed: bool, last: bool) -> Call {
-        let assignments =
+        let assignments: Vec<(String, PWord)> =
             s.assignments.iter().map(|a| (a.name.clone(), self.lower_word(&a.value))).collect();
         let argv: Vec<PWord> = s.words.iter().map(|w| self.lower_word(w)).collect();
-        let redirects = s.redirects.iter().map(|r| self.lower_redirect(r, handled)).collect();
+        let redirects: Vec<PRedirect> = s.redirects.iter().map(|r| self.lower_redirect(r, handled)).collect();
         // A redirect-only command (`> f`) is `:` with redirects: POSIX creates or
         // truncates the file and the status is 0.
         let redirect_only = argv.is_empty() && assignments.is_empty() && !redirects.is_empty();
@@ -986,7 +998,5 @@ fn glob_text(g: &ast::GlobPart) -> String {
     }
 }
 
-#[cfg(test)]
-mod testparse;
 #[cfg(test)]
 mod tests;

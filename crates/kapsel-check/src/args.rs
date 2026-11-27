@@ -144,7 +144,7 @@ pub struct Split<'a> {
 
 /// The leading literal text of a word (adjacent literal parts joined, quoted
 /// or not) and how many parts it spans.
-fn leading_literal(w: &PWord) -> (String, usize) {
+pub fn leading_literal(w: &PWord) -> (String, usize) {
     let mut text = String::new();
     let mut n = 0;
     for p in &w.parts {

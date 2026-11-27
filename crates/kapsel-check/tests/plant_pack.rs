@@ -14,7 +14,7 @@ fn run(src: &str) -> CheckOutcome {
 }
 
 #[test]
-#[ignore = "needs parser (ws/parser)"]
+
 fn plant_pack_through_the_real_parser() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/rules");
     for n in 0..=17 {
