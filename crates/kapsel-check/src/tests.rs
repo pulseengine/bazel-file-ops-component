@@ -1,10 +1,9 @@
-use crate::testparse;
 use crate::*;
 use kapsel_ast::{ParseError, Span};
 use kapsel_plan::{PPart, Severity};
 
 fn run(src: &str) -> CheckOutcome {
-    let script = match testparse::parse(src) {
+    let script = match kapsel_syntax::parse(src) {
         Ok(s) => s,
         Err(errs) => return refuse_parse_errors(src, &errs),
     };
@@ -54,7 +53,7 @@ const CASES: &[(&str, Severity, &str, &str)] = &[
     ("KS-R002", Severity::Warn, "cat a 2>/dev/null", "cat a 2>/dev/null || echo missing"),
     ("KS-R003", Severity::Refuse, "rm -rf $BUILD/", "rm -rf out"),
     ("KS-R003", Severity::Refuse, "rm -r /", "rm -r ./out"),
-    ("KS-R003", Severity::Refuse, "rm -rf ~", "rm -f ~/x"),
+    ("KS-R003", Severity::Refuse, "rm -rf \"$HOME\"", "rm -f \"$HOME/x\""),
     ("KS-R003", Severity::Refuse, "rm -Rf ..", "rm -rf ../x"),
     ("KS-R003", Severity::Refuse, "rm -rf ''", "rm -rf 'a b'"),
     ("KS-R003", Severity::Refuse, "rm -rf .", "rm file"),
@@ -91,10 +90,7 @@ const CASES: &[(&str, Severity, &str, &str)] = &[
 #[test]
 fn every_rule_catches_its_planted_case_and_passes_its_control() {
     for (rule, sev, planted, control) in CASES {
-        // `sleep 1 &` is a parse error, reported as KS-R000 (see lib docs);
-        // the R007 planted file in the pack uses `nohup`.
-        let (want_rule, want_sev) =
-            if planted.contains(" & ") { ("KS-R000", Severity::Refuse) } else { (*rule, *sev) };
+        let (want_rule, want_sev) = (*rule, *sev);
         assert!(has(planted, want_rule, want_sev), "{planted:?} should hit {want_rule}: {:?}", rules(planted));
         let c = run(control);
         assert!(
@@ -319,7 +315,7 @@ fn redirect_default_fds_and_quoted_capture() {
 #[test]
 fn heredoc_fd_and_body_flags() {
     let src = "cat";
-    let mut script = testparse::parse(src).unwrap();
+    let mut script = kapsel_syntax::parse(src).unwrap();
     let ast::Command::Simple(s) = &mut script.items[0].first.commands[0] else { panic!() };
     s.redirects.push(ast::Redirect {
         fd: None,
