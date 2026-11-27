@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R008",
+    "severity": "refuse",
+    "message": "`pkill` kills every process matching a name or pattern, including ones this script did not start; kill by explicit id instead",
+    "span": {
+      "start": 0,
+      "end": 14
+    },
+    "excerpt": "pkill -f build",
+    "help": "find the process id you started and kill that one: `kill PID` (`pkill` matches by name and can hit others)",
+    "notes": [
+      "pattern kills also hit processes this session never started"
+    ]
+  }
+]

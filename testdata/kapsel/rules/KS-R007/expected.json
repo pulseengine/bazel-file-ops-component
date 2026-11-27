@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R007",
+    "severity": "refuse",
+    "message": "`nohup` lets a process escape the session and outlive its plan; nothing started here may run after kapsel exits",
+    "span": {
+      "start": 0,
+      "end": 15
+    },
+    "excerpt": "nohup sleep 100",
+    "help": "run `nohup`'s command in the foreground, or start it outside kapsel; nothing may outlive the plan",
+    "notes": [
+      "a plan must end when kapsel ends; detached processes keep running with no check and no record"
+    ]
+  }
+]

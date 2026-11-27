@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R009",
+    "severity": "refuse",
+    "message": "`grpe` is not a kapsel built-in and is refused; native tools arrive in v0.5 (REQ-KS-030)",
+    "span": {
+      "start": 0,
+      "end": 4
+    },
+    "excerpt": "grpe",
+    "help": "did you mean `grep`? use one of the built-ins (:, true, false, cd, export, exit, test, [, pwd, cat, echo, printf, head, tail, wc, ls, mkdir, cp, mv, rm, grep, sed, sort, uniq, cut, tr, tee, date, seq, sleep), or wait for native tools in v0.5 (REQ-KS-030)",
+    "notes": [
+      "every command is compiled to a WASM component and run in a sandbox; programs outside the built-in list need native tools, planned for v0.5 (REQ-KS-030)"
+    ]
+  }
+]
