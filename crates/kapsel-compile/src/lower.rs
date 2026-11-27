@@ -30,8 +30,14 @@ pub(crate) const F_SET_STATUS: u32 = 3;
 pub(crate) const F_EXPAND_LIST: u32 = 4;
 pub(crate) const F_BIND_ITEM: u32 = 5;
 const F_RUN: u32 = 6;
-pub(crate) const IMPORTS: [&str; 6] =
-    ["pipe", "call", "set-var", "set-status", "expand-list", "bind-item"];
+pub(crate) const IMPORTS: [&str; 6] = [
+    "pipe",
+    "call",
+    "set-var",
+    "set-status",
+    "expand-list",
+    "bind-item",
+];
 
 /// wasmparser's limit on locals per function.
 const MAX_LOCALS: u32 = 50_000;
@@ -101,9 +107,11 @@ fn select_stage(s: &PStage) -> Result<Rule, CompileError> {
     match s {
         PStage::Call(c) => select_call(c),
         PStage::For { .. } => Ok(FOR_LOOP),
-        PStage::While { condition, .. } if condition.is_empty() => {
-            Err(decline("while", None, "`while`/`until` with an empty condition"))
-        }
+        PStage::While { condition, .. } if condition.is_empty() => Err(decline(
+            "while",
+            None,
+            "`while`/`until` with an empty condition",
+        )),
         PStage::While { until: false, .. } => Ok(WHILE_LOOP),
         PStage::While { until: true, .. } => Ok(UNTIL_LOOP),
     }
@@ -114,22 +122,28 @@ fn select_call(c: &Call) -> Result<Rule, CompileError> {
     match &c.tool {
         Some(_) => match c.argv.first() {
             None => Err(decline("call", span, "built-in call with an empty argv")),
-            Some(w) if w.as_literal().is_none() => {
-                Err(decline("call", span, "argv[0] is not a literal (dynamic command name)"))
-            }
+            Some(w) if w.as_literal().is_none() => Err(decline(
+                "call",
+                span,
+                "argv[0] is not a literal (dynamic command name)",
+            )),
             Some(_) => Ok(CALL_BUILTIN),
         },
-        None if !c.argv.is_empty() => {
-            Err(decline("call", span, "command with no tool but with argv words"))
-        }
+        None if !c.argv.is_empty() => Err(decline(
+            "call",
+            span,
+            "command with no tool but with argv words",
+        )),
         None if !c.redirects.is_empty() => Err(decline(
             "call",
             span,
             "command with no tool but with redirects (redirect-only command)",
         )),
-        None if c.assignments.is_empty() => {
-            Err(decline("call", span, "command with no tool and no assignments"))
-        }
+        None if c.assignments.is_empty() => Err(decline(
+            "call",
+            span,
+            "command with no tool and no assignments",
+        )),
         None => Ok(ASSIGN_ONLY),
     }
 }
@@ -435,9 +449,11 @@ impl Cx {
             PStage::For { var, items, body } => {
                 self.emit_for(var, items, body, stdin, stdout, span)
             }
-            PStage::While { until, condition, body } => {
-                self.emit_while(*until, condition, body, stdin, stdout, span)
-            }
+            PStage::While {
+                until,
+                condition,
+                body,
+            } => self.emit_while(*until, condition, body, stdin, stdout, span),
         }
     }
 
@@ -648,7 +664,11 @@ impl Cx {
         code.function(&f);
 
         let mut data = DataSection::new();
-        data.active(0, &ConstExpr::i32_const(DATA_BASE as i32), self.data.bytes.iter().copied());
+        data.active(
+            0,
+            &ConstExpr::i32_const(DATA_BASE as i32),
+            self.data.bytes.iter().copied(),
+        );
 
         let mut m = Module::new();
         m.section(&types);
@@ -674,5 +694,10 @@ pub(crate) fn redirect_op_index(op: &RedirectOp) -> u8 {
 }
 
 fn mem(offset: u64) -> MemArg {
-    MemArg { offset, align: 2, target: MemArgTarget::Memory(0), ordering: None }
+    MemArg {
+        offset,
+        align: 2,
+        target: MemArgTarget::Memory(0),
+        ordering: None,
+    }
 }

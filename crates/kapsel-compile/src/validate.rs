@@ -22,9 +22,7 @@ use wasmparser::{
     WasmFeatures,
 };
 
-use crate::lower::{
-    ASSIGN_SIZE, IMPORTS, PART_SIZE, REDIRECT_SIZE, WORD_SIZE, redirect_op_index,
-};
+use crate::lower::{ASSIGN_SIZE, IMPORTS, PART_SIZE, REDIRECT_SIZE, WORD_SIZE, redirect_op_index};
 use crate::{CompileError, HOST_INTERFACE, code};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +70,11 @@ pub fn validate(plan: &Plan, component: &[u8]) -> Result<(), CompileError> {
     ex.evs.push(Ev::End);
     let expected = ex.evs;
     if derived != expected {
-        let i = derived.iter().zip(&expected).take_while(|(a, b)| a == b).count();
+        let i = derived
+            .iter()
+            .zip(&expected)
+            .take_while(|(a, b)| a == b)
+            .count();
         return Err(mismatch(format!(
             "skeleton differs at event {i}: component has {:?}, plan needs {:?} \
              ({} events derived, {} expected)",
@@ -170,9 +172,18 @@ impl Expected {
                 let mut ids = ids.into_iter();
                 let argv = c.argv.iter().map(|w| word(w, &mut ids)).collect();
                 let redirects = c.redirects.iter().map(|r| redirect(r, &mut ids)).collect();
-                let assignments =
-                    c.assignments.iter().map(|(n, w)| (n.clone(), word(w, &mut ids))).collect();
-                self.evs.push(Ev::Call { argv, assignments, redirects, stdin, stdout });
+                let assignments = c
+                    .assignments
+                    .iter()
+                    .map(|(n, w)| (n.clone(), word(w, &mut ids)))
+                    .collect();
+                self.evs.push(Ev::Call {
+                    argv,
+                    assignments,
+                    redirects,
+                    stdin,
+                    stdout,
+                });
                 self.evs.extend([Ev::If, Ev::Return, Ev::End]);
             }
             PStage::Call(c) => {
@@ -187,12 +198,15 @@ impl Expected {
                 let ids = self.captures(items.iter(), stdin);
                 let mut ids = ids.into_iter();
                 let items = items.iter().map(|w| word(w, &mut ids)).collect();
-                self.evs.extend([Ev::ExpandList(items), Ev::Block, Ev::Loop]);
+                self.evs
+                    .extend([Ev::ExpandList(items), Ev::Block, Ev::Loop]);
                 self.evs.push(Ev::BindItem(var.clone()));
                 self.list(body, stdin, stdout);
                 self.evs.extend([Ev::End, Ev::End]);
             }
-            PStage::While { condition, body, .. } => {
+            PStage::While {
+                condition, body, ..
+            } => {
                 self.evs.extend([Ev::Block, Ev::Loop]);
                 self.list(condition, stdin, stdout);
                 self.list(body, stdin, stdout);
@@ -246,7 +260,11 @@ impl Memory {
     fn bytes(&self, p: u32, n: u32) -> Result<&[u8], CompileError> {
         self.0
             .get(p as usize..p as usize + n as usize)
-            .ok_or_else(|| mismatch(format!("argument data {p}+{n} lies outside the data segment")))
+            .ok_or_else(|| {
+                mismatch(format!(
+                    "argument data {p}+{n} lies outside the data segment"
+                ))
+            })
     }
     fn u32(&self, p: u32) -> Result<u32, CompileError> {
         Ok(u32::from_le_bytes(self.bytes(p, 4)?.try_into().unwrap()))
@@ -270,14 +288,24 @@ impl Memory {
                     self.u8(at + 12)? != 0,
                     None,
                 ),
-                2 => render_part(2, &self.string(self.u32(at + 4)?, self.u32(at + 8)?)?, false, None),
+                2 => render_part(
+                    2,
+                    &self.string(self.u32(at + 4)?, self.u32(at + 8)?)?,
+                    false,
+                    None,
+                ),
                 3 => render_part(3, "", self.u8(at + 8)? != 0, slots.get(&(at + 4)).copied()),
                 d => return Err(mismatch(format!("part at {at} has discriminant {d}"))),
             });
         }
         Ok(out)
     }
-    fn words(&self, p: u32, n: u32, slots: &BTreeMap<u32, u32>) -> Result<Vec<String>, CompileError> {
+    fn words(
+        &self,
+        p: u32,
+        n: u32,
+        slots: &BTreeMap<u32, u32>,
+    ) -> Result<Vec<String>, CompileError> {
         (0..n)
             .map(|i| {
                 let at = p + WORD_SIZE * i;
@@ -302,8 +330,11 @@ fn derive(component: &[u8]) -> Result<Vec<Ev>, CompileError> {
     for payload in Parser::new(0).parse_all(component) {
         let payload = payload.map_err(|e| mismatch(format!("component does not parse: {e}")))?;
         match payload {
-            Payload::ModuleSection { unchecked_range, .. } => {
-                modules.push(&component[unchecked_range.start as usize..unchecked_range.end as usize]);
+            Payload::ModuleSection {
+                unchecked_range, ..
+            } => {
+                modules
+                    .push(&component[unchecked_range.start as usize..unchecked_range.end as usize]);
                 depth += 1;
             }
             Payload::ComponentSection { .. } => depth += 1,
@@ -326,10 +357,14 @@ fn derive(component: &[u8]) -> Result<Vec<Ev>, CompileError> {
         }
     }
     if imports != [HOST_INTERFACE] {
-        return Err(mismatch(format!("component imports {imports:?}, expected only {HOST_INTERFACE}")));
+        return Err(mismatch(format!(
+            "component imports {imports:?}, expected only {HOST_INTERFACE}"
+        )));
     }
     if exports != ["run"] {
-        return Err(mismatch(format!("component exports functions {exports:?}, expected only run")));
+        return Err(mismatch(format!(
+            "component exports functions {exports:?}, expected only run"
+        )));
     }
 
     let mut main = None;
@@ -400,19 +435,30 @@ fn read_main(module: &[u8]) -> Result<Option<Main<'_>>, CompileError> {
             _ => {}
         }
     }
-    let Some(run) = run_index else { return Ok(None) };
+    let Some(run) = run_index else {
+        return Ok(None);
+    };
     for (i, name) in import_names.iter().enumerate() {
         if !IMPORTS.contains(&name.as_str()) {
-            return Err(mismatch(format!("core import {i} is `{name}`, not a host function")));
+            return Err(mismatch(format!(
+                "core import {i} is `{name}`, not a host function"
+            )));
         }
     }
     let local = (run as usize)
         .checked_sub(import_names.len())
         .ok_or_else(|| mismatch("`run` is an imported function"))?;
     if bodies.len() != 1 || local != 0 {
-        return Err(mismatch(format!("expected exactly one defined function, found {}", bodies.len())));
+        return Err(mismatch(format!(
+            "expected exactly one defined function, found {}",
+            bodies.len()
+        )));
     }
-    Ok(Some(Main { import_names, run_body: bodies.remove(0), memory: Memory(mem) }))
+    Ok(Some(Main {
+        import_names,
+        run_body: bodies.remove(0),
+        memory: Memory(mem),
+    }))
 }
 
 fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
@@ -422,15 +468,23 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
     let mut locals: BTreeMap<u32, Val> = BTreeMap::new();
     let mut slots: BTreeMap<u32, u32> = BTreeMap::new();
     let mut pipes = 0u32;
-    let pop = |stack: &mut Vec<Val>| stack.pop().ok_or_else(|| mismatch("operand stack underflow"));
+    let pop = |stack: &mut Vec<Val>| {
+        stack
+            .pop()
+            .ok_or_else(|| mismatch("operand stack underflow"))
+    };
     let konst = |v: Val| match v {
         Val::Const(c) => Ok(c),
-        other => Err(mismatch(format!("host argument is {other:?}, not a compile-time constant"))),
+        other => Err(mismatch(format!(
+            "host argument is {other:?}, not a compile-time constant"
+        ))),
     };
     let io = |v: Val| match v {
         Val::Const(0) => Ok(Io::Session),
         Val::Pipe(k) => Ok(Io::Pipe(k)),
-        other => Err(mismatch(format!("stdin/stdout is {other:?}, not 0 or a pipe() result"))),
+        other => Err(mismatch(format!(
+            "stdin/stdout is {other:?}, not 0 or a pipe() result"
+        ))),
     };
     let mem = &m.memory;
 
@@ -445,7 +499,11 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
             Operator::LocalSet { local_index } => {
                 let v = pop(&mut stack)?;
                 // A local set more than once (the status) is not traced.
-                let v = if locals.contains_key(&local_index) { Val::Unknown } else { v };
+                let v = if locals.contains_key(&local_index) {
+                    Val::Unknown
+                } else {
+                    v
+                };
                 locals.insert(local_index, v);
             }
             Operator::I32Eqz | Operator::I32Load { .. } => {
@@ -461,7 +519,9 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
                 let v = pop(&mut stack)?;
                 let addr = konst(pop(&mut stack)?)?;
                 let Val::Pipe(k) = v else {
-                    return Err(mismatch(format!("store to {addr} of {v:?}, not a pipe handle")));
+                    return Err(mismatch(format!(
+                        "store to {addr} of {v:?}, not a pipe handle"
+                    )));
                 };
                 slots.insert(addr, k);
                 evs.push(Ev::StoreCapture(k));
@@ -483,10 +543,9 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
                 evs.push(Ev::Return);
             }
             Operator::Call { function_index } => {
-                let name = m
-                    .import_names
-                    .get(function_index as usize)
-                    .ok_or_else(|| mismatch(format!("call to non-import function {function_index}")))?;
+                let name = m.import_names.get(function_index as usize).ok_or_else(|| {
+                    mismatch(format!("call to non-import function {function_index}"))
+                })?;
                 match name.as_str() {
                     "pipe" => {
                         stack.push(Val::Pipe(pipes));

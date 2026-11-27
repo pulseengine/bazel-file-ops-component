@@ -87,7 +87,12 @@ impl CompileError {
         span: Option<Span>,
         message: impl Into<String>,
     ) -> Self {
-        Self { code, construct: construct.into(), span, message: message.into() }
+        Self {
+            code,
+            construct: construct.into(),
+            span,
+            message: message.into(),
+        }
     }
 }
 
@@ -153,7 +158,10 @@ pub const KNOWN_WRONG: &[(&str, &str)] = &[
         "KW-1",
         "`$(...)` is not a subshell: assignments and `$?` changes inside the body reach the session",
     ),
-    ("KW-2", "`exit n` inside `$(...)` stops the whole plan, not only the substitution"),
+    (
+        "KW-2",
+        "`exit n` inside `$(...)` stops the whole plan, not only the substitution",
+    ),
     (
         "KW-3",
         "all captures of a command run before the host expands its words, so `$?` in the same \
@@ -173,9 +181,15 @@ pub const DECLINED: &[(&str, &str)] = &[
     ("KD-2", "built-in call with an empty argv"),
     ("KD-3", "built-in call whose argv[0] is not a literal"),
     ("KD-4", "command with no tool but with argv words"),
-    ("KD-5", "command with no tool and no assignments (e.g. a redirect-only `> f`)"),
+    (
+        "KD-5",
+        "command with no tool and no assignments (e.g. a redirect-only `> f`)",
+    ),
     ("KD-6", "command with no tool but with redirects"),
-    ("KD-7", "redirect whose target kind does not match its operator"),
+    (
+        "KD-7",
+        "redirect whose target kind does not match its operator",
+    ),
     ("KD-8", "`while`/`until` with an empty condition"),
 ];
 
@@ -222,7 +236,10 @@ pub fn compile_report(plan: &Plan) -> Result<Compiled, CompileError> {
         .map_err(|e| enc(format!("encoding the component: {e:#}")))?;
 
     validate(plan, &component)?;
-    Ok(Compiled { component, rules_fired })
+    Ok(Compiled {
+        component,
+        rules_fired,
+    })
 }
 
 /// Compiles a checked plan into the core module only (no component metadata,
@@ -237,7 +254,10 @@ fn lower_core(plan: &Plan) -> Result<(Vec<u8>, Vec<&'static str>), CompileError>
             code::SCHEMA,
             "plan",
             None,
-            format!("schema is `{}`, this compiler reads `{PLAN_SCHEMA}`", plan.schema),
+            format!(
+                "schema is `{}`, this compiler reads `{PLAN_SCHEMA}`",
+                plan.schema
+            ),
         ));
     }
     lower::lower(plan)

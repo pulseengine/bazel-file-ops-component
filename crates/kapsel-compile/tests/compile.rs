@@ -35,11 +35,21 @@ fn lit(s: &str) -> PWord {
 }
 
 fn var(name: &str) -> PWord {
-    PWord { parts: vec![PPart::Var { name: name.into(), quoted: false }] }
+    PWord {
+        parts: vec![PPart::Var {
+            name: name.into(),
+            quoted: false,
+        }],
+    }
 }
 
 fn cap(body: Vec<PAndOr>) -> PWord {
-    PWord { parts: vec![PPart::Capture { body, quoted: false }] }
+    PWord {
+        parts: vec![PPart::Capture {
+            body,
+            quoted: false,
+        }],
+    }
 }
 
 fn callw(argv: Vec<PWord>) -> Call {
@@ -58,11 +68,17 @@ fn c(words: &str) -> PStage {
 }
 
 fn pl(stages: Vec<PStage>) -> PPipeline {
-    PPipeline { negated: false, stages }
+    PPipeline {
+        negated: false,
+        stages,
+    }
 }
 
 fn one(s: PStage) -> PAndOr {
-    PAndOr { first: pl(vec![s]), rest: vec![] }
+    PAndOr {
+        first: pl(vec![s]),
+        rest: vec![],
+    }
 }
 
 fn seq(stages: Vec<PStage>) -> Vec<PAndOr> {
@@ -80,7 +96,10 @@ fn plan(body: Vec<PAndOr>) -> Plan {
 }
 
 fn link(first: PStage, op: AndOrOp, second: PStage) -> Plan {
-    plan(vec![PAndOr { first: pl(vec![first]), rest: vec![(op, pl(vec![second]))] }])
+    plan(vec![PAndOr {
+        first: pl(vec![first]),
+        rest: vec![(op, pl(vec![second]))],
+    }])
 }
 
 // ---- named plans (shared by behaviour, determinism, coverage) ---------------
@@ -98,10 +117,19 @@ fn p_or() -> Plan {
     link(c("test a"), AndOrOp::Or, c("echo b"))
 }
 fn p_not() -> Plan {
-    plan(vec![PAndOr { first: PPipeline { negated: true, stages: vec![c("test a")] }, rest: vec![] }])
+    plan(vec![PAndOr {
+        first: PPipeline {
+            negated: true,
+            stages: vec![c("test a")],
+        },
+        rest: vec![],
+    }])
 }
 fn p_pipe3() -> Plan {
-    plan(vec![PAndOr { first: pl(vec![c("cat f"), c("sort"), c("wc -l")]), rest: vec![] }])
+    plan(vec![PAndOr {
+        first: pl(vec![c("cat f"), c("sort"), c("wc -l")]),
+        rest: vec![],
+    }])
 }
 fn p_exit() -> Plan {
     plan(seq(vec![c("echo a"), c("exit 3"), c("echo b")]))
@@ -137,21 +165,49 @@ fn p_until() -> Plan {
     }]))
 }
 fn p_capture() -> Plan {
-    plan(seq(vec![PStage::Call(callw(vec![lit("echo"), cap(seq(vec![c("cat f")]))]))]))
+    plan(seq(vec![PStage::Call(callw(vec![
+        lit("echo"),
+        cap(seq(vec![c("cat f")])),
+    ]))]))
 }
 fn p_redirects() -> Plan {
     let mut call = callw(vec![lit("cat")]);
     call.redirects = vec![
-        PRedirect { fd: 0, op: RedirectOp::Read, target: PRedirectTarget::Word { word: lit("in") } },
-        PRedirect { fd: 1, op: RedirectOp::Write, target: PRedirectTarget::Word { word: lit("out") } },
-        PRedirect { fd: 1, op: RedirectOp::Append, target: PRedirectTarget::Word { word: var("LOG") } },
-        PRedirect { fd: 2, op: RedirectOp::DupOut, target: PRedirectTarget::Fd { fd: 1 } },
-        PRedirect { fd: 0, op: RedirectOp::DupIn, target: PRedirectTarget::Fd { fd: 3 } },
+        PRedirect {
+            fd: 0,
+            op: RedirectOp::Read,
+            target: PRedirectTarget::Word { word: lit("in") },
+        },
+        PRedirect {
+            fd: 1,
+            op: RedirectOp::Write,
+            target: PRedirectTarget::Word { word: lit("out") },
+        },
+        PRedirect {
+            fd: 1,
+            op: RedirectOp::Append,
+            target: PRedirectTarget::Word { word: var("LOG") },
+        },
+        PRedirect {
+            fd: 2,
+            op: RedirectOp::DupOut,
+            target: PRedirectTarget::Fd { fd: 1 },
+        },
+        PRedirect {
+            fd: 0,
+            op: RedirectOp::DupIn,
+            target: PRedirectTarget::Fd { fd: 3 },
+        },
         PRedirect {
             fd: 0,
             op: RedirectOp::Heredoc,
             target: PRedirectTarget::Heredoc {
-                body: PWord { parts: vec![PPart::Lit { text: "body\n".into(), quoted: true }] },
+                body: PWord {
+                    parts: vec![PPart::Lit {
+                        text: "body\n".into(),
+                        quoted: true,
+                    }],
+                },
             },
         },
     ];
@@ -159,16 +215,30 @@ fn p_redirects() -> Plan {
 }
 fn p_nested_capture() -> Plan {
     // echo x | grep $(cat p | head -n1)
-    let inner = vec![PAndOr { first: pl(vec![c("cat p"), c("head -n1")]), rest: vec![] }];
+    let inner = vec![PAndOr {
+        first: pl(vec![c("cat p"), c("head -n1")]),
+        rest: vec![],
+    }];
     let grep = PStage::Call(callw(vec![lit("grep"), cap(inner)]));
-    plan(vec![PAndOr { first: pl(vec![c("echo x"), grep]), rest: vec![] }])
+    plan(vec![PAndOr {
+        first: pl(vec![c("echo x"), grep]),
+        rest: vec![],
+    }])
 }
 fn p_glob_parts() -> Plan {
     let word = PWord {
         parts: vec![
-            PPart::Lit { text: "a".into(), quoted: true },
-            PPart::Var { name: "X".into(), quoted: true },
-            PPart::Glob { pattern: "*.txt".into() },
+            PPart::Lit {
+                text: "a".into(),
+                quoted: true,
+            },
+            PPart::Var {
+                name: "X".into(),
+                quoted: true,
+            },
+            PPart::Glob {
+                pattern: "*.txt".into(),
+            },
         ],
     };
     plan(seq(vec![PStage::Call(callw(vec![lit("ls"), word]))]))
@@ -179,7 +249,9 @@ fn p_capture_assign_redirect() -> Plan {
     call.redirects = vec![PRedirect {
         fd: 1,
         op: RedirectOp::Write,
-        target: PRedirectTarget::Word { word: cap(seq(vec![c("echo out")])) },
+        target: PRedirectTarget::Word {
+            word: cap(seq(vec![c("echo out")])),
+        },
     }];
     call.assignments = vec![("X".into(), cap(seq(vec![c("echo v")])))];
     plan(seq(vec![PStage::Call(call)]))
@@ -263,10 +335,18 @@ impl wit::Host for Mock {
                 WOp::DupIn => "<&",
                 WOp::Heredoc => "<<",
             };
-            line.push_str(&format!(" {}{op}[{}]{}", r.fd, render(&r.target), r.target_fd));
+            line.push_str(&format!(
+                " {}{op}[{}]{}",
+                r.fd,
+                render(&r.target),
+                r.target_fd
+            ));
         }
         self.log.push(line);
-        self.script.get_mut(&words[0]).and_then(|q| q.pop_front()).unwrap_or(0)
+        self.script
+            .get_mut(&words[0])
+            .and_then(|q| q.pop_front())
+            .unwrap_or(0)
     }
 
     fn set_var(&mut self, name: String, value: wit::Word) {
@@ -280,7 +360,8 @@ impl wit::Host for Mock {
     fn expand_list(&mut self, words: Vec<wit::Word>) -> (u32, u32) {
         self.lists += 1;
         let ws: Vec<String> = words.iter().map(|w| render(w)).collect();
-        self.log.push(format!("expand-list {} -> {}", ws.join(" "), self.lists));
+        self.log
+            .push(format!("expand-list {} -> {}", ws.join(" "), self.lists));
         (self.lists, words.len() as u32)
     }
 
@@ -307,7 +388,8 @@ fn run(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32) {
         .unwrap();
     let mut mock = Mock::default();
     for (name, sts) in script {
-        mock.script.insert((*name).into(), sts.iter().copied().collect());
+        mock.script
+            .insert((*name).into(), sts.iter().copied().collect());
     }
     let mut store = wasmtime::Store::new(engine(), mock);
     let inst = bindings::Plan::instantiate(&mut store, &component, &linker).unwrap();
@@ -325,7 +407,12 @@ fn check(p: &Plan, script: &[(&str, &[u32])], want_log: &[&str], want_status: u3
 
 #[test]
 fn single_call() {
-    check(&p_single(), &[], &["call echo hello <0 >0", "set-status 0"], 0);
+    check(
+        &p_single(),
+        &[],
+        &["call echo hello <0 >0", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -333,7 +420,12 @@ fn sequence() {
     check(
         &p_seq(),
         &[("echo", &[4, 0])],
-        &["call echo a <0 >0", "set-status 4", "call echo b <0 >0", "set-status 0"],
+        &[
+            "call echo a <0 >0",
+            "set-status 4",
+            "call echo b <0 >0",
+            "set-status 0",
+        ],
         0,
     );
 }
@@ -343,19 +435,34 @@ fn and_ok_runs_second() {
     check(
         &p_and(),
         &[("test", &[0]), ("echo", &[5])],
-        &["call test a <0 >0", "set-status 0", "call echo b <0 >0", "set-status 5"],
+        &[
+            "call test a <0 >0",
+            "set-status 0",
+            "call echo b <0 >0",
+            "set-status 5",
+        ],
         5,
     );
 }
 
 #[test]
 fn and_fail_skips_second() {
-    check(&p_and(), &[("test", &[1])], &["call test a <0 >0", "set-status 1"], 1);
+    check(
+        &p_and(),
+        &[("test", &[1])],
+        &["call test a <0 >0", "set-status 1"],
+        1,
+    );
 }
 
 #[test]
 fn or_ok_skips_second() {
-    check(&p_or(), &[("test", &[0])], &["call test a <0 >0", "set-status 0"], 0);
+    check(
+        &p_or(),
+        &[("test", &[0])],
+        &["call test a <0 >0", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -363,15 +470,30 @@ fn or_fail_runs_second() {
     check(
         &p_or(),
         &[("test", &[2])],
-        &["call test a <0 >0", "set-status 2", "call echo b <0 >0", "set-status 0"],
+        &[
+            "call test a <0 >0",
+            "set-status 2",
+            "call echo b <0 >0",
+            "set-status 0",
+        ],
         0,
     );
 }
 
 #[test]
 fn not_inverts_zero_and_nonzero() {
-    check(&p_not(), &[("test", &[0])], &["call test a <0 >0", "set-status 1"], 1);
-    check(&p_not(), &[("test", &[7])], &["call test a <0 >0", "set-status 0"], 0);
+    check(
+        &p_not(),
+        &[("test", &[0])],
+        &["call test a <0 >0", "set-status 1"],
+        1,
+    );
+    check(
+        &p_not(),
+        &[("test", &[7])],
+        &["call test a <0 >0", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -393,12 +515,22 @@ fn pipeline_three_stages_wiring() {
 
 #[test]
 fn exit_mid_script_stops_and_returns_n() {
-    check(&p_exit(), &[("exit", &[256 + 3])], &["call echo a <0 >0", "set-status 0", "call exit 3 <0 >0"], 3);
+    check(
+        &p_exit(),
+        &[("exit", &[256 + 3])],
+        &["call echo a <0 >0", "set-status 0", "call exit 3 <0 >0"],
+        3,
+    );
 }
 
 #[test]
 fn assignment_only() {
-    check(&p_assign(), &[], &["set-var X=1", "set-var Y=$X", "set-status 0"], 0);
+    check(
+        &p_assign(),
+        &[],
+        &["set-var X=1", "set-var Y=$X", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -447,7 +579,12 @@ fn while_loop_stops_after_two_iterations() {
 
 #[test]
 fn while_loop_never_runs_status_zero() {
-    check(&p_while(), &[("test", &[1])], &["call test x <0 >0", "set-status 1", "set-status 0"], 0);
+    check(
+        &p_while(),
+        &[("test", &[1])],
+        &["call test x <0 >0", "set-status 1", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -473,7 +610,13 @@ fn capture_echo_cat() {
     check(
         &p_capture(),
         &[],
-        &["pipe -> 1", "call cat f <0 >1", "set-status 0", "call echo <cap1> <0 >0", "set-status 0"],
+        &[
+            "pipe -> 1",
+            "call cat f <0 >1",
+            "set-status 0",
+            "call echo <cap1> <0 >0",
+            "set-status 0",
+        ],
         0,
     );
 }
@@ -513,7 +656,12 @@ fn nested_capture_inside_pipeline_stage() {
 
 #[test]
 fn word_parts_quoted_var_glob() {
-    check(&p_glob_parts(), &[], &["call ls \"a\"\"$X\"*.txt <0 >0", "set-status 0"], 0);
+    check(
+        &p_glob_parts(),
+        &[],
+        &["call ls \"a\"\"$X\"*.txt <0 >0", "set-status 0"],
+        0,
+    );
 }
 
 #[test]
@@ -547,7 +695,13 @@ fn assignment_status_is_last_capture_status() {
     check(
         &p,
         &[("false", &[1])],
-        &["pipe -> 1", "call false <0 >1", "set-status 1", "set-var X=<cap1>", "set-status 1"],
+        &[
+            "pipe -> 1",
+            "call false <0 >1",
+            "set-status 1",
+            "set-var X=<cap1>",
+            "set-status 1",
+        ],
         1,
     );
 }
@@ -555,10 +709,23 @@ fn assignment_status_is_last_capture_status() {
 #[test]
 fn exit_inside_loop_stops() {
     let p = plan(seq(vec![
-        PStage::For { var: "i".into(), items: vec![lit("a"), lit("b")], body: seq(vec![c("exit 4")]) },
+        PStage::For {
+            var: "i".into(),
+            items: vec![lit("a"), lit("b")],
+            body: seq(vec![c("exit 4")]),
+        },
         c("echo after"),
     ]));
-    check(&p, &[("exit", &[260])], &["expand-list a b -> 1", "bind-item i 1 0", "call exit 4 <0 >0"], 4);
+    check(
+        &p,
+        &[("exit", &[260])],
+        &[
+            "expand-list a b -> 1",
+            "bind-item i 1 0",
+            "call exit 4 <0 >0",
+        ],
+        4,
+    );
 }
 
 // ---- known-wrong pins (KNOWN.md) --------------------------------------------
@@ -580,7 +747,13 @@ fn known_wrong_kw1_capture_assignment_reaches_session() {
     check(
         &p_kw1(),
         &[],
-        &["pipe -> 1", "set-var X=2", "set-status 0", "call echo <cap1> <0 >0", "set-status 0"],
+        &[
+            "pipe -> 1",
+            "set-var X=2",
+            "set-status 0",
+            "call echo <cap1> <0 >0",
+            "set-status 0",
+        ],
         0,
     );
 }
@@ -595,7 +768,12 @@ fn p_kw2() -> Plan {
 
 #[test]
 fn known_wrong_kw2_exit_in_capture_stops_plan() {
-    check(&p_kw2(), &[("exit", &[261])], &["pipe -> 1", "call exit 5 <0 >1"], 5);
+    check(
+        &p_kw2(),
+        &[("exit", &[261])],
+        &["pipe -> 1", "call exit 5 <0 >1"],
+        5,
+    );
 }
 
 #[test]
@@ -603,7 +781,11 @@ fn known_wrong_kw3_status_in_same_command_sees_capture() {
     // false; echo $? $(true): the capture's set-status 0 lands before echo.
     let p = plan(seq(vec![
         c("false"),
-        PStage::Call(callw(vec![lit("echo"), var("?"), cap(seq(vec![c("true")]))])),
+        PStage::Call(callw(vec![
+            lit("echo"),
+            var("?"),
+            cap(seq(vec![c("true")])),
+        ])),
     ]));
     check(
         &p,
@@ -624,19 +806,28 @@ fn known_wrong_kw3_status_in_same_command_sees_capture() {
 /// KW-4: `exit 3 | cat; echo after` stops the plan with 3.
 fn p_kw4() -> Plan {
     plan(vec![
-        PAndOr { first: pl(vec![c("exit 3"), c("cat")]), rest: vec![] },
+        PAndOr {
+            first: pl(vec![c("exit 3"), c("cat")]),
+            rest: vec![],
+        },
         one(c("echo after")),
     ])
 }
 
 #[test]
 fn known_wrong_kw4_exit_in_pipeline_stage_stops_plan() {
-    check(&p_kw4(), &[("exit", &[259])], &["pipe -> 1", "call exit 3 <0 >1"], 3);
+    check(
+        &p_kw4(),
+        &[("exit", &[259])],
+        &["pipe -> 1", "call exit 3 <0 >1"],
+        3,
+    );
 }
 
 #[test]
 fn known_md_counts_are_pinned() {
-    let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("KNOWN.md")).unwrap();
+    let text =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("KNOWN.md")).unwrap();
     let count = |prefix: &str| text.lines().filter(|l| l.starts_with(prefix)).count();
     let header = |key: &str| -> usize {
         text.lines()
@@ -675,7 +866,12 @@ fn assert_kc001(p: &Plan, construct: &str, span: Option<Span>) {
     assert_eq!(e.span, span, "{e}");
 }
 
-fn raw_call(tool: bool, argv: Vec<PWord>, asg: Vec<(String, PWord)>, redirects: Vec<PRedirect>) -> Plan {
+fn raw_call(
+    tool: bool,
+    argv: Vec<PWord>,
+    asg: Vec<(String, PWord)>,
+    redirects: Vec<PRedirect>,
+) -> Plan {
     plan(seq(vec![PStage::Call(Call {
         tool: tool.then(|| Tool::Builtin("x".into())),
         argv,
@@ -689,7 +885,14 @@ const SPAN: Option<Span> = Some(Span { start: 3, end: 9 });
 
 #[test]
 fn kd1_empty_pipeline() {
-    assert_kc001(&plan(vec![PAndOr { first: pl(vec![]), rest: vec![] }]), "pipeline", None);
+    assert_kc001(
+        &plan(vec![PAndOr {
+            first: pl(vec![]),
+            rest: vec![],
+        }]),
+        "pipeline",
+        None,
+    );
 }
 
 #[test]
@@ -699,12 +902,20 @@ fn kd2_empty_argv() {
 
 #[test]
 fn kd3_dynamic_command_name() {
-    assert_kc001(&raw_call(true, vec![var("CMD")], vec![], vec![]), "call", SPAN);
+    assert_kc001(
+        &raw_call(true, vec![var("CMD")], vec![], vec![]),
+        "call",
+        SPAN,
+    );
 }
 
 #[test]
 fn kd4_no_tool_with_argv() {
-    assert_kc001(&raw_call(false, vec![lit("echo")], vec![], vec![]), "call", SPAN);
+    assert_kc001(
+        &raw_call(false, vec![lit("echo")], vec![], vec![]),
+        "call",
+        SPAN,
+    );
 }
 
 #[test]
@@ -714,8 +925,16 @@ fn kd5_no_tool_no_assignments() {
 
 #[test]
 fn kd6_redirect_only_command() {
-    let r = PRedirect { fd: 1, op: RedirectOp::Write, target: PRedirectTarget::Word { word: lit("f") } };
-    assert_kc001(&raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]), "call", SPAN);
+    let r = PRedirect {
+        fd: 1,
+        op: RedirectOp::Write,
+        target: PRedirectTarget::Word { word: lit("f") },
+    };
+    assert_kc001(
+        &raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]),
+        "call",
+        SPAN,
+    );
 }
 
 #[test]
@@ -723,18 +942,32 @@ fn kd7_redirect_target_kind_mismatch() {
     let bad = [
         (RedirectOp::Write, PRedirectTarget::Fd { fd: 1 }),
         (RedirectOp::DupOut, PRedirectTarget::Word { word: lit("f") }),
-        (RedirectOp::Heredoc, PRedirectTarget::Word { word: lit("f") }),
-        (RedirectOp::Read, PRedirectTarget::Heredoc { body: lit("b") }),
+        (
+            RedirectOp::Heredoc,
+            PRedirectTarget::Word { word: lit("f") },
+        ),
+        (
+            RedirectOp::Read,
+            PRedirectTarget::Heredoc { body: lit("b") },
+        ),
     ];
     for (op, target) in bad {
         let r = PRedirect { fd: 1, op, target };
-        assert_kc001(&raw_call(true, vec![lit("cat")], vec![], vec![r]), "redirect", SPAN);
+        assert_kc001(
+            &raw_call(true, vec![lit("cat")], vec![], vec![r]),
+            "redirect",
+            SPAN,
+        );
     }
 }
 
 #[test]
 fn kd8_while_empty_condition() {
-    let p = plan(seq(vec![PStage::While { until: false, condition: vec![], body: seq(vec![c("true")]) }]));
+    let p = plan(seq(vec![PStage::While {
+        until: false,
+        condition: vec![],
+        body: seq(vec![c("true")]),
+    }]));
     assert_kc001(&p, "while", None);
 }
 
@@ -759,7 +992,10 @@ fn kc002_wrong_schema() {
 fn kc003_too_many_locals() {
     // 50_002 stages need 50_001 pipe locals plus the status local.
     let stages = (0..50_002).map(|_| c("true")).collect();
-    let e = declined(&plan(vec![PAndOr { first: pl(stages), rest: vec![] }]));
+    let e = declined(&plan(vec![PAndOr {
+        first: pl(stages),
+        rest: vec![],
+    }]));
     assert_eq!(e.code, code::LIMIT, "{e}");
 }
 
@@ -774,7 +1010,10 @@ fn kc900_validator_rejects_component_of_another_plan() {
     assert_eq!(e.code, code::VALIDATOR, "{e}");
     assert!(e.message.contains("goodbye"), "{e}");
     // Same calls, different pipe wiring.
-    let swapped = plan(vec![PAndOr { first: pl(vec![c("cat f"), c("sort"), c("wc -l")]), rest: vec![] }]);
+    let swapped = plan(vec![PAndOr {
+        first: pl(vec![c("cat f"), c("sort"), c("wc -l")]),
+        rest: vec![],
+    }]);
     let mut wrong = swapped.clone();
     wrong.body[0].first.stages.swap(1, 2);
     let e = kapsel_compile::validate(&swapped, &compile(&wrong).unwrap()).unwrap_err();
@@ -821,8 +1060,16 @@ fn validity_imports_only_host_exports_only_run() {
             panic!("{name}: not a component")
         };
         let w = &resolve.worlds[world];
-        let imports: Vec<String> = w.imports.keys().map(|k| resolve.name_world_key(k)).collect();
-        let exports: Vec<String> = w.exports.keys().map(|k| resolve.name_world_key(k)).collect();
+        let imports: Vec<String> = w
+            .imports
+            .keys()
+            .map(|k| resolve.name_world_key(k))
+            .collect();
+        let exports: Vec<String> = w
+            .exports
+            .keys()
+            .map(|k| resolve.name_world_key(k))
+            .collect();
         assert_eq!(imports, ["kapsel:shell/host@0.1.0"], "{name}");
         assert_eq!(exports, ["run"], "{name}");
     }
@@ -879,9 +1126,18 @@ fn every_rule_has_a_test_that_fires_it() {
             panic!("rule {} ({}) has no test", r.id, r.name)
         };
         let fired = compile_report(&plans[name]).unwrap().rules_fired;
-        assert!(fired.contains(&r.id), "plan `{name}` does not fire {} ({}): {fired:?}", r.id, r.name);
+        assert!(
+            fired.contains(&r.id),
+            "plan `{name}` does not fire {} ({}): {fired:?}",
+            r.id,
+            r.name
+        );
     }
-    assert_eq!(RULE_TESTS.len(), RULES.len(), "RULE_TESTS names a rule that is not in RULES");
+    assert_eq!(
+        RULE_TESTS.len(),
+        RULES.len(),
+        "RULE_TESTS names a rule that is not in RULES"
+    );
 }
 
 // ---- frozen byte fixtures ---------------------------------------------------
@@ -900,7 +1156,11 @@ fn frozen_fixtures_match_committed_sha256() {
         .filter(|p| p.to_string_lossy().ends_with(".plan.json"))
         .collect();
     paths.sort();
-    assert!(paths.len() >= 8, "expected at least 8 fixtures, found {}", paths.len());
+    assert!(
+        paths.len() >= 8,
+        "expected at least 8 fixtures, found {}",
+        paths.len()
+    );
     let mut failures = Vec::new();
     for path in paths {
         let p: Plan = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -913,10 +1173,19 @@ fn frozen_fixtures_match_committed_sha256() {
         }
         let want = std::fs::read_to_string(&sha_path).unwrap_or_default();
         if want != got {
-            failures.push(format!("{}: committed {}, compiled {}", path.display(), want.trim(), got.trim()));
+            failures.push(format!(
+                "{}: committed {}, compiled {}",
+                path.display(),
+                want.trim(),
+                got.trim()
+            ));
         }
     }
-    assert!(failures.is_empty(), "byte change (bless with KAPSEL_BLESS=1):\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "byte change (bless with KAPSEL_BLESS=1):\n{}",
+        failures.join("\n")
+    );
 }
 
 /// Writes the fixture plans; run once with `--ignored` when adding fixtures.
@@ -930,4 +1199,110 @@ fn write_fixture_plans() {
         let path = fixture_dir().join(format!("{name}.plan.json"));
         std::fs::write(path, serde_json::to_string_pretty(&p).unwrap() + "\n").unwrap();
     }
+}
+
+// ---- cache key: bytes depend only on the normalized plan --------------------
+
+/// Gives every call a distinct span, sets a source hash and adds a warning.
+fn decorate(mut p: Plan) -> Plan {
+    fn word(w: &mut PWord, n: &mut u32) {
+        for part in &mut w.parts {
+            if let PPart::Capture { body, .. } = part {
+                body.iter_mut().for_each(|a| and_or(a, n));
+            }
+        }
+    }
+    fn and_or(a: &mut PAndOr, n: &mut u32) {
+        pipeline(&mut a.first, n);
+        for (_, p) in &mut a.rest {
+            pipeline(p, n);
+        }
+    }
+    fn pipeline(p: &mut PPipeline, n: &mut u32) {
+        for s in &mut p.stages {
+            match s {
+                PStage::Call(c) => {
+                    *n += 7;
+                    c.span = Span::new(*n, *n + 5);
+                    c.argv.iter_mut().for_each(|w| word(w, n));
+                    c.assignments.iter_mut().for_each(|(_, w)| word(w, n));
+                    for r in &mut c.redirects {
+                        if let PRedirectTarget::Word { word: w } = &mut r.target {
+                            word(w, n);
+                        }
+                    }
+                }
+                PStage::For { items, body, .. } => {
+                    items.iter_mut().for_each(|w| word(w, n));
+                    body.iter_mut().for_each(|a| and_or(a, n));
+                }
+                PStage::While {
+                    condition, body, ..
+                } => condition
+                    .iter_mut()
+                    .chain(body.iter_mut())
+                    .for_each(|a| and_or(a, n)),
+            }
+        }
+    }
+    let mut n = 100;
+    p.body.iter_mut().for_each(|a| and_or(a, &mut n));
+    p.source_sha256 = "ab".repeat(32);
+    p.warnings.push(kapsel_plan::Finding {
+        rule: "KS-R002".into(),
+        severity: kapsel_plan::Severity::Warn,
+        message: "a warning".into(),
+        span: Span::new(1, 2),
+        excerpt: "2>/dev/null".into(),
+        help: Some("handle the failure".into()),
+        notes: vec![],
+        related: vec![],
+    });
+    p
+}
+
+#[test]
+fn bytes_equal_compile_of_normalized_plan() {
+    for (name, p) in all_plans() {
+        let a = compile(&p).unwrap();
+        assert_eq!(
+            a,
+            compile(&p.normalized()).unwrap(),
+            "{name}: differs from normalized"
+        );
+        let d = decorate(p.clone());
+        assert_ne!(d, p, "{name}: decorate changed nothing");
+        assert_eq!(
+            d.normalized(),
+            p.normalized(),
+            "{name}: decorate changed more than spans"
+        );
+        assert_eq!(
+            compile(&d).unwrap(),
+            a,
+            "{name}: spans/source/warnings reached the module"
+        );
+    }
+}
+
+#[test]
+fn grants_are_never_compiled_in() {
+    let mut p = p_redirects();
+    p.grants.write = vec!["secret-path".into()];
+    p.grants.read = vec!["secret-read".into()];
+    p.grants.dynamic = true;
+    let bytes = compile(&p).unwrap();
+    for needle in [&b"secret-path"[..], b"secret-read"] {
+        assert!(
+            !bytes.windows(needle.len()).any(|w| w == needle),
+            "grant text in module"
+        );
+    }
+    let mut no_grants = p.clone();
+    no_grants.grants = Grants::default();
+    assert_eq!(
+        bytes,
+        compile(&no_grants).unwrap(),
+        "grants changed the module"
+    );
 }
