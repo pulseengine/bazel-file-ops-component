@@ -42,8 +42,16 @@ impl P<'_> {
         }
     }
     fn skip_seps(&mut self) {
-        while matches!(self.peek(), Some(b' ' | b'\t' | b'\n' | b';')) {
-            self.i += 1;
+        while let Some(c) = self.peek() {
+            if c == b'#' {
+                while self.peek().is_some_and(|c| c != b'\n') {
+                    self.i += 1;
+                }
+            } else if matches!(c, b' ' | b'\t' | b'\n' | b';') {
+                self.i += 1;
+            } else {
+                break;
+            }
         }
     }
     fn starts(&self, s: &str) -> bool {
@@ -325,6 +333,15 @@ impl P<'_> {
                 }
                 b'[' => {
                     let s = self.i + 1;
+                    let closes = self.b[s..].iter().take_while(|c| !matches!(c, b' ' | b'\t' | b'\n' | b';' | b'|' | b'&')).any(|c| *c == b']');
+                    if !closes {
+                        self.i += 1;
+                        match parts.last_mut() {
+                            Some(WordPart::Literal { text }) => text.push('['),
+                            _ => parts.push(WordPart::Literal { text: "[".into() }),
+                        }
+                        continue;
+                    }
                     let e = self.b[s..].iter().position(|c| *c == b']').map_or(self.b.len(), |p| s + p);
                     parts.push(WordPart::Glob { glob: GlobPart::Class { set: String::from_utf8_lossy(&self.b[s..e]).into_owned() } });
                     self.i = (e + 1).min(self.b.len());

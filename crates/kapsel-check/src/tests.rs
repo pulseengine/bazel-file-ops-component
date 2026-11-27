@@ -79,6 +79,13 @@ const CASES: &[(&str, Severity, &str, &str)] = &[
     ("KS-R009", Severity::Refuse, "make all", "echo all"),
     ("KS-R010", Severity::Refuse, "CMD=echo; $CMD hi", "CMD=echo; echo $CMD hi"),
     ("KS-R010", Severity::Refuse, "\"$(echo ls)\" -l", "echo $(echo ls) -l"),
+    ("KS-R011", Severity::Warn, "cat a || echo failed", "cat a && echo ok"),
+    ("KS-R012", Severity::Warn, "echo hi >> $OUT", "echo hi >> out.txt"),
+    ("KS-R013", Severity::Warn, "n=1; [ $n -eq 0 ]", "n=1; [ \"$n\" -eq 0 ]"),
+    ("KS-R014", Severity::Warn, "cd d; ls", "cd d && ls"),
+    ("KS-R015", Severity::Warn, "grep --include=*.rs x .", "grep --include='*.rs' x ."),
+    ("KS-R016", Severity::Warn, "ls m | head", "ls m"),
+    ("KS-R017", Severity::Warn, "cat \"$D/x\"", "cat x"),
 ];
 
 #[test]
@@ -91,8 +98,8 @@ fn every_rule_catches_its_planted_case_and_passes_its_control() {
         assert!(has(planted, want_rule, want_sev), "{planted:?} should hit {want_rule}: {:?}", rules(planted));
         let c = run(control);
         assert!(
-            matches!(&c, CheckOutcome::Plan(p) if p.warnings.is_empty()),
-            "control {control:?} for {rule} should pass clean: {:?}",
+            matches!(&c, CheckOutcome::Plan(_)) && findings(&c).iter().all(|f| f.rule != *rule),
+            "control {control:?} for {rule} should pass without {rule}: {:?}",
             findings(&c)
         );
     }
@@ -100,7 +107,7 @@ fn every_rule_catches_its_planted_case_and_passes_its_control() {
 
 #[test]
 fn every_rule_id_has_a_case() {
-    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010"] {
+    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010", "R011", "R012", "R013", "R014", "R015", "R016", "R017"] {
         let full = format!("KS-{id}");
         assert!(CASES.iter().any(|c| c.0 == full), "no case for {full}");
     }
@@ -134,12 +141,12 @@ fn r002_is_quiet_when_failure_is_handled() {
         "while cat a 2>/dev/null; do echo x; done",
         "cat a 2>/tmp/log",
     ] {
-        assert!(rules(ok).is_empty(), "{ok:?}: {:?}", rules(ok));
+        assert!(!rules(ok).contains(&"KS-R002".to_string()), "{ok:?}: {:?}", rules(ok));
     }
     // A non-last stage's failure is never handled.
-    assert_eq!(rules("cat a 2>/dev/null | sort || echo m"), ["KS-R002"]);
-    assert_eq!(rules("echo x; cat a 2>/dev/null"), ["KS-R002"]);
-    assert_eq!(rules("cat a 2>>/dev/null"), ["KS-R002"]);
+    assert!(rules("cat a 2>/dev/null | sort || echo m").contains(&"KS-R002".to_string()));
+    assert!(rules("echo x; cat a 2>/dev/null").contains(&"KS-R002".to_string()));
+    assert!(rules("cat a 2>>/dev/null").contains(&"KS-R002".to_string()));
 }
 
 #[test]
@@ -444,20 +451,20 @@ fn pack_dir() -> std::path::PathBuf {
 #[test]
 fn plant_pack_files_agree_with_rules() {
     let mut seen = 0;
-    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010"] {
+    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010", "R011", "R012", "R013", "R014", "R015", "R016", "R017"] {
         let rule = format!("KS-{id}");
         let dir = pack_dir().join(&rule);
         let planted = std::fs::read_to_string(dir.join("planted.sh")).unwrap_or_else(|e| panic!("{rule} planted: {e}"));
         let control = std::fs::read_to_string(dir.join("control.sh")).unwrap_or_else(|e| panic!("{rule} control: {e}"));
         let f = findings_of(&planted);
         assert!(f.iter().any(|(r, _)| r == &rule), "{rule} planted.sh not caught: {f:?}");
-        let sev = if rule == "KS-R002" { Severity::Warn } else { Severity::Refuse };
+        let sev = if rule == "KS-R002" || ("KS-R011"..="KS-R017").contains(&rule.as_str()) { Severity::Warn } else { Severity::Refuse };
         assert!(f.iter().any(|(r, s)| r == &rule && *s == sev), "{rule} severity");
         let c = run(&control);
-        assert!(matches!(&c, CheckOutcome::Plan(p) if p.warnings.is_empty()), "{rule} control flagged: {:?}", findings(&c));
+        assert!(matches!(&c, CheckOutcome::Plan(_)) && findings(&c).iter().all(|f| f.rule != rule), "{rule} control flagged: {:?}", findings(&c));
         seen += 1;
     }
-    assert_eq!(seen, 11);
+    assert_eq!(seen, 18);
 }
 
 fn findings_of(src: &str) -> Vec<(String, Severity)> {
@@ -465,3 +472,5 @@ fn findings_of(src: &str) -> Vec<(String, Severity)> {
 }
 
 mod quality;
+
+mod security;

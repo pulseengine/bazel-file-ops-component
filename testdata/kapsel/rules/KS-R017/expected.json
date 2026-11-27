@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R017",
+    "severity": "warn",
+    "message": "the path begins with `$CONFIG_DIR`, which may be empty: `\"$CONFIG_DIR/x\"` becomes `/x`",
+    "span": {
+      "start": 4,
+      "end": 31
+    },
+    "excerpt": "\"$CONFIG_DIR/settings.json\"",
+    "help": "check it first: `test -n \"$CONFIG_DIR\" &&`",
+    "notes": [
+      "an unset or empty variable at the start of a path silently turns `\"$DIR/x\"` into `/x` (91 measured)"
+    ]
+  }
+]

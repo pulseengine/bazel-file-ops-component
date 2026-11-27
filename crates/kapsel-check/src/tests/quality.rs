@@ -54,7 +54,7 @@ fn r000_passes_parser_expected_and_help_through() {
 /// Regenerate with `KAPSEL_BLESS=1 cargo test -p kapsel-check goldens`.
 #[test]
 fn goldens_match_expected_json() {
-    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010"] {
+    for id in ["R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010", "R011", "R012", "R013", "R014", "R015", "R016", "R017"] {
         let dir = pack_dir().join(format!("KS-{id}"));
         let planted = std::fs::read_to_string(dir.join("planted.sh")).unwrap();
         let o = run(&planted);

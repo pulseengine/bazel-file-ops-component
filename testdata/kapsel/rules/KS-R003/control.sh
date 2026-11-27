@@ -1,1 +1,2 @@
-rm -rf out
+rm -rf ./build
+rm -rf out/*.o
