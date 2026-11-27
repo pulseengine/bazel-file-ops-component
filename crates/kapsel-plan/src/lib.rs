@@ -50,6 +50,21 @@ pub struct Finding {
     pub span: Span,
     /// The exact source text of `span`.
     pub excerpt: String,
+    /// A concrete fix the user can apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    /// Extra context lines (why the rule exists, what was measured).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+    /// Secondary spans with labels, e.g. the earlier command a duplicate repeats.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<Related>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Related {
+    pub span: Span,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
