@@ -19,7 +19,6 @@ env:
   USE_BAZEL_VERSION: "8.4.0"
   RUST_VERSION: "1.82.0"
   TINYGO_VERSION: "0.38.0"
-  NODE_VERSION: "24"
 
 jobs:
   # Build and test TinyGo implementation
@@ -343,37 +342,6 @@ jobs:
       run: |
         # Ensure all source files have proper license headers
         find . -name "*.go" -o -name "*.rs" | xargs grep -L "Licensed under" || echo "Some files missing license headers"
-
-  # Documentation build and deployment
-  docs-build:
-    name: Documentation Build
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-    - name: Setup Node.js
-      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
-        cache-dependency-path: docs-site/package-lock.json
-
-    - name: Install docs dependencies
-      working-directory: docs-site
-      run: npm ci
-
-    - name: Build documentation
-      working-directory: docs-site
-      run: npm run build
-
-    - name: Upload documentation artifacts
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-      with:
-        name: documentation
-        path: docs-site/dist/
-        retention-days: 7
 
   # Release creation and artifact publishing
   release:
