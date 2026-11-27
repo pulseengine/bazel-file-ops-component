@@ -1,0 +1,30 @@
+[
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| true` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`",
+    "span": {
+      "start": 24,
+      "end": 31
+    },
+    "excerpt": "|| true",
+    "help": "handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| true`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| :` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`",
+    "span": {
+      "start": 56,
+      "end": 60
+    },
+    "excerpt": "|| :",
+    "help": "handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| :`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)"
+    ]
+  }
+]

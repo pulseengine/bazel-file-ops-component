@@ -1,0 +1,6 @@
+error[process-substitution] 5..12 "<(ls a)"
+  message: process-substitution: process substitution `<( )` and `>( )` is not in kapsel's shell subset
+  help: write the output to a file first: `cmd > tmp.txt`, then pass tmp.txt
+error[process-substitution] 13..20 "<(ls b)"
+  message: process-substitution: process substitution `<( )` and `>( )` is not in kapsel's shell subset
+  help: write the output to a file first: `cmd > tmp.txt`, then pass tmp.txt

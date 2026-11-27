@@ -26,6 +26,11 @@ rules_wasm_component, are in [kapsel#140](https://github.com/pulseengine/kapsel/
 
 ### v0.3.0: first shell
 Owner decision 2026-11-27: every line, script and `-c` command is compiled and run from the first release, so the compiler, the executor and the first built-ins moved here from v0.4.0. The working plan for the slice is [first-shell.md](first-shell.md).
+- **Architecture as in spar and rivet** (DD-KS-018): rowan (the Miri-sound fork) and salsa 0.28.5; parse, check, compile and the analysis are tracked queries.
+- **Error reporting** (REQ-KS-060): rustc-style diagnostics with help and notes, `kapsel explain`, golden-tested.
+- **Similar commands** (REQ-KS-061): retries without change, inconsistent flags, near-miss paths (KS-S001 to S005).
+- **Error corpus** (REQ-KS-062): real CI failures and agent mistakes, each with its expected outcome.
+- **Compiler after synth** (DD-KS-019): decline loudly, a translation validator on every compile, pinned fixtures.
 - **Compiler** (REQ-KS-020, DD-KS-005), **executor** (REQ-KS-022) and **built-ins** (REQ-KS-025), against `wit/kapsel-shell.wit`.
 - **Interactive mode** (REQ-KS-019): each line is checked, compiled and run; the session persists.
 - **Parser** (REQ-KS-010, DD-KS-002): a POSIX subset on rowan, with everything else refused.

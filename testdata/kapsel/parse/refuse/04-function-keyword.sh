@@ -1,0 +1,1 @@
+function greet { echo hi; }

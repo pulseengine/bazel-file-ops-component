@@ -1,0 +1,150 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "double_quoted",
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "lines: "
+                      },
+                      {
+                        "kind": "command_subst",
+                        "script": {
+                          "items": [
+                            {
+                              "first": {
+                                "negated": false,
+                                "commands": [
+                                  {
+                                    "kind": "simple",
+                                    "assignments": [],
+                                    "words": [
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "wc"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 15,
+                                          "end": 17
+                                        }
+                                      },
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "-l"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 18,
+                                          "end": 20
+                                        }
+                                      }
+                                    ],
+                                    "redirects": [
+                                      {
+                                        "fd": null,
+                                        "op": "read",
+                                        "target": {
+                                          "kind": "word",
+                                          "word": {
+                                            "parts": [
+                                              {
+                                                "kind": "literal",
+                                                "text": "f.txt"
+                                              }
+                                            ],
+                                            "span": {
+                                              "start": 23,
+                                              "end": 28
+                                            }
+                                          }
+                                        },
+                                        "span": {
+                                          "start": 21,
+                                          "end": 28
+                                        }
+                                      }
+                                    ],
+                                    "span": {
+                                      "start": 15,
+                                      "end": 28
+                                    }
+                                  }
+                                ],
+                                "span": {
+                                  "start": 15,
+                                  "end": 28
+                                }
+                              },
+                              "rest": [],
+                              "span": {
+                                "start": 15,
+                                "end": 28
+                              }
+                            }
+                          ],
+                          "span": {
+                            "start": 15,
+                            "end": 28
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 30
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 30
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 30
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 30
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 30
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "for",
+            "var": "x",
+            "items": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "a"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 10
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "cat"
+                            }
+                          ],
+                          "span": {
+                            "start": 15,
+                            "end": 18
+                          }
+                        }
+                      ],
+                      "redirects": [
+                        {
+                          "fd": null,
+                          "op": "heredoc",
+                          "target": {
+                            "kind": "heredoc",
+                            "body": {
+                              "parts": [
+                                {
+                                  "kind": "param",
+                                  "name": "x"
+                                },
+                                {
+                                  "kind": "literal",
+                                  "text": "\n"
+                                }
+                              ],
+                              "span": {
+                                "start": 23,
+                                "end": 26
+                              }
+                            },
+                            "quoted": false,
+                            "strip_tabs": false
+                          },
+                          "span": {
+                            "start": 19,
+                            "end": 22
+                          }
+                        }
+                      ],
+                      "span": {
+                        "start": 15,
+                        "end": 22
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 15,
+                    "end": 22
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 15,
+                  "end": 22
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 32
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 32
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 32
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 32
+  }
+}

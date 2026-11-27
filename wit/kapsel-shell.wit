@@ -62,6 +62,14 @@ interface host {
 
   // Sets `$name` to item `index` of `list`.
   bind-item: func(name: string, %list: u32, index: u32);
+
+  // Subshell scope, as POSIX runs `$(...)` and each stage of a multi-stage
+  // pipeline in a subshell. Changes to variables, exported names, cwd and `$?`
+  // made between scope-push and the matching scope-pop are discarded at the
+  // pop. Scopes nest. Inside a scope, `exit n` (call returning 256 + n) ends
+  // only that scope: the compiler pops it and uses n as the scope's status.
+  scope-push: func();
+  scope-pop: func();
 }
 
 world plan {

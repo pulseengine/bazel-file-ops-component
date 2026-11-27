@@ -1,0 +1,30 @@
+[
+  {
+    "rule": "KS-R012",
+    "severity": "warn",
+    "message": "an unquoted expansion as a redirect target splits into several words or expands as a glob if the value has spaces or wildcards",
+    "span": {
+      "start": 11,
+      "end": 15
+    },
+    "excerpt": "$OUT",
+    "help": "quote the target: `> \"$FILE\"`",
+    "notes": [
+      "an unquoted expansion in a redirect target splits or globs when the value has spaces or wildcards, and shells differ on whether that is an error"
+    ]
+  },
+  {
+    "rule": "KS-R017",
+    "severity": "warn",
+    "message": "the path begins with `$OUT`, which may be empty: `\"$OUT/x\"` becomes `/x`",
+    "span": {
+      "start": 11,
+      "end": 15
+    },
+    "excerpt": "$OUT",
+    "help": "check it first: `test -n \"$OUT\" &&`",
+    "notes": [
+      "an unset or empty variable at the start of a path silently turns `\"$DIR/x\"` into `/x` (91 measured)"
+    ]
+  }
+]

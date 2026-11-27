@@ -1,0 +1,126 @@
+{
+  "schema": "kapsel.plan.v0",
+  "source_sha256": "",
+  "body": [
+    {
+      "first": {
+        "negated": false,
+        "stages": [
+          {
+            "kind": "call",
+            "tool": {
+              "kind": "builtin",
+              "name": "cat"
+            },
+            "argv": [
+              {
+                "parts": [
+                  {
+                    "kind": "lit",
+                    "text": "cat",
+                    "quoted": false
+                  }
+                ]
+              }
+            ],
+            "assignments": [],
+            "redirects": [
+              {
+                "fd": 0,
+                "op": "read",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "lit",
+                        "text": "in",
+                        "quoted": false
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "fd": 1,
+                "op": "write",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "lit",
+                        "text": "out",
+                        "quoted": false
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "fd": 1,
+                "op": "append",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "var",
+                        "name": "LOG",
+                        "quoted": false
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "fd": 2,
+                "op": "dup_out",
+                "target": {
+                  "kind": "fd",
+                  "fd": 1
+                }
+              },
+              {
+                "fd": 0,
+                "op": "dup_in",
+                "target": {
+                  "kind": "fd",
+                  "fd": 3
+                }
+              },
+              {
+                "fd": 0,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "lit",
+                        "text": "body\n",
+                        "quoted": true
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 1
+            }
+          }
+        ]
+      },
+      "rest": []
+    }
+  ],
+  "grants": {
+    "read": [],
+    "write": [],
+    "dynamic": false,
+    "native": []
+  },
+  "warnings": []
+}

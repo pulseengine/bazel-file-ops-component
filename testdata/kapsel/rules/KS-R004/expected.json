@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R004",
+    "severity": "refuse",
+    "message": "`eval` runs code built from strings, which the check stage cannot see; write the commands out instead",
+    "span": {
+      "start": 0,
+      "end": 14
+    },
+    "excerpt": "eval \"echo hi\"",
+    "help": "write the commands out as separate commands instead of `eval`; if the text really is dynamic, split it into steps that each pass the check",
+    "notes": [
+      "code assembled from strings cannot be checked before it runs, so it would bypass every other rule"
+    ]
+  }
+]

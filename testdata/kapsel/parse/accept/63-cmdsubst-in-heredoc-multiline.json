@@ -1,0 +1,186 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 3
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "command_subst",
+                        "script": {
+                          "items": [
+                            {
+                              "first": {
+                                "negated": false,
+                                "commands": [
+                                  {
+                                    "kind": "simple",
+                                    "assignments": [],
+                                    "words": [
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "echo"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 12,
+                                          "end": 16
+                                        }
+                                      },
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "one"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 17,
+                                          "end": 20
+                                        }
+                                      }
+                                    ],
+                                    "redirects": [],
+                                    "span": {
+                                      "start": 12,
+                                      "end": 20
+                                    }
+                                  }
+                                ],
+                                "span": {
+                                  "start": 12,
+                                  "end": 20
+                                }
+                              },
+                              "rest": [],
+                              "span": {
+                                "start": 12,
+                                "end": 20
+                              }
+                            },
+                            {
+                              "first": {
+                                "negated": false,
+                                "commands": [
+                                  {
+                                    "kind": "simple",
+                                    "assignments": [],
+                                    "words": [
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "echo"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 21,
+                                          "end": 25
+                                        }
+                                      },
+                                      {
+                                        "parts": [
+                                          {
+                                            "kind": "literal",
+                                            "text": "two"
+                                          }
+                                        ],
+                                        "span": {
+                                          "start": 26,
+                                          "end": 29
+                                        }
+                                      }
+                                    ],
+                                    "redirects": [],
+                                    "span": {
+                                      "start": 21,
+                                      "end": 29
+                                    }
+                                  }
+                                ],
+                                "span": {
+                                  "start": 21,
+                                  "end": 29
+                                }
+                              },
+                              "rest": [],
+                              "span": {
+                                "start": 21,
+                                "end": 29
+                              }
+                            }
+                          ],
+                          "span": {
+                            "start": 12,
+                            "end": 29
+                          }
+                        }
+                      },
+                      {
+                        "kind": "literal",
+                        "text": "\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 10,
+                      "end": 31
+                    }
+                  },
+                  "quoted": false,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 4,
+                  "end": 9
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 9
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 9
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 9
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 35
+  }
+}

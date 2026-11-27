@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R000",
+    "severity": "refuse",
+    "message": "`if` is outside kapsel's shell subset and is refused: if: `if` statements are not in kapsel's shell subset yet",
+    "span": {
+      "start": 0,
+      "end": 25
+    },
+    "excerpt": "if true; then echo hi; fi",
+    "help": "use `cmd && then-part || else-part` only when the else part cannot mask a failure",
+    "notes": [
+      "kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)"
+    ]
+  }
+]

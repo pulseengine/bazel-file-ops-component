@@ -1,0 +1,163 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "command_subst",
+                    "script": {
+                      "items": [
+                        {
+                          "first": {
+                            "negated": false,
+                            "commands": [
+                              {
+                                "kind": "simple",
+                                "assignments": [],
+                                "words": [
+                                  {
+                                    "parts": [
+                                      {
+                                        "kind": "literal",
+                                        "text": "basename"
+                                      }
+                                    ],
+                                    "span": {
+                                      "start": 7,
+                                      "end": 15
+                                    }
+                                  },
+                                  {
+                                    "parts": [
+                                      {
+                                        "kind": "command_subst",
+                                        "script": {
+                                          "items": [
+                                            {
+                                              "first": {
+                                                "negated": false,
+                                                "commands": [
+                                                  {
+                                                    "kind": "simple",
+                                                    "assignments": [],
+                                                    "words": [
+                                                      {
+                                                        "parts": [
+                                                          {
+                                                            "kind": "literal",
+                                                            "text": "pwd"
+                                                          }
+                                                        ],
+                                                        "span": {
+                                                          "start": 18,
+                                                          "end": 21
+                                                        }
+                                                      }
+                                                    ],
+                                                    "redirects": [],
+                                                    "span": {
+                                                      "start": 18,
+                                                      "end": 21
+                                                    }
+                                                  }
+                                                ],
+                                                "span": {
+                                                  "start": 18,
+                                                  "end": 21
+                                                }
+                                              },
+                                              "rest": [],
+                                              "span": {
+                                                "start": 18,
+                                                "end": 21
+                                              }
+                                            }
+                                          ],
+                                          "span": {
+                                            "start": 18,
+                                            "end": 21
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "span": {
+                                      "start": 16,
+                                      "end": 22
+                                    }
+                                  }
+                                ],
+                                "redirects": [],
+                                "span": {
+                                  "start": 7,
+                                  "end": 22
+                                }
+                              }
+                            ],
+                            "span": {
+                              "start": 7,
+                              "end": 22
+                            }
+                          },
+                          "rest": [],
+                          "span": {
+                            "start": 7,
+                            "end": 22
+                          }
+                        }
+                      ],
+                      "span": {
+                        "start": 7,
+                        "end": 22
+                      }
+                    }
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 23
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 23
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 23
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 23
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 23
+  }
+}

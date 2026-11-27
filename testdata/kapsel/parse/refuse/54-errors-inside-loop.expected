@@ -1,0 +1,6 @@
+error[backquote] 20..23 "`x`"
+  message: backquote: backquote command substitution is not in kapsel's shell subset
+  help: use $(...)
+error[background] 33..34 "&"
+  message: background: background jobs `&` are not in kapsel's shell subset
+  help: background jobs escape the session; run it in the foreground

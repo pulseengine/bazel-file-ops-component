@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R015",
+    "severity": "warn",
+    "message": "an unquoted `*` or `?` in an option value is a glob: it expands if a file matches and the shell may refuse the line when none does",
+    "span": {
+      "start": 13,
+      "end": 27
+    },
+    "excerpt": "--include=*.rs",
+    "help": "quote the word so the glob reaches the program: `--include='*.rs'`, `'https://x/issues?since=1'`",
+    "notes": [
+      "an unquoted glob in `--include=*.rs` was the commonest single failure in measured agent shell calls (268 `no matches found`)"
+    ]
+  }
+]

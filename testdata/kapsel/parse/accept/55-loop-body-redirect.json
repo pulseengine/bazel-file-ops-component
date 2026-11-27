@@ -1,0 +1,189 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "while",
+            "until": false,
+            "condition": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "true"
+                            }
+                          ],
+                          "span": {
+                            "start": 6,
+                            "end": 10
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 6,
+                        "end": 10
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 6,
+                    "end": 10
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 6,
+                  "end": 10
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "echo"
+                            }
+                          ],
+                          "span": {
+                            "start": 15,
+                            "end": 19
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "x"
+                            }
+                          ],
+                          "span": {
+                            "start": 20,
+                            "end": 21
+                          }
+                        }
+                      ],
+                      "redirects": [
+                        {
+                          "fd": null,
+                          "op": "write",
+                          "target": {
+                            "kind": "word",
+                            "word": {
+                              "parts": [
+                                {
+                                  "kind": "literal",
+                                  "text": "f.txt"
+                                }
+                              ],
+                              "span": {
+                                "start": 24,
+                                "end": 29
+                              }
+                            }
+                          },
+                          "span": {
+                            "start": 22,
+                            "end": 29
+                          }
+                        }
+                      ],
+                      "span": {
+                        "start": 15,
+                        "end": 29
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 15,
+                    "end": 29
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 15,
+                  "end": 29
+                }
+              },
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "break"
+                            }
+                          ],
+                          "span": {
+                            "start": 31,
+                            "end": 36
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 31,
+                        "end": 36
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 31,
+                    "end": 36
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 31,
+                  "end": 36
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 42
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 42
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 42
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 42
+  }
+}

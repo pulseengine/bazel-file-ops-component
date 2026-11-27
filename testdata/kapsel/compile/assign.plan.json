@@ -1,0 +1,57 @@
+{
+  "schema": "kapsel.plan.v0",
+  "source_sha256": "",
+  "body": [
+    {
+      "first": {
+        "negated": false,
+        "stages": [
+          {
+            "kind": "call",
+            "tool": null,
+            "argv": [],
+            "assignments": [
+              [
+                "X",
+                {
+                  "parts": [
+                    {
+                      "kind": "lit",
+                      "text": "1",
+                      "quoted": false
+                    }
+                  ]
+                }
+              ],
+              [
+                "Y",
+                {
+                  "parts": [
+                    {
+                      "kind": "var",
+                      "name": "X",
+                      "quoted": false
+                    }
+                  ]
+                }
+              ]
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 7
+            }
+          }
+        ]
+      },
+      "rest": []
+    }
+  ],
+  "grants": {
+    "read": [],
+    "write": [],
+    "dynamic": false,
+    "native": []
+  },
+  "warnings": []
+}

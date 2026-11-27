@@ -1,0 +1,3 @@
+error[syntax] 6..8 ";;"
+  message: syntax: unexpected `;;`
+  help: `;;` only ends a `case` branch; use a single `;`

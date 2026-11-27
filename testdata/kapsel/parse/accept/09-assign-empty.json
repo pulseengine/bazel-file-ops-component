@@ -1,0 +1,62 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [
+              {
+                "name": "X",
+                "value": {
+                  "parts": [],
+                  "span": {
+                    "start": 2,
+                    "end": 2
+                  }
+                },
+                "span": {
+                  "start": 0,
+                  "end": 2
+                }
+              }
+            ],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "env"
+                  }
+                ],
+                "span": {
+                  "start": 3,
+                  "end": 6
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 6
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 6
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 6
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 6
+  }
+}

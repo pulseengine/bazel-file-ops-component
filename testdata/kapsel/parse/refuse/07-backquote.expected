@@ -1,0 +1,3 @@
+error[backquote] 5..11 "`date`"
+  message: backquote: backquote command substitution is not in kapsel's shell subset
+  help: use $(...)

@@ -1,0 +1,143 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "while",
+            "until": false,
+            "condition": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "read"
+                            }
+                          ],
+                          "span": {
+                            "start": 6,
+                            "end": 10
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "line"
+                            }
+                          ],
+                          "span": {
+                            "start": 11,
+                            "end": 15
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 6,
+                        "end": 15
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 6,
+                    "end": 15
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 6,
+                  "end": 15
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "echo"
+                            }
+                          ],
+                          "span": {
+                            "start": 20,
+                            "end": 24
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "double_quoted",
+                              "parts": [
+                                {
+                                  "kind": "param",
+                                  "name": "line"
+                                }
+                              ]
+                            }
+                          ],
+                          "span": {
+                            "start": 25,
+                            "end": 32
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 20,
+                        "end": 32
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 20,
+                    "end": 32
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 20,
+                  "end": 32
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 38
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 38
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 38
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 38
+  }
+}
