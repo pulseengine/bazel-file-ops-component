@@ -26,8 +26,8 @@ Rules first proposed by this corpus, to be added to the check stage:
 | KS-R012 | warn | an unquoted expansion as a redirect target |
 | KS-R013 | warn | an unquoted expansion as an operand of `test` / `[` |
 | KS-R014 | warn | `cd X;` followed by more commands: they run in the old directory if cd fails |
-| KS-R015 | warn | an unquoted glob in an option value (`--include=*.rs`) |
-| KS-R016 | warn | a non-last pipeline stage that reads a path which may not exist (`ls missing | head`): its failure cannot change the status |
+| KS-R015 | warn | an unquoted glob in an option value or a URL-like word (`--include=*.rs`, `...?since=`) |
+| KS-R016 | warn | a non-last pipeline stage that reads a path which may not exist (`ls missing \| head`): its failure cannot change the status |
 | KS-R017 | warn | a path starting with an expansion that may be empty (`"$DIR/x"` becomes `/x`); help suggests `${DIR:?}` once that operator is in the subset |
 
 Never commit raw transcript text or CI logs here: only minimized constructs with paths and
