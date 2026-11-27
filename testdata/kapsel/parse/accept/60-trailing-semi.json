@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "a"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 6
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 6
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 6
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 6
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 7
+  }
+}

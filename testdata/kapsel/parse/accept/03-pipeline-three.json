@@ -1,0 +1,117 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "printf"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 6
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "single_quoted",
+                    "text": "b\\na\\nb\\n"
+                  }
+                ],
+                "span": {
+                  "start": 7,
+                  "end": 18
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 18
+            }
+          },
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "sort"
+                  }
+                ],
+                "span": {
+                  "start": 21,
+                  "end": 25
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 21,
+              "end": 25
+            }
+          },
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "uniq"
+                  }
+                ],
+                "span": {
+                  "start": 28,
+                  "end": 32
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "-c"
+                  }
+                ],
+                "span": {
+                  "start": 33,
+                  "end": 35
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 28,
+              "end": 35
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 35
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 35
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 35
+  }
+}

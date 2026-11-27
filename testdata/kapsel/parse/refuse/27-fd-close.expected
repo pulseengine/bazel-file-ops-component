@@ -1,0 +1,3 @@
+error[fd-close] 4..8 "2>&-"
+  message: fd-close: closing a file descriptor with `>&-` is not in kapsel's shell subset
+  help: redirect to /dev/null instead: 2>/dev/null

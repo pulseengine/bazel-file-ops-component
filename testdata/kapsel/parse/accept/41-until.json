@@ -1,0 +1,150 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "while",
+            "until": true,
+            "condition": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "test"
+                            }
+                          ],
+                          "span": {
+                            "start": 6,
+                            "end": 10
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "-f"
+                            }
+                          ],
+                          "span": {
+                            "start": 11,
+                            "end": 13
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "done.txt"
+                            }
+                          ],
+                          "span": {
+                            "start": 14,
+                            "end": 22
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 6,
+                        "end": 22
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 6,
+                    "end": 22
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 6,
+                  "end": 22
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "sleep"
+                            }
+                          ],
+                          "span": {
+                            "start": 27,
+                            "end": 32
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "1"
+                            }
+                          ],
+                          "span": {
+                            "start": 33,
+                            "end": 34
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 27,
+                        "end": 34
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 27,
+                    "end": 34
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 27,
+                  "end": 34
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 40
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 40
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 40
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 40
+  }
+}

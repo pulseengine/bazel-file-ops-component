@@ -1,0 +1,2 @@
+error[syntax] 8..12 "done"
+  message: syntax: unexpected `done`

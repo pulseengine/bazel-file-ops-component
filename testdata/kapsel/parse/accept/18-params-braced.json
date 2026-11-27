@@ -1,0 +1,119 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "HOME"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 12
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "1"
+                  }
+                ],
+                "span": {
+                  "start": 13,
+                  "end": 17
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "10"
+                  }
+                ],
+                "span": {
+                  "start": 18,
+                  "end": 23
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "#"
+                  }
+                ],
+                "span": {
+                  "start": 24,
+                  "end": 28
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "?"
+                  }
+                ],
+                "span": {
+                  "start": 29,
+                  "end": 33
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "param",
+                    "name": "_x1"
+                  }
+                ],
+                "span": {
+                  "start": 34,
+                  "end": 40
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 40
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 40
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 40
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 40
+  }
+}

@@ -1,0 +1,15 @@
+error[backquote] 5..8 "`a`"
+  message: backquote: backquote command substitution is not in kapsel's shell subset
+  help: use $(...)
+error[function-definition] 12..22 "f() { x; }"
+  message: function-definition: function definitions are not in kapsel's shell subset
+  help: write the commands out where they are used, or put them in a script file
+error[background] 23..24 "&"
+  message: background: background jobs `&` are not in kapsel's shell subset
+  help: background jobs escape the session; run it in the foreground
+error[process-substitution] 29..34 "<(ls)"
+  message: process-substitution: process substitution `<( )` and `>( )` is not in kapsel's shell subset
+  help: write the output to a file first: `cmd > tmp.txt`, then pass tmp.txt
+error[param-operator] 42..49 "${y:-z}"
+  message: param-operator: parameter operators inside `${...}` are not in kapsel's shell subset
+  help: assign a default first: `[ -n "$y" ] || y=default`, then use ${y}

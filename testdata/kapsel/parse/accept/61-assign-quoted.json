@@ -1,0 +1,120 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [
+              {
+                "name": "X",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "double_quoted",
+                      "parts": [
+                        {
+                          "kind": "literal",
+                          "text": "a b"
+                        }
+                      ]
+                    }
+                  ],
+                  "span": {
+                    "start": 2,
+                    "end": 7
+                  }
+                },
+                "span": {
+                  "start": 0,
+                  "end": 7
+                }
+              },
+              {
+                "name": "Y",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "single_quoted",
+                      "text": "c"
+                    }
+                  ],
+                  "span": {
+                    "start": 10,
+                    "end": 13
+                  }
+                },
+                "span": {
+                  "start": 8,
+                  "end": 13
+                }
+              },
+              {
+                "name": "Z",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "param",
+                      "name": "HOME"
+                    },
+                    {
+                      "kind": "literal",
+                      "text": "/x"
+                    }
+                  ],
+                  "span": {
+                    "start": 16,
+                    "end": 23
+                  }
+                },
+                "span": {
+                  "start": 14,
+                  "end": 23
+                }
+              },
+              {
+                "name": "W",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "literal",
+                      "text": "a=b"
+                    }
+                  ],
+                  "span": {
+                    "start": 26,
+                    "end": 29
+                  }
+                },
+                "span": {
+                  "start": 24,
+                  "end": 29
+                }
+              }
+            ],
+            "words": [],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 29
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 29
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 29
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 29
+  }
+}

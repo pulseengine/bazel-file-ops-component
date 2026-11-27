@@ -1,0 +1,122 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "for",
+            "var": "f",
+            "items": [
+              {
+                "parts": [
+                  {
+                    "kind": "glob",
+                    "glob": {
+                      "kind": "star"
+                    }
+                  },
+                  {
+                    "kind": "literal",
+                    "text": ".txt"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 14
+                }
+              }
+            ],
+            "body": [
+              {
+                "first": {
+                  "negated": false,
+                  "commands": [
+                    {
+                      "kind": "simple",
+                      "assignments": [],
+                      "words": [
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "wc"
+                            }
+                          ],
+                          "span": {
+                            "start": 20,
+                            "end": 22
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "literal",
+                              "text": "-l"
+                            }
+                          ],
+                          "span": {
+                            "start": 23,
+                            "end": 25
+                          }
+                        },
+                        {
+                          "parts": [
+                            {
+                              "kind": "double_quoted",
+                              "parts": [
+                                {
+                                  "kind": "param",
+                                  "name": "f"
+                                }
+                              ]
+                            }
+                          ],
+                          "span": {
+                            "start": 26,
+                            "end": 30
+                          }
+                        }
+                      ],
+                      "redirects": [],
+                      "span": {
+                        "start": 20,
+                        "end": 30
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 20,
+                    "end": 30
+                  }
+                },
+                "rest": [],
+                "span": {
+                  "start": 20,
+                  "end": 30
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 35
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 35
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 35
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 35
+  }
+}

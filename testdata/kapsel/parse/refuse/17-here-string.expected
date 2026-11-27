@@ -1,0 +1,3 @@
+error[here-string] 7..10 "<<<"
+  message: here-string: here-strings `<<<` are not in kapsel's shell subset
+  help: use a pipe: `printf '%s\n' "$x" | cmd`

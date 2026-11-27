@@ -1,0 +1,95 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "grep"
+                  }
+                ],
+                "span": {
+                  "start": 12,
+                  "end": 16
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "x"
+                  }
+                ],
+                "span": {
+                  "start": 17,
+                  "end": 18
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "f.txt"
+                  }
+                ],
+                "span": {
+                  "start": 19,
+                  "end": 24
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": 2,
+                "op": "write",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "/dev/null"
+                      }
+                    ],
+                    "span": {
+                      "start": 2,
+                      "end": 11
+                    }
+                  }
+                },
+                "span": {
+                  "start": 0,
+                  "end": 11
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 24
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 24
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 24
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 24
+  }
+}

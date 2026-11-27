@@ -1,0 +1,81 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "double_quoted",
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "a"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "single_quoted",
+                    "text": "b"
+                  },
+                  {
+                    "kind": "literal",
+                    "text": "c"
+                  },
+                  {
+                    "kind": "double_quoted",
+                    "parts": [
+                      {
+                        "kind": "param",
+                        "name": "d"
+                      }
+                    ]
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 16
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 16
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 16
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 16
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 16
+  }
+}

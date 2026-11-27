@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "single_quoted",
+                    "text": "single $X \"q\" \\n"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 23
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 23
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 23
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 23
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 23
+  }
+}
