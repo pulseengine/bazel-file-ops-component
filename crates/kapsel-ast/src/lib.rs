@@ -181,4 +181,10 @@ pub struct ParseError {
     pub construct: String,
     pub message: String,
     pub span: Span,
+    /// What the parser expected at this point, for "expected X, found Y".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expected: Vec<String>,
+    /// A concrete fix, e.g. "use \$(...) instead of backquotes".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
 }
