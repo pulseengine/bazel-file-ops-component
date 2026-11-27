@@ -1,0 +1,95 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "a b"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 9
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "*"
+                  }
+                ],
+                "span": {
+                  "start": 10,
+                  "end": 12
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "$HOME"
+                  }
+                ],
+                "span": {
+                  "start": 13,
+                  "end": 19
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "\\"
+                  }
+                ],
+                "span": {
+                  "start": 20,
+                  "end": 22
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 22
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 22
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 22
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 22
+  }
+}

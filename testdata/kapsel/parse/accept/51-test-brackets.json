@@ -1,0 +1,143 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "["
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 1
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "-f"
+                  }
+                ],
+                "span": {
+                  "start": 2,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "file"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 9
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "]"
+                  }
+                ],
+                "span": {
+                  "start": 10,
+                  "end": 11
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 11
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 11
+        }
+      },
+      "rest": [
+        [
+          "and",
+          {
+            "negated": false,
+            "commands": [
+              {
+                "kind": "simple",
+                "assignments": [],
+                "words": [
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "test"
+                      }
+                    ],
+                    "span": {
+                      "start": 15,
+                      "end": 19
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "-d"
+                      }
+                    ],
+                    "span": {
+                      "start": 20,
+                      "end": 22
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "dir"
+                      }
+                    ],
+                    "span": {
+                      "start": 23,
+                      "end": 26
+                    }
+                  }
+                ],
+                "redirects": [],
+                "span": {
+                  "start": 15,
+                  "end": 26
+                }
+              }
+            ],
+            "span": {
+              "start": 15,
+              "end": 26
+            }
+          }
+        ]
+      ],
+      "span": {
+        "start": 0,
+        "end": 26
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 26
+  }
+}

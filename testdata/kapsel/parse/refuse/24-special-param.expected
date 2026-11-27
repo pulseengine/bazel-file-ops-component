@@ -1,0 +1,9 @@
+error[special-param] 5..7 "$$"
+  message: special-param: this special parameter is not in kapsel's shell subset
+  help: the shell's process id is not available; use a fixed name or mktemp
+error[special-param] 8..10 "$!"
+  message: special-param: this special parameter is not in kapsel's shell subset
+  help: background jobs are not in the subset, so there is no $!
+error[special-param] 11..13 "$-"
+  message: special-param: this special parameter is not in kapsel's shell subset
+  help: shell option flags are not available

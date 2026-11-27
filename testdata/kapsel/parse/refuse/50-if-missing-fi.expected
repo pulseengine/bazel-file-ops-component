@@ -1,0 +1,6 @@
+error[if] 0..20 "if true; then echo a"
+  message: if: `if` statements are not in kapsel's shell subset yet
+  help: use `cmd && then-part || else-part` only when the else part cannot mask a failure
+error[syntax] 0..2 "if"
+  message: syntax: `if` is not closed: expected `elif` or `else` or `fi`, found end of input
+  expected: elif, else, fi

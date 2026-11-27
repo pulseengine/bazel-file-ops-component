@@ -1,0 +1,3 @@
+error[arithmetic] 0..7 "((i++))"
+  message: arithmetic: arithmetic `$(( ))` and `(( ))` is not in kapsel's shell subset
+  help: compute the value outside the command and pass it as a literal

@@ -1,0 +1,3 @@
+error[function-definition] 0..27 "function greet { echo hi; }"
+  message: function-definition: function definitions are not in kapsel's shell subset
+  help: write the commands out where they are used, or put them in a script file

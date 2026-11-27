@@ -1,0 +1,190 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "mkdir"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 5
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "-p"
+                  }
+                ],
+                "span": {
+                  "start": 6,
+                  "end": 8
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "out"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 12
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 12
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 12
+        }
+      },
+      "rest": [
+        [
+          "and",
+          {
+            "negated": false,
+            "commands": [
+              {
+                "kind": "simple",
+                "assignments": [],
+                "words": [
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "echo"
+                      }
+                    ],
+                    "span": {
+                      "start": 16,
+                      "end": 20
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "hi"
+                      }
+                    ],
+                    "span": {
+                      "start": 21,
+                      "end": 23
+                    }
+                  }
+                ],
+                "redirects": [
+                  {
+                    "fd": null,
+                    "op": "write",
+                    "target": {
+                      "kind": "word",
+                      "word": {
+                        "parts": [
+                          {
+                            "kind": "literal",
+                            "text": "out/a.txt"
+                          }
+                        ],
+                        "span": {
+                          "start": 26,
+                          "end": 35
+                        }
+                      }
+                    },
+                    "span": {
+                      "start": 24,
+                      "end": 35
+                    }
+                  }
+                ],
+                "span": {
+                  "start": 16,
+                  "end": 35
+                }
+              }
+            ],
+            "span": {
+              "start": 16,
+              "end": 35
+            }
+          }
+        ],
+        [
+          "or",
+          {
+            "negated": false,
+            "commands": [
+              {
+                "kind": "simple",
+                "assignments": [],
+                "words": [
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "echo"
+                      }
+                    ],
+                    "span": {
+                      "start": 39,
+                      "end": 43
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "failed"
+                      }
+                    ],
+                    "span": {
+                      "start": 44,
+                      "end": 50
+                    }
+                  }
+                ],
+                "redirects": [],
+                "span": {
+                  "start": 39,
+                  "end": 50
+                }
+              }
+            ],
+            "span": {
+              "start": 39,
+              "end": 50
+            }
+          }
+        ]
+      ],
+      "span": {
+        "start": 0,
+        "end": 50
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 50
+  }
+}

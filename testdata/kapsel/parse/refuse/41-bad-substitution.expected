@@ -1,0 +1,4 @@
+error[syntax] 5..8 "${}"
+  message: syntax: bad substitution `${}`: expected a parameter name
+  expected: name
+  help: write ${name} with a name of letters, digits and _

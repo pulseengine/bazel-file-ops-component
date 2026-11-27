@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 84813e4e85a9a47c59bd291e2da3f9d6b1293ac34c4cd949495b9f34e9c98cb4 # shrinks to toks = ["$?", "\\\n"]
+cc d1501cc938f6bc4ef3253387e0fc76b8c579a318ded339c74c29cb8af7bafa7a # shrinks to chars = ['[', ' ', '"', '"', '\\', '\n']
+cc 76e360f5ef5ea158a7798451be15d860ff11f7239a73ba798a3fa108803816ab # shrinks to toks = ["\"", "\\\n", "$\""]

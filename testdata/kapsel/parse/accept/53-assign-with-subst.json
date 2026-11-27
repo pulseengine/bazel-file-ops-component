@@ -1,0 +1,130 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [
+              {
+                "name": "DIR",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "command_subst",
+                      "script": {
+                        "items": [
+                          {
+                            "first": {
+                              "negated": false,
+                              "commands": [
+                                {
+                                  "kind": "simple",
+                                  "assignments": [],
+                                  "words": [
+                                    {
+                                      "parts": [
+                                        {
+                                          "kind": "literal",
+                                          "text": "pwd"
+                                        }
+                                      ],
+                                      "span": {
+                                        "start": 6,
+                                        "end": 9
+                                      }
+                                    }
+                                  ],
+                                  "redirects": [],
+                                  "span": {
+                                    "start": 6,
+                                    "end": 9
+                                  }
+                                }
+                              ],
+                              "span": {
+                                "start": 6,
+                                "end": 9
+                              }
+                            },
+                            "rest": [],
+                            "span": {
+                              "start": 6,
+                              "end": 9
+                            }
+                          }
+                        ],
+                        "span": {
+                          "start": 6,
+                          "end": 9
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": 4,
+                    "end": 10
+                  }
+                },
+                "span": {
+                  "start": 0,
+                  "end": 10
+                }
+              }
+            ],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "ls"
+                  }
+                ],
+                "span": {
+                  "start": 11,
+                  "end": 13
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "double_quoted",
+                    "parts": [
+                      {
+                        "kind": "param",
+                        "name": "DIR"
+                      }
+                    ]
+                  }
+                ],
+                "span": {
+                  "start": 14,
+                  "end": 20
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 20
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 20
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 20
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 20
+  }
+}

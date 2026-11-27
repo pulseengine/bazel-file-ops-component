@@ -1,0 +1,3 @@
+error[double-bracket] 0..18 "[[ -f a && -d b ]]"
+  message: double-bracket: `[[ ... ]]` tests are not in kapsel's shell subset
+  help: use test or [
