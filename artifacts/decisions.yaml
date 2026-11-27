@@ -361,3 +361,51 @@ artifacts:
     links:
       - type: satisfies
         target: REQ-KS-040
+
+  - id: DD-KS-018
+    type: design-decision
+    title: "rowan and salsa, as in spar and rivet"
+    status: approved
+    release: v0.3.0
+    description: "How kapsel holds source and derived facts: a lossless rowan tree under an incremental salsa database."
+    fields:
+      decision: >
+        The pulseengine rowan fork (Miri-sound, as in rivet) for the lossless tree, and salsa
+        0.28.5 for the database: inputs are source files and the session's commands with their
+        statuses; parse, check, compile and the similar-command analysis are tracked queries.
+        The compile memo is the in-memory module cache.
+      rationale: >
+        Verb: remember what was already understood and redo only what changed, so each line of an
+        interactive session is cheap and can be compared with the lines before it. Borrowed from
+        double-entry bookkeeping's ledger: every entry stays, and a correction is a new entry that
+        references the old one, which is how a retry is compared with the command it repeats.
+        Second field, clinical case notes: a new symptom is read against the patient's history,
+        not on its own.
+      alternatives: "Recompute everything per line (no cross-command analysis); a hand-written cache (re-implements salsa's invalidation)."
+      source-ref: "kapsel#140, owner 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-061
+
+  - id: DD-KS-019
+    type: design-decision
+    title: "The compiler follows synth: decline loudly, validate every compile, pin fixtures"
+    status: approved
+    release: v0.3.0
+    description: "How kapsel-compile earns trust in its output."
+    fields:
+      decision: >
+        Following pulseengine/synth: a construct without a lowering declines with a machine
+        reason (KC codes), never silent wrong code; lowering is a table of named rules, each with
+        a test; every compile runs a translation validator that decodes the component and checks
+        its call skeleton against the plan; frozen fixtures pin the output bytes; known-wrong
+        shapes are pinned by exact count, and a count that moves either way is red.
+      rationale: >
+        Verb: hand over a sealed artifact whose contents match its order. Borrowed from synth's
+        honesty rule and per-compilation validators, which measured the cost of skipping them
+        (wrong code that exited 0, v0.65). Second field, a pharmacy's second-pharmacist check:
+        the filled prescription is compared with the order before it leaves the counter.
+      source-ref: "pulseengine/synth ARCHITECTURE.md, owner 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-020

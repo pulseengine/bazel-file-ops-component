@@ -510,6 +510,9 @@ version = "0.3.0-dev"
 dependencies = [
  "kapsel-ast",
  "kapsel-plan",
+ "kapsel-syntax",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -555,6 +558,8 @@ version = "0.3.0-dev"
 dependencies = [
  "kapsel-ast",
  "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

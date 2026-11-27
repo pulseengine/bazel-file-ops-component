@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R000",
+    "severity": "refuse",
+    "message": "`if` is outside kapsel's shell subset and is refused: not in the subset",
+    "span": {
+      "start": 0,
+      "end": 2
+    },
+    "excerpt": "if",
+    "help": "rewrite it with pipes, redirects, `&&`, `||`, `;`, quoting, `$(...)` and `for`/`while`/`until` only",
+    "notes": [
+      "kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)"
+    ]
+  }
+]

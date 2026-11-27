@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R002",
+    "severity": "warn",
+    "message": "`2>/dev/null` hides this command's error messages and its failure is not otherwise handled; drop the redirect or test the status with `||`",
+    "span": {
+      "start": 6,
+      "end": 17
+    },
+    "excerpt": "2>/dev/null",
+    "help": "drop the `2>/dev/null` so the error shows, or test the status: `cmd 2>/dev/null || echo 'cmd failed' >&2`",
+    "notes": [
+      "2>/dev/null appears in 21% of measured agent shell calls and hides the error the next step needs"
+    ]
+  }
+]

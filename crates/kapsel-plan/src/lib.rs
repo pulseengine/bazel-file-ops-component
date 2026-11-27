@@ -207,3 +207,136 @@ pub const BUILTINS: &[&str] = &[
     "cat", "echo", "printf", "head", "tail", "wc", "ls", "mkdir", "cp", "mv", "rm",
     "grep", "sed", "sort", "uniq", "cut", "tr", "tee", "date", "seq", "sleep",
 ];
+
+/// Normalization for caching and attestation (REQ-KS-021).
+///
+/// Two inputs that differ only in whitespace, comments or layout produce the
+/// same normalized plan, so they share one compiled module. The normalized
+/// plan drops what does not change behaviour: `source_sha256`, every span and
+/// the warnings. Grants stay, because they decide what the host allows.
+impl Plan {
+    pub fn normalized(&self) -> Plan {
+        let mut p = self.clone();
+        p.source_sha256 = String::new();
+        p.warnings.clear();
+        for item in &mut p.body {
+            normalize_and_or(item);
+        }
+        p
+    }
+
+    /// Hex sha256 of the normalized plan's canonical JSON. This, with the
+    /// compiler version and the WIT version, is the module cache key.
+    pub fn normalized_sha256(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let json = serde_json::to_vec(&self.normalized()).expect("plan serializes");
+        let digest = Sha256::digest(&json);
+        digest.iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+fn normalize_and_or(a: &mut PAndOr) {
+    normalize_pipeline(&mut a.first);
+    for (_, p) in &mut a.rest {
+        normalize_pipeline(p);
+    }
+}
+
+fn normalize_pipeline(p: &mut PPipeline) {
+    for stage in &mut p.stages {
+        match stage {
+            PStage::Call(call) => {
+                call.span = Span::default();
+                for w in &mut call.argv {
+                    normalize_word(w);
+                }
+                for (_, w) in &mut call.assignments {
+                    normalize_word(w);
+                }
+                for r in &mut call.redirects {
+                    match &mut r.target {
+                        PRedirectTarget::Word { word } | PRedirectTarget::Heredoc { body: word } => {
+                            normalize_word(word)
+                        }
+                        PRedirectTarget::Fd { .. } => {}
+                    }
+                }
+            }
+            PStage::For { items, body, .. } => {
+                items.iter_mut().for_each(normalize_word);
+                body.iter_mut().for_each(normalize_and_or);
+            }
+            PStage::While { condition, body, .. } => {
+                condition.iter_mut().for_each(normalize_and_or);
+                body.iter_mut().for_each(normalize_and_or);
+            }
+        }
+    }
+}
+
+fn normalize_word(w: &mut PWord) {
+    for part in &mut w.parts {
+        if let PPart::Capture { body, .. } = part {
+            body.iter_mut().for_each(normalize_and_or);
+        }
+    }
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::*;
+
+    fn plan(source_hash: &str, span: Span, warn: bool) -> Plan {
+        let call = Call {
+            tool: Some(Tool::Builtin("echo".into())),
+            argv: vec![PWord::literal("echo"), PWord::literal("hi")],
+            assignments: vec![],
+            redirects: vec![],
+            span,
+        };
+        Plan {
+            schema: PLAN_SCHEMA.into(),
+            source_sha256: source_hash.into(),
+            body: vec![PAndOr {
+                first: PPipeline { negated: false, stages: vec![PStage::Call(call)] },
+                rest: vec![],
+            }],
+            grants: Grants::default(),
+            warnings: if warn {
+                vec![Finding {
+                    rule: "KS-R002".into(),
+                    severity: Severity::Warn,
+                    message: "m".into(),
+                    span,
+                    excerpt: "x".into(),
+                    help: None,
+                    notes: vec![],
+                    related: vec![],
+                }]
+            } else {
+                vec![]
+            },
+        }
+    }
+
+    #[test]
+    fn layout_does_not_change_the_normalized_hash() {
+        let a = plan("aaaa", Span::new(0, 7), false);
+        let b = plan("bbbb", Span::new(2, 12), true);
+        assert_ne!(a, b);
+        assert_eq!(a.normalized_sha256(), b.normalized_sha256());
+    }
+
+    #[test]
+    fn behaviour_changes_the_normalized_hash() {
+        let a = plan("aaaa", Span::new(0, 7), false);
+        let mut b = a.clone();
+        if let PStage::Call(c) = &mut b.body[0].first.stages[0] {
+            c.argv[1] = PWord::literal("ho");
+        }
+        assert_ne!(a.normalized_sha256(), b.normalized_sha256());
+        let mut c = a.clone();
+        c.grants.write.push("out".into());
+        assert_ne!(a.normalized_sha256(), c.normalized_sha256());
+    }
+}

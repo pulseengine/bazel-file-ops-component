@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R005",
+    "severity": "refuse",
+    "message": "`set +e` / `set +o pipefail` switches off error handling for the rest of the script, and `set` is not a kapsel built-in; kapsel's status rules are fixed",
+    "span": {
+      "start": 0,
+      "end": 6
+    },
+    "excerpt": "set +e",
+    "help": "remove `set`; kapsel runs with fixed status rules: handle each failure with `||` or `&&` where it matters",
+    "notes": [
+      "kapsel fixes its status rules (no implicit `set -e`, no pipefail) so a plan means the same thing every time"
+    ]
+  }
+]

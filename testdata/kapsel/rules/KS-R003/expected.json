@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R003",
+    "severity": "refuse",
+    "message": "recursive `rm` on a path that begins with `$BUILD`, which may be empty or unexpected; a recursive delete there can remove far more than intended, name an explicit literal subpath",
+    "span": {
+      "start": 7,
+      "end": 14
+    },
+    "excerpt": "$BUILD/",
+    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "notes": [
+      "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
+    ]
+  }
+]
