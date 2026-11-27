@@ -21,18 +21,8 @@ go test ./...
 
 ## Checks that gate a pull request
 
-`.github/required-contexts.txt` lists the 9 checks that must pass before a
+`.github/required-contexts.txt` lists the 8 checks that must pass before a
 pull request can merge into `main`. The workflows are in `.github/workflows/`:
-`ci.yml` covers build, tests, integration and the docs build, and `security.yml`
+`ci.yml` covers build, tests and integration, and `security.yml`
 runs the dependency, vulnerability and supply-chain scans.
 
-## Documentation site
-
-The site is an Astro Starlight project in `docs-site/`:
-
-```sh
-cd docs-site
-npm ci
-npm run dev       # local server
-npm run build     # static output in docs-site/dist
-```

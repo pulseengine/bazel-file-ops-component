@@ -12,7 +12,7 @@ The goal is a WASM capability shell for AI agents running under [zwinger](https:
 
 - **One component for Linux and macOS.** A single `file_ops_component.wasm` runs a JSON list of file operations under a WASI runtime. CI builds it and runs its Go tests on Linux and macOS for every pull request. [CI workflow](.github/workflows/ci.yml), [tests](tinygo/json_bridge_test.go)
 - **It opens only what the runtime preopens.** It runs inside a WASI runtime, so it can open only the directories the runtime preopens, such as `--dir` in wasmtime. The quick start below runs it that way. [Config reference](docs/json-config.md)
-- **Releases you can check.** Each release publishes the component with a sha256 checksum, and 9 required checks gate every pull request to `main`. [Required checks](.github/required-contexts.txt), [releases](https://github.com/pulseengine/kapsel/releases)
+- **Releases you can check.** Each release publishes the component with a sha256 checksum, and 8 required checks gate every pull request to `main`. [Required checks](.github/required-contexts.txt), [releases](https://github.com/pulseengine/kapsel/releases)
 
 ## Quick start
 
@@ -55,7 +55,6 @@ wasmtime run --dir .::/work file_ops_component.wasm /work/ops.json   # writes ou
 
 - [JSON config and CLI reference](docs/json-config.md)
 - [Building and testing](docs/development.md)
-- [Documentation site sources](docs-site/src/content/docs)
 - [Security policy and reporting](SECURITY.md)
 - [kapsel design and interface contracts](https://github.com/pulseengine/kapsel/issues/140)
 
