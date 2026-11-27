@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -209,7 +208,7 @@ func SetupPackageJson(config PackageConfig, workDir string) error {
 	}
 
 	packagePath := filepath.Join(workDir, "package.json")
-	if err := os.WriteFile(packagePath, packageJson, 0640); err != nil {
+	if err := WriteFile(packagePath, string(packageJson)); err != nil {
 		return fmt.Errorf("failed to write package.json: %w", err)
 	}
 
@@ -236,7 +235,7 @@ func SetupGoModule(config GoModuleConfig, workDir string) error {
 		// Create basic go.mod
 		goModContent := fmt.Sprintf("module %s\n\ngo %s\n", config.ModuleName, config.GoVersion)
 		goModPath := filepath.Join(workDir, "go.mod")
-		if err := os.WriteFile(goModPath, []byte(goModContent), 0640); err != nil {
+		if err := WriteFile(goModPath, goModContent); err != nil {
 			return fmt.Errorf("failed to create go.mod: %w", err)
 		}
 	}

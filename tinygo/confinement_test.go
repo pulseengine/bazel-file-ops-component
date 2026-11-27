@@ -249,3 +249,99 @@ func TestPrepareWorkspaceDestinationStaysInWorkDir(t *testing.T) {
 		t.Fatal("file written outside work_dir")
 	}
 }
+
+// GHSA-hm34-86h8-vwx2: a symlink followed by ".." in a raw path.
+func TestMoveSourceSymlinkDotDotRefused(t *testing.T) {
+	tmp := t.TempDir()
+	ws := filepath.Join(tmp, "ws")
+	deep := filepath.Join(tmp, "outside", "deep")
+	for _, d := range []string{ws, deep} {
+		if err := os.MkdirAll(d, 0750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	victim := filepath.Join(tmp, "outside", "x")
+	if err := os.WriteFile(victim, []byte("victim"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(deep, filepath.Join(ws, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfig(t, ws, Operation{Type: "move_path", SrcPath: ws + "/link/../x", DestPath: "stolen"}); err == nil {
+		t.Error("move_path with a symlink followed by .. succeeded")
+	}
+	if PathExists(victim) != PathFile {
+		t.Fatal("move_path removed a file outside the workspace")
+	}
+}
+
+func TestDotDotInWorkDirAndWorkspaceRefused(t *testing.T) {
+	tmp := t.TempDir()
+	ws := filepath.Join(tmp, "out", "ws")
+	if err := runConfig(t, ws, Operation{Type: "run_command", Command: "echo", WorkDir: ws + "/../ws"}); err == nil {
+		t.Error("absolute work_dir with a .. component accepted")
+	}
+	if err := runConfig(t, filepath.Join(tmp, "a")+"/../ws2", Operation{Type: "mkdir", Path: "d"}); err == nil {
+		t.Error("workspace_dir with a .. component accepted")
+	}
+}
+
+// GHSA-hm34-86h8-vwx2: symlinks already inside a destination tree.
+func TestCopyIntoExistingSymlinkRefused(t *testing.T) {
+	tmp := t.TempDir()
+	ws := filepath.Join(tmp, "ws")
+	outside := filepath.Join(tmp, "outside")
+	src := filepath.Join(tmp, "src")
+	for _, d := range []string{ws, outside, filepath.Join(src, "sub")} {
+		if err := os.MkdirAll(d, 0750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(src, "sub", "evil.txt"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(ws, "sub")); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfig(t, ws, Operation{Type: "copy_directory_contents", SrcPath: src, DestPath: "."}); err == nil {
+		t.Error("directory copy through an existing symlink succeeded")
+	}
+	if PathExists(filepath.Join(outside, "evil.txt")) != PathNotFound {
+		t.Fatal("directory copy wrote outside the workspace")
+	}
+}
+
+func TestWriteThroughExistingFileSymlinkRefused(t *testing.T) {
+	tmp := t.TempDir()
+	ws := filepath.Join(tmp, "ws")
+	if err := os.MkdirAll(ws, 0750); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(tmp, "target.txt")
+	if err := os.WriteFile(target, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(ws, "f.txt")); err != nil {
+		t.Fatal(err)
+	}
+	for _, op := range []Operation{
+		{Type: "write_file", Path: "f.txt", Content: "x"},
+		{Type: "append_to_file", Path: "f.txt", Content: "x"},
+	} {
+		_ = runConfig(t, ws, op)
+	}
+	modDir := filepath.Join(tmp, "mod")
+	if err := os.MkdirAll(modDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(modDir, "go.mod")); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetupGoModule(GoModuleConfig{ModuleName: "m", GoVersion: "1.22"}, modDir); err == nil {
+		t.Error("go.mod written through a symlink")
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != "keep" {
+		t.Fatalf("file outside the workspace changed through a symlink: %q", got)
+	}
+}

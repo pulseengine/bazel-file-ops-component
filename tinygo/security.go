@@ -61,8 +61,36 @@ func isWithin(root, p string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// requireWithin returns an error unless p resolves inside root.
+// hasDotDotComponent reports whether the raw, uncleaned path has a ".."
+// component. filepath.Abs removes ".." lexically, but the kernel resolves a
+// symlink before the ".." that follows it, so "<root>/link/../x" would be
+// checked as "<root>/x" and used as "<target of link>/../x".
+func hasDotDotComponent(p string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(p), "/") {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+// refuseSymlink returns an error if p exists and is a symlink. Writing or
+// creating through an existing symlink would follow it out of the checked
+// tree. A missing path is fine.
+func refuseSymlink(p string) error {
+	info, err := os.Lstat(p) // #nosec G703 -- Lstat is part of the containment check
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to write through symlink %s", p)
+	}
+	return nil
+}
+
+// requireWithin returns an error unless p resolves inside root. Either path
+// with a ".." component is refused before resolution.
 func requireWithin(root, p, what string) error {
+	if hasDotDotComponent(root) || hasDotDotComponent(p) {
+		return fmt.Errorf("%s %s: \"..\" components are not allowed", what, p)
+	}
 	if !isWithin(root, p) {
 		return fmt.Errorf("%s %s resolves outside %s", what, p, root)
 	}
