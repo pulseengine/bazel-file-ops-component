@@ -16,7 +16,6 @@ string_flag(
     values = [
         "auto",
         "tinygo",
-        "rust",
     ],
 )
 
@@ -24,13 +23,6 @@ config_setting(
     name = "use_tinygo",
     flag_values = {
         ":implementation": "tinygo",
-    },
-)
-
-config_setting(
-    name = "use_rust",
-    flag_values = {
-        ":implementation": "rust",
     },
 )
 
@@ -71,7 +63,6 @@ alias(
     name = "file_ops_component",
     actual = select({
         ":use_tinygo": "//tinygo:file_ops_component",
-        ":use_rust": "//rust:file_ops_component",
         "//conditions:default": "//tinygo:file_ops_component",  # Default to TinyGo
     }),
 )
@@ -86,15 +77,6 @@ toolchain_type(
 filegroup(
     name = "wit_interface",
     srcs = ["//wit:file-operations.wit"],
-    visibility = ["//visibility:public"],
-)
-
-# Export examples for documentation
-filegroup(
-    name = "examples",
-    srcs = [
-        "//examples:all_examples",
-    ],
     visibility = ["//visibility:public"],
 )
 

@@ -1,300 +1,67 @@
-<div align="center">
-
 # bazel-file-ops-component
 
-<sup>Universal file operations for Bazel via WebAssembly components</sup>
+A WebAssembly component that prepares build workspaces (copy, create, concatenate, move) from one JSON config, for Bazel rules and other build tools that need the same file operations on every host.
 
-&nbsp;
+## Vision
 
-![Bazel](https://img.shields.io/badge/Bazel-43A047?style=flat-square&logo=bazel&logoColor=white&labelColor=1a1b27)
-![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?style=flat-square&logo=webassembly&logoColor=white&labelColor=1a1b27)
-![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square&labelColor=1a1b27)
+The goal is kapsel, a WASM capability shell for AI agents running under [zwinger](https://github.com/pulseengine/zwinger). kapsel is German for capsule, [ˈkapsl̩], "KAP-sel"; the nerd reading is "kap-shell". Common commands will run as WASI components that see only the directories zwinger grants, and shell syntax kapsel does not support is refused instead of handed to bash ([#140](https://github.com/pulseengine/bazel-file-ops-component/issues/140)). The repo will be renamed after the 0.2.1 release, and Bazel builds keep a JSON-config mode.
 
-</div>
+## Why use it
 
-&nbsp;
+- **One component, the same operations on each host.** A single `file_ops_component.wasm` runs a JSON list of file operations under any WASI runtime. CI builds and tests it on Linux and macOS for every pull request. [CI workflow](.github/workflows/ci.yml), [tests](tinygo/json_bridge_test.go)
+- **It touches only what the runtime grants.** Run under a WASI runtime, the component can reach only the directories you preopen, such as `--dir` in wasmtime. The quick start below shows it. [Config reference](docs/json-config.md)
+- **Checked releases.** Each release publishes the component with a sha256 checksum. Every pull request to `main` must pass 9 required checks, including vulnerability, dependency and supply-chain scans. [Required checks](.github/required-contexts.txt), [releases](https://github.com/pulseengine/bazel-file-ops-component/releases)
 
-> [!NOTE]
-> Part of the PulseEngine toolchain. Provides sandboxed file operations for Bazel builds across all platforms.
+## Quick start
 
-## Overview
+You need [wasmtime](https://wasmtime.dev) and the GitHub CLI.
 
-This repository provides WebAssembly components for secure, cross-platform file operations in Bazel build systems. It replaces shell scripts and platform-specific file operations with sandboxed WebAssembly components that work consistently across Linux, macOS, and Windows.
-
-## Key Features
-
-- **Enhanced Security**: WebAssembly sandboxing with wasmtime preopen directories
-- **Cross-Platform**: Works identically on Linux, macOS, and Windows
-- **Dual Implementation**: Choose between TinyGo (security-focused) and Rust (performance-optimized)
-- **Backward Compatible**: Supports existing JSON batch processing workflows
-- **Individual Operations**: Direct function calls via WIT interface
-- **Build System Integration**: Easy integration with any Bazel rule set
-
-## Quick Start
-
-### Installation
-
-Add to your `MODULE.bazel`:
-
-```starlark
-bazel_dep(name = "bazel-file-ops-component", version = "0.1.0")
+```sh
+gh release download v0.2.0 --repo pulseengine/bazel-file-ops-component -p 'file_ops_component.wasm*'
+shasum -a 256 -c file_ops_component.wasm.sha256
+mkdir -p src && echo hello > src/a.txt
 ```
-
-### Basic Usage
-
-```starlark
-load("@bazel_file_ops_component//toolchain:defs.bzl", "file_ops_action")
-
-# Simple file copying with TinyGo component (high security)
-file_ops_action(
-    name = "copy_sources",
-    implementation = "tinygo",
-    operation = "copy_file",
-    src = "source.cpp",
-    dest = "workspace/source.cpp",
-)
-
-# Batch operations with JSON config (backward compatibility)
-file_ops_action(
-    name = "setup_workspace",
-    implementation = "auto",
-    config = "workspace_config.json",
-    security_level = "high",
-)
-```
-
-### JSON Configuration (Backward Compatible)
 
 ```json
-{
-  "workspace_dir": "/build/workspace",
-  "operations": [
-    {"type": "copy_file", "src_path": "/src/main.cpp", "dest_path": "main.cpp"},
-    {"type": "mkdir", "path": "include/foundation"},
-    {"type": "copy_directory_contents", "src_path": "/headers", "dest_path": "include"}
-  ]
-}
+{"workspace_dir": "/work/out",
+ "operations": [
+   {"type": "mkdir", "path": "include"},
+   {"type": "copy_file", "src_path": "/work/src/a.txt", "dest_path": "include/a.txt"}]}
 ```
 
-## Architecture
+Save that as `ops.json`, then run:
 
-### Dual Implementation Strategy
-
-| Implementation | Best For | Security | Performance | Use Cases |
-|---------------|----------|----------|-------------|-----------|
-| **TinyGo** | Security-critical operations | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Cross-package headers, sensitive file ops |
-| **Rust** | Performance-critical operations | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Large file operations, bulk processing |
-
-### Security Model
-
-- **WASM Sandboxing**: Components run in isolated WebAssembly environment
-- **Preopen Directories**: Only specified directories are accessible
-- **Capability-Based Security**: No access outside designated paths
-- **Path Validation**: Runtime validation against traversal attacks
-
-## Implementation Selection
-
-### Automatic Selection
-
-```starlark
-file_ops_action(
-    implementation = "auto",  # Chooses best implementation based on operation
-    security_level = "high",   # Influences selection criteria
-)
+```sh
+wasmtime run --dir .::/work file_ops_component.wasm /work/ops.json   # writes out/include/a.txt
 ```
 
-### Manual Selection
+## Status
 
-```starlark
-# High security operations
-file_ops_action(implementation = "tinygo", security_level = "strict")
+| Part | State |
+|---|---|
+| JSON-config operations in the WASI component (9 operation types) | works, released as v0.2.0 |
+| CLI subcommands `copy_file`, `copy_directory`, `create_directory`, `prepare_workspace` | works; the subcommand handlers have no tests of their own |
+| AOT-compiled component and native CLI archives for Linux and macOS | published with each release |
+| WIT interfaces in [`wit/file-operations.wit`](wit/file-operations.wit) | declared only; the shipped component is a `wasi:cli` command and does not export them |
+| Use from Bazel | rules_wasm_component downloads the component, but its toolchain runs its own Go wrapper today; switching to this component is planned ([rules_wasm_component#775](https://github.com/pulseengine/rules_wasm_component/issues/775)) |
+| Windows | not tested |
 
-# Performance critical operations
-file_ops_action(implementation = "rust", security_level = "standard")
-```
+## Where to find more
 
-## Integration Examples
+- [JSON config and CLI reference](docs/json-config.md)
+- [Building and testing](docs/development.md)
+- [Documentation site sources](docs-site/src/content/docs)
+- [Security policy and reporting](SECURITY.md)
+- [kapsel design and interface contract](https://github.com/pulseengine/bazel-file-ops-component/issues/140)
 
-### With rules_rust
+## Licence
 
-```starlark
-rust_wasm_component_library(
-    name = "my_component",
-    srcs = ["src/lib.rs"],
-    deps = ["@crates//:dep"],
-    workspace_preparation = "@bazel_file_ops_component//:file_ops_component",
-)
-```
-
-### With rules_go
-
-```starlark
-go_wasm_component_library(
-    name = "my_component",
-    srcs = ["main.go"],
-    workspace_preparation = "@bazel_file_ops_component//:file_ops_component",
-)
-```
-
-### With rules_cc
-
-```starlark
-cc_wasm_component_library(
-    name = "my_component",
-    srcs = ["main.cpp"],
-    hdrs = ["include/header.h"],
-    workspace_preparation = "@bazel_file_ops_component//:file_ops_component",
-)
-```
-
-## Documentation
-
-- **[📚 Full Documentation](https://bazel-file-ops.pulseengine.eu)** - Complete guide with examples
-- **[🏗️ Architecture Overview](https://bazel-file-ops.pulseengine.eu/architecture/overview)** - Technical architecture details
-- **[🔒 Security Model](https://bazel-file-ops.pulseengine.eu/security/wasm-sandbox)** - Security features and configuration
-- **[🚀 Integration Guide](https://bazel-file-ops.pulseengine.eu/integration/rules-wasm-component)** - Step-by-step integration
-- **[📖 API Reference](https://bazel-file-ops.pulseengine.eu/reference/wit-interface)** - Complete WIT interface documentation
-
-## Supported Operations
-
-### Individual Operations
-
-- `copy-file`: Copy single files with permissions
-- `copy-directory`: Recursive directory copying
-- `create-directory`: Safe directory creation
-- `path-exists`: Path existence and type checking
-- `validate-path`: Security validation
-- `list-directory`: Directory listing with patterns
-
-### Batch Operations
-
-- `prepare-workspace`: Complete workspace setup
-- `process-json-config`: JSON batch processing (backward compatibility)
-- `setup-cpp-workspace`: C/C++ specific workspace preparation
-- `setup-go-module`: Go/TinyGo module organization
-
-## Security Configuration
-
-### Security Levels
-
-```starlark
-# Standard: Basic path validation
-file_ops_action(security_level = "standard")
-
-# High: Strict validation + preopen directories
-file_ops_action(security_level = "high")
-
-# Strict: Maximum restrictions + minimal access
-file_ops_action(security_level = "strict")
-```
-
-### Preopen Directory Configuration
-
-```starlark
-file_ops_action(
-    security_config = {
-        "allowed_dirs": ["/workspace", "/tmp/build"],
-        "denied_patterns": ["../*", "/*.secret"],
-        "enforce_validation": True,
-    }
-)
-```
-
-## Performance
-
-| Operation | TinyGo Component | Rust Component | Native Binary |
-|-----------|------------------|----------------|---------------|
-| Single file copy | ~2ms overhead | ~1ms overhead | Baseline |
-| Directory copy (100 files) | ~15ms overhead | ~8ms overhead | Baseline |
-| Workspace setup | ~25ms overhead | ~12ms overhead | Baseline |
-
-*Overhead measurements include WASM runtime initialization and security validation*
-
-## Development
-
-### Building Components
-
-```bash
-# Build TinyGo component
-bazel build //tinygo:file_ops_component --config=tinygo
-
-# Build Rust component
-bazel build //rust:file_ops_component --config=rust-wasm
-
-# Build both components
-bazel build //... --config=wasm
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-bazel test //...
-
-# Test specific implementation
-bazel test //tinygo:all
-bazel test //rust:all
-
-# Integration tests
-bazel test //tests/integration:all
-```
-
-### Documentation Development
-
-```bash
-# Start development server
-bazel run //docs-site:dev
-
-# Build documentation
-bazel build //docs-site:build
-
-# Deploy documentation
-bazel run //docs-site:deploy
-```
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/pulseengine/bazel-file-ops-component.git
-cd bazel-file-ops-component
-
-# Run setup script
-./scripts/setup-dev.sh
-
-# Verify setup
-bazel build //... --config=dev
-bazel test //... --config=dev
-```
-
-## Ecosystem Integration
-
-This component is designed for use across the Bazel ecosystem:
-
-- **[rules_wasm_component](https://github.com/pulseengine/rules_wasm_component)** - Primary integration
-- **rules_rust** - Rust component builds
-- **rules_go** - Go component builds
-- **rules_cc** - C++ component builds
-- **rules_js** - JavaScript component builds
-
-## License
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
-
-## Support
-
-- **GitHub Issues**: [Report bugs and request features](https://github.com/pulseengine/bazel-file-ops-component/issues)
-- **Discussions**: [Community discussions](https://github.com/pulseengine/bazel-file-ops-component/discussions)
-- **Documentation**: [Full documentation site](https://bazel-file-ops.pulseengine.eu)
+Apache-2.0. Issues and pull requests are welcome.
 
 ---
 
 <div align="center">
 
-<sub>Part of the <a href="https://github.com/pulseengine">PulseEngine</a> toolchain</sub>
+<sub>Part of <a href="https://github.com/pulseengine">PulseEngine</a> &mdash; toolchain for safety-critical systems</sub>
 
 </div>
