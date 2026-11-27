@@ -1,0 +1,99 @@
+[
+  {
+    "name": "source-dotdot-through-missing-directory",
+    "from": "TinyGo cleans paths lexically before the system call",
+    "tree": {"files": {"src/a.txt": "hi\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/nonexist/../src/a.txt", "dest_path": "c1"}]}
+  },
+  {
+    "name": "source-trailing-slash-on-file",
+    "tree": {"files": {"src/a.txt": "hi\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src/a.txt/", "output_file": "c2"}]}
+  },
+  {
+    "name": "source-dot-after-file",
+    "tree": {"files": {"src/a.txt": "hi\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src/a.txt/.", "output_file": "c3"}]}
+  },
+  {
+    "name": "source-double-slashes",
+    "tree": {"files": {"src/a.txt": "hi\n"}},
+    "config": {"workspace_dir": "{W}//ws/", "operations": [{"type": "copy_file", "src_path": "{W}/src//./a.txt", "dest_path": "c4"}]}
+  },
+  {
+    "name": "source-dotdot-after-symlink",
+    "tree": {"files": {"src/a.txt": "hi\n"}, "dirs": ["src/sub"], "symlinks": {"src/sl": "sub"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src/sl/../a.txt", "dest_path": "c5"}]}
+  },
+  {
+    "name": "copy-directory-from-directory-symlink",
+    "from": "TinyGo's os.Stat does not follow a final symlink",
+    "tree": {"files": {"dirtarget/x.txt": "x"}, "symlinks": {"dlink": "dirtarget"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/dlink", "dest_path": "d1"}]}
+  },
+  {
+    "name": "copy-file-from-file-symlink",
+    "tree": {"files": {"src/a.txt": "hi\n"}, "symlinks": {"flink": "src/a.txt"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/flink", "dest_path": "f1"}]}
+  },
+  {
+    "name": "move-symlink-inside-workspace",
+    "tree": {"files": {"ws/t.txt": "t"}, "symlinks": {"ws/l": "t.txt"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/l", "dest_path": "m/l2"}]}
+  },
+  {
+    "name": "cli-file-symlink-as-config",
+    "tree": {"files": {"src/a.txt": "hi\n"}, "symlinks": {"flink": "src/a.txt"}},
+    "args": ["{W}/flink"]
+  },
+  {
+    "name": "cli-directory-symlink-argument",
+    "tree": {"dirs": ["dirtarget"], "symlinks": {"dlink": "dirtarget"}},
+    "args": ["{W}/dlink"],
+    "allow": {"*": "The TinyGo component takes a symlink to a directory for a config file and crashes reading it (panic: slice out of range in os.ReadFile, exit 134); the Rust component reports an error and exits 1."},
+    "expect_rust": {"code": 1, "stderr_contains": "Error reading config file"}
+  },
+  {
+    "name": "path-with-preopen-name-as-string-prefix",
+    "from": "TinyGo matches a preopen by string prefix, so /w covers /wx",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}x/a.txt"}]},
+    "layouts": ["rooted"]
+  },
+  {
+    "name": "prepare-workspace-empty-work-dir",
+    "config_name": "pw.json",
+    "config": {"work_dir": "", "sources": []},
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-int-is-32-bit",
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":4294967296}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-int-max",
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":2147483647}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-unknown-level",
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":-1,\"security_config\":{\"level\":7}}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-high-level-and-generic",
+    "tree": {"files": {"a.h": "h"}},
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":4,\"security_config\":{\"level\":1,\"allowed_dirs\":[\"/nowhere\"]},\"headers\":[{\"source\":\"{W}/a.h\",\"destination\":null}]}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-security-config-type-error",
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"security_config\":[1]}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  }
+]

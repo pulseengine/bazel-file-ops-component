@@ -1035,8 +1035,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "kapsel-config"
+version = "0.3.0-dev"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kapsel-corpus"
 version = "0.3.0-dev"
+
+[[package]]
+name = "kapsel-fileops"
+version = "0.3.0-dev"
+dependencies = [
+ "kapsel-config",
+ "serde_json",
+ "sha2 0.10.9",
+]
 
 [[package]]
 name = "kapsel-host"

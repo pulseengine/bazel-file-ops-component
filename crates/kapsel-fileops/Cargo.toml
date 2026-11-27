@@ -1,0 +1,19 @@
+[package]
+name = "kapsel-fileops"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "kapsel's JSON-config file-operations command, the Rust replacement for the TinyGo file_ops component"
+
+[[bin]]
+name = "kapsel-fileops"
+path = "src/main.rs"
+
+[dependencies]
+kapsel-config = { path = "../kapsel-config" }
+
+[dev-dependencies]
+serde_json.workspace = true
+sha2.workspace = true
