@@ -26,6 +26,9 @@ const (
 // Implements the copy-file WIT interface function
 func CopyFile(src, dest string) error {
 	// Security validation
+	if err := ValidatePath(src, []string{}); err != nil {
+		return fmt.Errorf("security validation failed for source: %w", err)
+	}
 	if err := ValidatePath(dest, []string{}); err != nil {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
@@ -33,20 +36,20 @@ func CopyFile(src, dest string) error {
 	// Ensure destination directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
 	if destDir != "." && destDir != "/" {
-		if err := os.MkdirAll(destDir, 0755); err != nil {
+		if err := os.MkdirAll(destDir, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
 		}
 	}
 
 	// Open source file
-	srcFile, err := os.Open(src)
+	srcFile, err := os.Open(src) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", src, err)
 	}
 	defer srcFile.Close()
 
 	// Create destination file
-	destFile, err := os.Create(dest)
+	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", dest, err)
 	}
@@ -65,12 +68,15 @@ func CopyFile(src, dest string) error {
 // Implements the copy-directory WIT interface function
 func CopyDirectory(src, dest string) error {
 	// Security validation
+	if err := ValidatePath(src, []string{}); err != nil {
+		return fmt.Errorf("security validation failed for source: %w", err)
+	}
 	if err := ValidatePath(dest, []string{}); err != nil {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
 	// Check source exists and is directory
-	srcInfo, err := os.Stat(src)
+	srcInfo, err := os.Stat(src) // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("source directory does not exist: %s", src)
 	}
@@ -79,7 +85,7 @@ func CopyDirectory(src, dest string) error {
 	}
 
 	// Create destination directory
-	if err := os.MkdirAll(dest, srcInfo.Mode()); err != nil {
+	if err := os.MkdirAll(dest, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 		return fmt.Errorf("failed to create destination directory %s: %w", dest, err)
 	}
 
@@ -95,7 +101,7 @@ func CreateDirectory(path string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
 	}
 
@@ -210,7 +216,7 @@ func ReadFile(path string) (string, error) {
 		return "", fmt.Errorf("security validation failed: %w", err)
 	}
 
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)
 	}
@@ -229,12 +235,12 @@ func WriteFile(path, content string) error {
 	// Ensure parent directory exists (skip if it's current dir)
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "/" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
 		}
 	}
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0640); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", path, err)
 	}
 
@@ -252,13 +258,13 @@ func AppendToFile(path, content string) error {
 	// Ensure parent directory exists (skip if it's current dir)
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "/" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("failed to create parent directory %s: %w", dir, err)
 		}
 	}
 
 	// Open file in append mode (create if doesn't exist)
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to open file %s for appending: %w", path, err)
 	}
@@ -286,13 +292,13 @@ func ConcatenateFiles(sources []string, dest string) error {
 	// Ensure destination directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
 	if destDir != "." && destDir != "/" {
-		if err := os.MkdirAll(destDir, 0755); err != nil {
+		if err := os.MkdirAll(destDir, 0750); err != nil {
 			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
 		}
 	}
 
 	// Create destination file
-	destFile, err := os.Create(dest)
+	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", dest, err)
 	}
@@ -305,7 +311,7 @@ func ConcatenateFiles(sources []string, dest string) error {
 			return fmt.Errorf("security validation failed for source %d (%s): %w", i, source, err)
 		}
 
-		content, err := os.ReadFile(source)
+		content, err := os.ReadFile(source) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 		if err != nil {
 			return fmt.Errorf("failed to read source file %s: %w", source, err)
 		}
@@ -332,7 +338,7 @@ func MovePath(src, dest string) error {
 	// Ensure destination parent directory exists (skip if it's current dir)
 	destDir := filepath.Dir(dest)
 	if destDir != "." && destDir != "/" {
-		if err := os.MkdirAll(destDir, 0755); err != nil {
+		if err := os.MkdirAll(destDir, 0750); err != nil {
 			return fmt.Errorf("failed to create destination directory %s: %w", destDir, err)
 		}
 	}
@@ -381,14 +387,8 @@ func copyDirectoryContents(src, dest string) error {
 		destPath := filepath.Join(dest, entry.Name())
 
 		if entry.IsDir() {
-			// Get directory info for permissions
-			info, err := entry.Info()
-			if err != nil {
-				return fmt.Errorf("failed to get directory info: %w", err)
-			}
-
 			// Create subdirectory
-			if err := os.MkdirAll(destPath, info.Mode()); err != nil {
+			if err := os.MkdirAll(destPath, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 				return fmt.Errorf("failed to create subdirectory %s: %w", destPath, err)
 			}
 
@@ -421,14 +421,22 @@ func NewOperationTimer() *OperationTimer {
 
 // ElapsedMs returns elapsed time in milliseconds
 func (t *OperationTimer) ElapsedMs() uint64 {
-	return uint64(time.Since(t.start).Nanoseconds() / 1e6)
+	ms := time.Since(t.start).Milliseconds()
+	if ms < 0 {
+		return 0
+	}
+	return uint64(ms)
 }
 
 // containsPathTraversal checks for path traversal attempts
 // This is a security helper function from the original implementation
 func containsPathTraversal(path string) bool {
-	cleaned := filepath.Clean(path)
-	// Only reject paths that contain ".." after cleaning
-	// Absolute paths are allowed - the issue is only with relative paths trying to escape
-	return strings.Contains(cleaned, "..")
+	// Reject any ".." component that survives cleaning: a relative path that
+	// climbs out of its base. A name such as "a..b" is not a traversal.
+	for _, part := range strings.Split(filepath.ToSlash(filepath.Clean(path)), "/") {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
 }

@@ -209,7 +209,7 @@ func SetupPackageJson(config PackageConfig, workDir string) error {
 	}
 
 	packagePath := filepath.Join(workDir, "package.json")
-	if err := os.WriteFile(packagePath, packageJson, 0644); err != nil {
+	if err := os.WriteFile(packagePath, packageJson, 0640); err != nil {
 		return fmt.Errorf("failed to write package.json: %w", err)
 	}
 
@@ -236,7 +236,7 @@ func SetupGoModule(config GoModuleConfig, workDir string) error {
 		// Create basic go.mod
 		goModContent := fmt.Sprintf("module %s\n\ngo %s\n", config.ModuleName, config.GoVersion)
 		goModPath := filepath.Join(workDir, "go.mod")
-		if err := os.WriteFile(goModPath, []byte(goModContent), 0644); err != nil {
+		if err := os.WriteFile(goModPath, []byte(goModContent), 0640); err != nil {
 			return fmt.Errorf("failed to create go.mod: %w", err)
 		}
 	}
@@ -317,6 +317,9 @@ func copyFileSpec(spec FileSpec, destDir string) ([]string, error) {
 	}
 
 	destPath := filepath.Join(destDir, destName)
+	if err := requireWithin(destDir, destPath, "destination"); err != nil {
+		return nil, err
+	}
 
 	// Copy the file
 	if err := CopyFile(spec.Source, destPath); err != nil {
