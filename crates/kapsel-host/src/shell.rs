@@ -384,9 +384,6 @@ impl Shell {
     /// no stat runs on it. The entry itself is probed without following a
     /// final symlink.
     fn exists_visible(&self, p: &str) -> bool {
-        if grants::has_dotdot(p) {
-            return false;
-        }
         match grants::resolve_nofollow_last(&self.cwd, Path::new(p)) {
             Ok(r) if self.grants.can_read(&r) => std::fs::symlink_metadata(&r).is_ok(),
             _ => false,

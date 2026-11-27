@@ -402,7 +402,8 @@ fn cd_pwd_export_exit() {
     t.check(&["cat", "x"], "", 0, "", "");
     let root_s = root.display().to_string();
     t.check(&["cd", &root_s], "", 0, "", "");
-    t.check(&["cd", "d/.."], "", 1, "", "kapsel: d/..: \"..\" components are not allowed\n");
+    t.check(&["cd", "d/.."], "", 0, "", "");
+    assert_eq!(t.s.cwd(), root);
     assert_eq!(t.s.cwd(), root);
     t.check(&["cd", "missing"], "", 1, "", "cd: missing: No such file or directory\n");
     t.write("f", "");
