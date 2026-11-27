@@ -1,0 +1,19 @@
+[package]
+name = "kapsel-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "kapsel"
+path = "src/main.rs"
+
+[dependencies]
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true
+kapsel-compile.workspace = true
+kapsel-host.workspace = true
+kapsel-plan.workspace = true
+serde_json.workspace = true

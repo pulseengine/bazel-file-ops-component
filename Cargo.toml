@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.3.0-dev"
+edition = "2024"
+rust-version = "1.100"
+license = "Apache-2.0"
+repository = "https://github.com/pulseengine/kapsel"
+
+[workspace.dependencies]
+kapsel-ast = { path = "crates/kapsel-ast" }
+kapsel-plan = { path = "crates/kapsel-plan" }
+kapsel-syntax = { path = "crates/kapsel-syntax" }
+kapsel-check = { path = "crates/kapsel-check" }
+kapsel-compile = { path = "crates/kapsel-compile" }
+kapsel-host = { path = "crates/kapsel-host" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

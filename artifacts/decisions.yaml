@@ -103,7 +103,7 @@ artifacts:
     type: design-decision
     title: "Compile plans to WASM and cache the module"
     status: approved
-    release: v0.4.0
+    release: v0.3.0
     description: "A checked plan becomes a reproducible, signed, cached WASM module."
     fields:
       decision: >

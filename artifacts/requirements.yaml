@@ -205,13 +205,33 @@ artifacts:
       category: constraint
       verification-criteria: "Fails if the pinned Rust toolchain is older than 1.100, or any exit code is not asserted through the shipped component."
 
+  - id: REQ-KS-019
+    type: requirement
+    title: "Interactive mode compiles and runs each line, and the session state persists"
+    status: approved
+    release: v0.3.0
+    description: >
+      With no command and no script, kapsel reads lines from a terminal. Each complete line goes
+      through check, compile and run like `-c` does (owner, 2026-11-27: every set of commands is
+      compiled and executed). Variables, exported names, the working directory and `$?` persist
+      from one line to the next; a refused line prints its findings and leaves the session as it
+      was.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if a line runs without being checked and compiled, a refused line changes the session, or cd or an assignment on one line is not visible on the next."
+      upstream-ref: "kapsel#140"
+    links:
+      - type: derives-from
+        target: REQ-KS-014
+
   # --- v0.4.0: compile and run ---
 
   - id: REQ-KS-020
     type: requirement
     title: "A checked plan compiles to a WASM component that calls kapsel's interfaces"
     status: proposed
-    release: v0.4.0
+    release: v0.3.0
     description: >
       The compiler turns a plan into a component that imports the `command` interface for each
       built-in and native-exec for each native tool. The same plan and the same interface
@@ -239,7 +259,7 @@ artifacts:
     type: requirement
     title: "The executor runs only plans the check stage produced"
     status: approved
-    release: v0.4.0
+    release: v0.3.0
     description: >
       There is no path from a command line to execution that skips the check stage.
     fields:
@@ -280,7 +300,7 @@ artifacts:
     type: requirement
     title: "The most-used commands are built in"
     status: proposed
-    release: v0.4.0
+    release: v0.3.0
     description: >
       First batch, ranked by measured agent use: cat, echo, printf, head, tail, wc, ls, mkdir,
       cp, mv, rm, grep, sed, sort, uniq, cut, tr, tee, date, seq, sleep, each with the flags
