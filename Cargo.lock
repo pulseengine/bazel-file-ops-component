@@ -43,6 +43,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kapsel-corpus"
+version = "0.3.0-dev"
+
+[[package]]
 name = "kapsel-host"
 version = "0.3.0-dev"
 dependencies = [

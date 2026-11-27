@@ -1,0 +1,1 @@
+for x in a b c; do echo "item $x"; done
