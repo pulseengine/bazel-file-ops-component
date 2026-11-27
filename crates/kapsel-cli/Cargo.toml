@@ -16,6 +16,9 @@ kapsel-check.workspace = true
 kapsel-seal = { path = "../kapsel-seal" }
 kapsel-host.workspace = true
 kapsel-plan.workspace = true
+kapsel-db = { path = "../kapsel-db" }
+kapsel-diag = { path = "../kapsel-diag" }
+salsa.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

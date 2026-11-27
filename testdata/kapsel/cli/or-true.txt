@@ -1,0 +1,15 @@
+# kapsel-cli golden `or-true`. Regenerate with KAPSEL_BLESS=1.
+# kapsel -c false || true
+--- input
+false || true
+--- stderr (exit 65)
+error[KS-R001]: `|| true` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`
+ --> -c:1:7
+  |
+1 | false || true
+  |       ^^^^^^^
+  |
+  = note: `|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)
+  = help: handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| true`
+
+error: refused: 1 error

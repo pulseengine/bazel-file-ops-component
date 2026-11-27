@@ -74,8 +74,8 @@ fn or_true_is_refused_with_ks_r001() {
     assert_eq!(o.status.code(), Some(65));
     assert_eq!(out(&o), "");
     let s = err(&o);
-    assert!(s.contains("kapsel: refused: KS-R001"), "{s}");
-    assert!(s.contains("1:7"), "line:col in the finding: {s}");
+    assert!(s.contains("error[KS-R001]"), "{s}");
+    assert!(s.contains("-c:1:7"), "line:col in the finding: {s}");
 }
 
 #[test]
