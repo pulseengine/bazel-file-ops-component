@@ -1,8 +1,8 @@
 # JSON config and CLI reference
 
 This describes `file_ops_component.wasm` as released in v0.2.0. The source is
-`tinygo/json_bridge.go` and `tinygo/main.go`; `--help` is not implemented, so
-this page is the reference.
+`tinygo/json_bridge.go` and `tinygo/main.go`. `--help` is not recognised: like any unknown
+first argument, it prints the usage and exits 1. This page is the reference.
 
 ## Running it
 
@@ -49,7 +49,7 @@ config file. Otherwise the first argument is a subcommand (below).
 | `append_to_file` | `path` (relative), `content` | creates the file if missing |
 | `run_command` | `command`, `args`, optional `work_dir`, optional `output_file` | runs the command with its arguments as an argv (no shell); `output_file` captures stdout |
 
-`get_json_schema` in `tinygo/json_bridge.go` holds the JSON schema for this format.
+`GetJsonSchema` in `tinygo/json_bridge.go` holds the JSON schema for this format.
 
 ## Subcommands
 
