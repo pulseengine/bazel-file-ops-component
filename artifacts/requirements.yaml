@@ -292,17 +292,22 @@ artifacts:
 
   - id: REQ-KS-021
     type: requirement
-    title: "Compiled modules are cached, signed and invalidated by their key"
-    status: draft
-    release: v0.4.0
+    title: "Compiled modules are signed with sigil, attest both input hashes, and are cached by the normalized one"
+    status: approved
+    release: v0.3.0
     description: >
-      The cache key covers the plan and the tool and interface versions; grants stay runtime
-      preopens and are never compiled in. A cached module is signed and is discarded when its
-      key no longer matches.
+      Every compiled module is signed with sigil (wsc) and carries a transformation attestation
+      whose inputs are the source (raw sha256) and the normalized plan (sha256 of the plan without
+      spans, source hash and warnings), whose output is the module, and whose tool entry names
+      the compiler version and the WIT version. The cache is keyed by normalized plan hash plus
+      compiler and WIT versions, so whitespace and comment changes reuse the module. A cached
+      module runs only after its signature verifies and its attested plan hash equals the key
+      (owner, 2026-11-27: sign with sigil, reference the input hash and a normalized hash, cache
+      for performance work).
     fields:
-      priority: should
+      priority: must
       category: non-functional
-      verification-criteria: "Fails if a module with a changed key is served from the cache, a grant appears in a compiled module, or an unsigned or wrongly signed module runs."
+      verification-criteria: "Fails if a module whose attested normalized-plan hash differs from the cache key is run, a whitespace-only change misses the cache, a grant appears in a compiled module, or an unsigned or wrongly signed module runs."
 
   - id: REQ-KS-022
     type: requirement

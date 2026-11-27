@@ -116,6 +116,8 @@ version = "0.3.0-dev"
 dependencies = [
  "kapsel-ast",
  "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
