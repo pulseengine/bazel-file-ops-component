@@ -7,11 +7,14 @@
 //! out of `front_end` (parse + check). There is no other call to
 //! `Session::run_component` in this crate.
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
+use kapsel_db::{RootDatabase, Session as DbSession, SourceFile};
+use kapsel_diag::{Options, Source};
 use kapsel_host::{GrantSet, Session};
-use kapsel_plan::{CheckOutcome, Finding, Plan, Severity, exit};
+use kapsel_plan::{CheckOutcome, Finding, Plan, exit};
+use salsa::Setter;
 use kapsel_seal::{Cache, SigningKey, keys_dir};
 
 const USAGE: &str = "\
@@ -20,6 +23,7 @@ usage: kapsel [GLOBAL FLAGS] -c COMMAND
        kapsel [GLOBAL FLAGS]                       (interactive)
        kapsel [GLOBAL FLAGS] check [--json] (-c COMMAND | FILE)
        kapsel [GLOBAL FLAGS] compile (-c COMMAND | FILE) -o OUT.wasm
+       kapsel explain RULE-ID                      (e.g. KS-R001)
 
 global flags:
   --rw DIR     grant read and write access to DIR (the current directory is always granted)
@@ -33,6 +37,7 @@ enum Sub {
     Run,
     Check,
     Compile,
+    Explain,
 }
 
 struct Opts {
@@ -80,6 +85,7 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
             "--json" => o.json = true,
             "check" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Check,
             "compile" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Compile,
+            "explain" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Explain,
             s if s.starts_with('-') && s != "-" => return Err(usage_error(&format!("unknown flag {s}"))),
             _ => {
                 if o.file.is_some() {
@@ -88,13 +94,19 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
                 o.file = Some(a.to_string());
             }
         }
-        if !a.starts_with('-') && a != "check" && a != "compile" {
+        if !a.starts_with('-') && a != "check" && a != "compile" && a != "explain" {
             positional += 1;
         }
         i += 1;
     }
     if o.cmd.is_some() && o.file.is_some() {
         return Err(usage_error("give either -c COMMAND or a FILE, not both"));
+    }
+    if o.sub == Sub::Explain {
+        if o.cmd.is_some() || o.json || o.out.is_some() || o.file.is_none() {
+            return Err(usage_error("`explain` takes exactly one RULE-ID"));
+        }
+        return Ok(o);
     }
     if o.json && o.sub != Sub::Check {
         return Err(usage_error("--json belongs to `check`"));
@@ -111,73 +123,131 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
     Ok(o)
 }
 
-/// 1-based line and column (in characters) of a byte offset.
-fn line_col(source: &str, offset: u32) -> (usize, usize) {
-    let off = (offset as usize).min(source.len());
-    let mut off = off;
-    while off > 0 && !source.is_char_boundary(off) {
-        off -= 1;
-    }
-    let before = &source[..off];
-    let line = before.matches('\n').count() + 1;
-    let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
-    (line, col)
+fn render_opts() -> Options {
+    Options { color: std::io::stderr().is_terminal() }
 }
 
-/// Renders findings for the terminal. One function so the diagnostics crate
-/// can replace it at integration.
-fn render_findings(source: &str, findings: &[Finding]) -> String {
-    let mut out = String::new();
-    for f in findings {
-        let tag = match f.severity {
-            Severity::Refuse => "refused",
-            Severity::Warn => "warning",
-        };
-        let (l, c) = line_col(source, f.span.start);
-        out.push_str(&format!("kapsel: {tag}: {} {}\n", f.rule, f.message));
-        let first = f.excerpt.lines().next().unwrap_or("");
-        out.push_str(&format!("  {l}:{c}  {first}\n"));
-        for r in &f.related {
-            let (rl, rc) = line_col(source, r.span.start);
-            out.push_str(&format!("  {rl}:{rc}  {}\n", r.label));
-        }
-        if let Some(h) = &f.help {
-            out.push_str(&format!("  help: {h}\n"));
-        }
-        for n in &f.notes {
-            out.push_str(&format!("  note: {n}\n"));
-        }
+/// The findings an outcome carries: a refusal's findings or a plan's warnings.
+fn outcome_findings(outcome: &CheckOutcome) -> &[Finding] {
+    match outcome {
+        CheckOutcome::Refused(r) => &r.findings,
+        CheckOutcome::Plan(p) => &p.warnings,
     }
-    out
 }
 
-/// parse -> check. Prints findings; Ok(plan) only when nothing was refused.
-fn front_end(source: &str, json: bool) -> Result<Plan, i32> {
-    let outcome = match kapsel_syntax::parse(source) {
-        Err(errs) => kapsel_check::refuse_parse_errors(source, &errs),
-        Ok(script) => kapsel_check::check(source, &script),
-    };
+/// `check --json`: the CheckOutcome object exactly as before (plan schema
+/// unchanged), plus one extra top-level `diagnostics` field holding the
+/// kapsel-diag JSON (`kapsel.diag.v0`).
+fn outcome_json(src: Source<'_>, outcome: &CheckOutcome) -> Result<String, String> {
+    let mut v = serde_json::to_value(outcome).map_err(|e| e.to_string())?;
+    let diag: serde_json::Value =
+        serde_json::from_str(&kapsel_diag::render_json(src, outcome_findings(outcome))).map_err(|e| e.to_string())?;
+    match v.as_object_mut() {
+        Some(o) => {
+            o.insert("diagnostics".into(), diag);
+        }
+        None => return Err("outcome is not a JSON object".into()),
+    }
+    serde_json::to_string_pretty(&v).map_err(|e| e.to_string())
+}
+
+/// Prints an outcome (JSON on stdout, or rustc-style findings on stderr).
+/// Ok(plan) only when nothing was refused.
+fn report(name: &str, text: &str, outcome: CheckOutcome, json: bool) -> Result<Plan, i32> {
+    let src = Source::new(name, text);
     if json {
-        match serde_json::to_string_pretty(&outcome) {
+        match outcome_json(src, &outcome) {
             Ok(s) => println!("{s}"),
             Err(e) => {
                 eprintln!("kapsel: internal: cannot serialize the outcome: {e}");
                 return Err(exit::INTERNAL);
             }
         }
+    } else {
+        eprint!("{}", kapsel_diag::render_outcome(src, &outcome, render_opts()));
     }
     match outcome {
-        CheckOutcome::Plan(p) => {
-            if !p.warnings.is_empty() {
-                eprint!("{}", render_findings(source, &p.warnings));
+        CheckOutcome::Plan(p) => Ok(p),
+        CheckOutcome::Refused(_) => Err(exit::REFUSED),
+    }
+}
+
+/// parse -> check through kapsel-db (so KS-S002..S005 apply within the
+/// input). `name` is the script path or `-c`.
+fn front_end(name: &str, source: &str, json: bool) -> Result<Plan, i32> {
+    let db = RootDatabase::default();
+    let file = SourceFile::new(&db, name.to_string(), source.to_string());
+    let outcome = kapsel_db::check(&db, file).clone();
+    report(name, source, outcome, json)
+}
+
+/// The long-lived analysis state of an interactive session.
+struct Analysis {
+    db: RootDatabase,
+    session: DbSession,
+    files: Vec<SourceFile>,
+    statuses: Vec<Option<i32>>,
+}
+
+impl Analysis {
+    fn new() -> Analysis {
+        let db = RootDatabase::default();
+        let session = DbSession::new(&db, vec![], vec![]);
+        Analysis { db, session, files: vec![], statuses: vec![] }
+    }
+
+    fn sync(&mut self) {
+        self.session.set_commands(&mut self.db).to(self.files.clone());
+        self.session.set_statuses(&mut self.db).to(self.statuses.clone());
+    }
+
+    /// Checks `line` as the next command of the session: its own findings
+    /// plus the cross-command ones (KS-S001 ...), all rendered against the
+    /// history text. A refusal leaves the session unchanged.
+    fn check_line(&mut self, line: &str) -> Result<Plan, i32> {
+        let file = SourceFile::new(&self.db, format!("history:{}", self.files.len() + 1), line.to_string());
+        self.files.push(file);
+        self.statuses.push(None);
+        self.sync();
+        let last = self.files.len() - 1;
+        let mut outcome = kapsel_db::check(&self.db, file).clone();
+        let hist = kapsel_db::history(&self.db, self.session);
+        let off = hist.offsets[last];
+        // Move the line's own findings into the history text's offsets.
+        let shift = |fs: &mut Vec<Finding>| {
+            for f in fs {
+                f.span.start += off;
+                f.span.end += off;
+                for r in &mut f.related {
+                    r.span.start += off;
+                    r.span.end += off;
+                }
             }
-            Ok(p)
+        };
+        match &mut outcome {
+            CheckOutcome::Refused(r) => shift(&mut r.findings),
+            CheckOutcome::Plan(p) => shift(&mut p.warnings),
         }
-        CheckOutcome::Refused(r) => {
-            if !json {
-                eprint!("{}", render_findings(source, &r.findings));
-            }
-            Err(exit::REFUSED)
+        let extra: Vec<Finding> = kapsel_db::session_findings(&self.db, self.session)
+            .iter()
+            .filter(|s| s.command == last)
+            .map(|s| s.finding.clone())
+            .collect();
+        let outcome = kapsel_db::merge(outcome, &extra);
+        let result = report("history", &hist.text, outcome, false);
+        if result.is_err() {
+            self.files.pop();
+            self.statuses.pop();
+            self.sync();
+        }
+        result
+    }
+
+    /// Records the exit status of the line that just ran.
+    fn ran(&mut self, status: i32) {
+        if let Some(s) = self.statuses.last_mut() {
+            *s = Some(status);
+            self.sync();
         }
     }
 }
@@ -219,8 +289,8 @@ impl Ctx {
 }
 
 /// parse -> check -> compile -> run. Returns the exit status.
-fn run_source(session: &mut Session, ctx: &Ctx, source: &str) -> i32 {
-    let plan = match front_end(source, false) {
+fn run_source(session: &mut Session, ctx: &Ctx, name: &str, source: &str) -> i32 {
+    let plan = match front_end(name, source, false) {
         Ok(p) => p,
         Err(code) => return code,
     };
@@ -252,6 +322,32 @@ fn check_grant(flag: &str, dir: &str) -> Result<PathBuf, i32> {
     }
 }
 
+/// The name shown after `-->`: the script path, or `-c`.
+fn input_name(o: &Opts) -> String {
+    match (&o.cmd, &o.file) {
+        (Some(_), _) => "-c".to_string(),
+        (None, Some(f)) => f.clone(),
+        (None, None) => unreachable!("callers check"),
+    }
+}
+
+fn explain_rule(id: &str) -> i32 {
+    match kapsel_diag::explain(id) {
+        Some(text) => {
+            print!("{text}");
+            if !text.ends_with('\n') {
+                println!();
+            }
+            0
+        }
+        None => {
+            eprintln!("kapsel: unknown rule id '{id}'");
+            eprintln!("known rule ids: {}", kapsel_diag::RULE_IDS.join(" "));
+            exit::USAGE
+        }
+    }
+}
+
 fn read_source(o: &Opts) -> Result<String, i32> {
     match (&o.cmd, &o.file) {
         (Some(c), _) => Ok(c.clone()),
@@ -266,6 +362,7 @@ fn read_source(o: &Opts) -> Result<String, i32> {
 fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
     let stdin = std::io::stdin();
     let mut last = 0;
+    let mut analysis = Analysis::new();
     loop {
         let mut buf = String::new();
         let mut prompt = "kapsel$ ";
@@ -294,12 +391,18 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
         }
         let at_eof = !buf.ends_with('\n');
         // A refused line prints findings and leaves the session unchanged.
-        match front_end(&buf, false) {
+        // The trailing newline is not part of the command; leaving it out
+        // keeps the history text one line per command.
+        let line = buf.trim_end_matches(['\n', '\r']);
+        match analysis.check_line(line) {
             Err(_) => {}
-            Ok(plan) => match ctx.compile(&plan, &buf) {
+            Ok(plan) => match ctx.compile(&plan, line) {
                 Err(_) => {}
                 Ok(bytes) => match session.run_component(&bytes) {
-                    Ok(st) => last = (st & 0xff) as i32,
+                    Ok(st) => {
+                        last = (st & 0xff) as i32;
+                        analysis.ran(last);
+                    }
                     Err(e) => eprintln!("kapsel: internal: {e}"),
                 },
             },
@@ -322,12 +425,13 @@ fn real_main() -> i32 {
     let ctx = Ctx { key_file: o.key.clone() };
 
     match o.sub {
+        Sub::Explain => return explain_rule(o.file.as_deref().unwrap_or("")),
         Sub::Check => {
             let source = match read_source(&o) {
                 Ok(s) => s,
                 Err(c) => return c,
             };
-            return match front_end(&source, o.json) {
+            return match front_end(&input_name(&o), &source, o.json) {
                 Ok(_) => 0,
                 Err(c) => c,
             };
@@ -337,7 +441,7 @@ fn real_main() -> i32 {
                 Ok(s) => s,
                 Err(c) => return c,
             };
-            let plan = match front_end(&source, false) {
+            let plan = match front_end(&input_name(&o), &source, false) {
                 Ok(p) => p,
                 Err(c) => return c,
             };
@@ -391,7 +495,7 @@ fn real_main() -> i32 {
             Ok(s) => s,
             Err(c) => return c,
         };
-        return run_source(&mut session, &ctx, &source);
+        return run_source(&mut session, &ctx, &input_name(&o), &source);
     }
     interactive(&mut session, &ctx)
 }

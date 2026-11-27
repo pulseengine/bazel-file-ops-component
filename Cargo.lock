@@ -1216,10 +1216,13 @@ version = "0.3.0-dev"
 dependencies = [
  "assert_cmd",
  "kapsel-check",
+ "kapsel-db",
+ "kapsel-diag",
  "kapsel-host",
  "kapsel-plan",
  "kapsel-seal",
  "kapsel-syntax",
+ "salsa",
  "serde_json",
  "tempfile",
 ]
