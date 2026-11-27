@@ -529,6 +529,8 @@ name = "kapsel-compile"
 version = "0.3.0-dev"
 dependencies = [
  "kapsel-plan",
+ "serde_json",
+ "sha2",
  "wasm-encoder 0.263.0",
  "wasmparser 0.263.0",
  "wasmtime",
