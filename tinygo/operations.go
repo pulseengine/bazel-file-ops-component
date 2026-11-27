@@ -49,6 +49,9 @@ func CopyFile(src, dest string) error {
 	defer srcFile.Close()
 
 	// Create destination file
+	if err := refuseSymlink(dest); err != nil {
+		return err
+	}
 	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", dest, err)
@@ -85,6 +88,9 @@ func CopyDirectory(src, dest string) error {
 	}
 
 	// Create destination directory
+	if err := refuseSymlink(dest); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dest, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 		return fmt.Errorf("failed to create destination directory %s: %w", dest, err)
 	}
@@ -101,6 +107,9 @@ func CreateDirectory(path string) error {
 		return fmt.Errorf("security validation failed: %w", err)
 	}
 
+	if err := refuseSymlink(path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(path, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 		return fmt.Errorf("failed to create directory %s: %w", path, err)
 	}
@@ -240,6 +249,9 @@ func WriteFile(path, content string) error {
 		}
 	}
 
+	if err := refuseSymlink(path); err != nil {
+		return err
+	}
 	if err := os.WriteFile(path, []byte(content), 0640); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", path, err)
 	}
@@ -264,6 +276,9 @@ func AppendToFile(path, content string) error {
 	}
 
 	// Open file in append mode (create if doesn't exist)
+	if err := refuseSymlink(path); err != nil {
+		return err
+	}
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to open file %s for appending: %w", path, err)
@@ -298,6 +313,9 @@ func ConcatenateFiles(sources []string, dest string) error {
 	}
 
 	// Create destination file
+	if err := refuseSymlink(dest); err != nil {
+		return err
+	}
 	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640) // #nosec G304 G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", dest, err)
@@ -344,6 +362,9 @@ func MovePath(src, dest string) error {
 	}
 
 	// Attempt rename (works if on same filesystem)
+	if err := refuseSymlink(dest); err != nil {
+		return err
+	}
 	err := os.Rename(src, dest)
 	if err != nil {
 		// If rename fails (e.g., cross-filesystem), fall back to copy + remove
@@ -388,6 +409,9 @@ func copyDirectoryContents(src, dest string) error {
 
 		if entry.IsDir() {
 			// Create subdirectory
+			if err := refuseSymlink(destPath); err != nil {
+				return err
+			}
 			if err := os.MkdirAll(destPath, 0750); err != nil { // #nosec G703 -- path passed ValidatePath above; the JSON bridge and workspace preparation bound it with requireWithin
 				return fmt.Errorf("failed to create subdirectory %s: %w", destPath, err)
 			}

@@ -375,6 +375,9 @@ func executeJsonRunCommand(op Operation, workspaceDir string) ([]string, error) 
 		}
 
 		// Write output to file
+		if err := refuseSymlink(outputPath); err != nil {
+			return nil, err
+		}
 		if err := os.WriteFile(outputPath, output, 0640); err != nil {
 			return nil, fmt.Errorf("failed to write output file: %w", err)
 		}
