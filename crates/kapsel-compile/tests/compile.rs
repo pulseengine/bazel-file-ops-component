@@ -275,22 +275,54 @@ fn all_plans() -> Vec<(&'static str, Plan)> {
         ("nested_capture", p_nested_capture()),
         ("glob_parts", p_glob_parts()),
         ("capture_assign_redirect", p_capture_assign_redirect()),
-        ("kw1", p_kw1()),
-        ("kw2", p_kw2()),
-        ("kw4", p_kw4()),
+        ("sub_assign", p_sub_assign()),
+        ("sub_exit", p_sub_exit()),
+        ("stage_exit", p_stage_exit()),
         ("empty", plan(vec![])),
     ]
 }
 
 // ---- recording mock host ----------------------------------------------------
 
+/// Session state a subshell scope saves and restores.
+#[derive(Default, Clone)]
+struct State {
+    vars: BTreeMap<String, String>,
+    status: u32,
+}
+
+/// Records every host call, and models just enough of a shell to check
+/// subshell semantics: variables, `$?`, scopes, pipe buffers, and the
+/// built-ins `echo` (writes its expanded args), `true`, `false`, `exit n`.
 #[derive(Default)]
 struct Mock {
     log: Vec<String>,
-    /// Statuses per argv[0], consumed in order; 0 when exhausted.
+    /// Statuses per argv[0], consumed in order; overrides the built-in model.
     script: BTreeMap<String, VecDeque<u32>>,
     pipes: u32,
-    lists: u32,
+    lists: Vec<Vec<String>>,
+    state: State,
+    saved: Vec<State>,
+    bufs: BTreeMap<u32, String>,
+    /// What reached the session's stdout (handle 0).
+    out: String,
+}
+
+impl Mock {
+    fn expand(&self, w: &[Part]) -> String {
+        w.iter()
+            .map(|p| match p {
+                Part::Lit(l) => l.text.clone(),
+                Part::Var(v) if v.name == "?" => self.state.status.to_string(),
+                Part::Var(v) => self.state.vars.get(&v.name).cloned().unwrap_or_default(),
+                Part::Glob(g) => g.clone(),
+                Part::Captured(c) => {
+                    let s = self.bufs.get(&c.pipe).cloned().unwrap_or_default();
+                    s.trim_end_matches('\n').to_owned()
+                }
+            })
+            .collect()
+    }
 }
 
 fn render(w: &[Part]) -> String {
@@ -343,30 +375,61 @@ impl wit::Host for Mock {
             ));
         }
         self.log.push(line);
+        let args: Vec<String> = argv.iter().map(|w| self.expand(w)).collect();
+        let modelled = match args[0].as_str() {
+            "echo" => {
+                let text = args[1..].join(" ") + "\n";
+                match stdout {
+                    0 => self.out.push_str(&text),
+                    h => self.bufs.entry(h).or_default().push_str(&text),
+                }
+                0
+            }
+            "false" => 1,
+            "exit" => 256 + args.get(1).and_then(|n| n.parse::<u32>().ok()).unwrap_or(0),
+            _ => 0,
+        };
         self.script
             .get_mut(&words[0])
             .and_then(|q| q.pop_front())
-            .unwrap_or(0)
+            .unwrap_or(modelled)
     }
 
     fn set_var(&mut self, name: String, value: wit::Word) {
         self.log.push(format!("set-var {name}={}", render(&value)));
+        let v = self.expand(&value);
+        self.state.vars.insert(name, v);
     }
 
     fn set_status(&mut self, status: u32) {
         self.log.push(format!("set-status {status}"));
+        self.state.status = status;
     }
 
     fn expand_list(&mut self, words: Vec<wit::Word>) -> (u32, u32) {
-        self.lists += 1;
         let ws: Vec<String> = words.iter().map(|w| render(w)).collect();
+        let items: Vec<String> = words.iter().map(|w| self.expand(w)).collect();
+        self.lists.push(items);
+        let id = self.lists.len() as u32;
         self.log
-            .push(format!("expand-list {} -> {}", ws.join(" "), self.lists));
-        (self.lists, words.len() as u32)
+            .push(format!("expand-list {} -> {id}", ws.join(" ")));
+        (id, words.len() as u32)
     }
 
     fn bind_item(&mut self, name: String, list: u32, index: u32) {
         self.log.push(format!("bind-item {name} {list} {index}"));
+        let v = self.lists[list as usize - 1][index as usize].clone();
+        self.state.vars.insert(name, v);
+    }
+
+    fn scope_push(&mut self) {
+        self.log.push("scope-push".into());
+        self.saved.push(self.state.clone());
+    }
+
+    fn scope_pop(&mut self) {
+        self.log.push("scope-pop".into());
+        self.state = self.saved.pop().expect("scope-pop without scope-push");
     }
 }
 
@@ -381,6 +444,12 @@ fn engine() -> &'static wasmtime::Engine {
 
 /// Compiles and runs a plan under the mock; returns the log and `run`'s result.
 fn run(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32) {
+    let (log, status, _) = run_out(p, script);
+    (log, status)
+}
+
+/// [`run`], also returning the session stdout.
+fn run_out(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32, String) {
     let bytes = compile(p).unwrap_or_else(|e| panic!("compile: {e}"));
     let component = wasmtime::component::Component::new(engine(), &bytes).unwrap();
     let mut linker = wasmtime::component::Linker::<Mock>::new(engine());
@@ -394,7 +463,17 @@ fn run(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32) {
     let mut store = wasmtime::Store::new(engine(), mock);
     let inst = bindings::Plan::instantiate(&mut store, &component, &linker).unwrap();
     let status = inst.call_run(&mut store).unwrap();
-    (std::mem::take(&mut store.data_mut().log), status)
+    let mock = store.data_mut();
+    assert!(
+        mock.saved.is_empty(),
+        "{} scopes left open",
+        mock.saved.len()
+    );
+    (
+        std::mem::take(&mut mock.log),
+        status,
+        std::mem::take(&mut mock.out),
+    )
 }
 
 fn check(p: &Plan, script: &[(&str, &[u32])], want_log: &[&str], want_status: u32) {
@@ -504,9 +583,15 @@ fn pipeline_three_stages_wiring() {
         &[
             "pipe -> 1",
             "pipe -> 2",
+            "scope-push",
             "call cat f <0 >1",
+            "scope-pop",
+            "scope-push",
             "call sort <1 >2",
+            "scope-pop",
+            "scope-push",
             "call wc -l <2 >0",
+            "scope-pop",
             "set-status 9",
         ],
         9,
@@ -612,8 +697,10 @@ fn capture_echo_cat() {
         &[],
         &[
             "pipe -> 1",
+            "scope-push",
             "call cat f <0 >1",
             "set-status 0",
+            "scope-pop",
             "call echo <cap1> <0 >0",
             "set-status 0",
         ],
@@ -641,13 +728,23 @@ fn nested_capture_inside_pipeline_stage() {
         &[],
         &[
             "pipe -> 1",
+            "scope-push",
             "call echo x <0 >1",
+            "scope-pop",
+            "scope-push",
             "pipe -> 2",
+            "scope-push",
             "pipe -> 3",
+            "scope-push",
             "call cat p <1 >3",
+            "scope-pop",
+            "scope-push",
             "call head -n1 <3 >2",
+            "scope-pop",
             "set-status 0",
+            "scope-pop",
             "call grep <cap2> <1 >0",
+            "scope-pop",
             "set-status 0",
         ],
         0,
@@ -671,11 +768,15 @@ fn captures_run_in_posix_order() {
         &[],
         &[
             "pipe -> 1",
+            "scope-push",
             "call echo out <0 >1",
             "set-status 0",
+            "scope-pop",
             "pipe -> 2",
+            "scope-push",
             "call echo v <0 >2",
             "set-status 0",
+            "scope-pop",
             "call cat <0 >0 X=<cap2> 1>[<cap1>]0",
             "set-status 0",
         ],
@@ -697,8 +798,10 @@ fn assignment_status_is_last_capture_status() {
         &[("false", &[1])],
         &[
             "pipe -> 1",
+            "scope-push",
             "call false <0 >1",
             "set-status 1",
+            "scope-pop",
             "set-var X=<cap1>",
             "set-status 1",
         ],
@@ -728,57 +831,116 @@ fn exit_inside_loop_stops() {
     );
 }
 
-// ---- known-wrong pins (KNOWN.md) --------------------------------------------
+// ---- subshell scopes (formerly KW-1..KW-4 in KNOWN.md) ------------------------
 
-/// KW-1: `echo $(X=2)` sets X in the session (POSIX: only in the subshell).
-fn p_kw1() -> Plan {
-    let body = seq(vec![PStage::Call(Call {
+fn assign(name: &str, value: PWord) -> PStage {
+    PStage::Call(Call {
         tool: None,
         argv: vec![],
-        assignments: vec![("X".into(), lit("2"))],
+        assignments: vec![(name.into(), value)],
         redirects: vec![],
-        span: Span::new(7, 10),
-    })]);
-    plan(seq(vec![PStage::Call(callw(vec![lit("echo"), cap(body)]))]))
+        span: Span::new(0, 3),
+    })
+}
+
+/// `X=1; echo $(X=2); echo $X`
+fn p_sub_assign() -> Plan {
+    plan(seq(vec![
+        assign("X", lit("1")),
+        PStage::Call(callw(vec![
+            lit("echo"),
+            cap(seq(vec![assign("X", lit("2"))])),
+        ])),
+        PStage::Call(callw(vec![lit("echo"), var("X")])),
+    ]))
 }
 
 #[test]
-fn known_wrong_kw1_capture_assignment_reaches_session() {
-    check(
-        &p_kw1(),
-        &[],
-        &[
+fn subshell_capture_assignment_stays_in_capture() {
+    let (log, status, out) = run_out(&p_sub_assign(), &[]);
+    assert_eq!(out, "\n1\n");
+    assert_eq!(status, 0);
+    assert_eq!(
+        log,
+        [
+            "set-var X=1",
+            "set-status 0",
             "pipe -> 1",
+            "scope-push",
             "set-var X=2",
             "set-status 0",
+            "scope-pop",
             "call echo <cap1> <0 >0",
             "set-status 0",
-        ],
-        0,
+            "call echo $X <0 >0",
+            "set-status 0",
+        ]
     );
 }
 
-/// KW-2: `echo $(exit 5); echo after` stops the plan with 5.
-fn p_kw2() -> Plan {
+/// `echo $(exit 3); echo after`
+fn p_sub_exit() -> Plan {
     plan(seq(vec![
-        PStage::Call(callw(vec![lit("echo"), cap(seq(vec![c("exit 5")]))])),
+        PStage::Call(callw(vec![lit("echo"), cap(seq(vec![c("exit 3")]))])),
         c("echo after"),
     ]))
 }
 
 #[test]
-fn known_wrong_kw2_exit_in_capture_stops_plan() {
-    check(
-        &p_kw2(),
-        &[("exit", &[261])],
-        &["pipe -> 1", "call exit 5 <0 >1"],
-        5,
+fn subshell_exit_in_capture_ends_only_the_capture() {
+    let (log, status, out) = run_out(&p_sub_exit(), &[]);
+    assert_eq!(out, "\nafter\n");
+    assert_eq!(status, 0);
+    assert_eq!(
+        log,
+        [
+            "pipe -> 1",
+            "scope-push",
+            "call exit 3 <0 >1",
+            "scope-pop",
+            "call echo <cap1> <0 >0",
+            "set-status 0",
+            "call echo after <0 >0",
+            "set-status 0",
+        ]
     );
 }
 
 #[test]
-fn known_wrong_kw3_status_in_same_command_sees_capture() {
-    // false; echo $? $(true): the capture's set-status 0 lands before echo.
+fn subshell_exit_status_is_the_substitution_status() {
+    // X=$(exit 3); echo $?  prints 3
+    let p = plan(seq(vec![
+        assign("X", cap(seq(vec![c("exit 3")]))),
+        PStage::Call(callw(vec![lit("echo"), var("?")])),
+    ]));
+    let (_, status, out) = run_out(&p, &[]);
+    assert_eq!(out, "3\n");
+    assert_eq!(status, 0);
+}
+
+#[test]
+fn subshell_exit_inside_loop_inside_capture_ends_the_capture() {
+    // echo $(for i in a b; do echo $i; exit 4; done); echo after
+    let body = seq(vec![PStage::For {
+        var: "i".into(),
+        items: vec![lit("a"), lit("b")],
+        body: seq(vec![
+            PStage::Call(callw(vec![lit("echo"), var("i")])),
+            c("exit 4"),
+        ]),
+    }]);
+    let p = plan(seq(vec![
+        PStage::Call(callw(vec![lit("echo"), cap(body)])),
+        c("echo after"),
+    ]));
+    let (_, status, out) = run_out(&p, &[]);
+    assert_eq!(out, "a\nafter\n");
+    assert_eq!(status, 0);
+}
+
+#[test]
+fn subshell_status_in_same_command_sees_status_before_capture() {
+    // false; echo $? $(true)  sees 1
     let p = plan(seq(vec![
         c("false"),
         PStage::Call(callw(vec![
@@ -787,24 +949,57 @@ fn known_wrong_kw3_status_in_same_command_sees_capture() {
             cap(seq(vec![c("true")])),
         ])),
     ]));
-    check(
-        &p,
-        &[("false", &[1])],
-        &[
+    let (log, status, out) = run_out(&p, &[]);
+    assert_eq!(out.split_whitespace().next(), Some("1"), "{out:?}");
+    assert_eq!(status, 0);
+    assert_eq!(
+        log,
+        [
             "call false <0 >0",
             "set-status 1",
             "pipe -> 1",
+            "scope-push",
             "call true <0 >1",
             "set-status 0",
+            "scope-pop",
             "call echo $? <cap1> <0 >0",
             "set-status 0",
-        ],
-        0,
+        ]
     );
 }
 
-/// KW-4: `exit 3 | cat; echo after` stops the plan with 3.
-fn p_kw4() -> Plan {
+#[test]
+fn subshell_pipeline_stage_assignment_does_not_persist() {
+    // X=1 | true; echo $X  leaves X unset
+    let p = plan(vec![
+        PAndOr {
+            first: pl(vec![assign("X", lit("1")), c("true")]),
+            rest: vec![],
+        },
+        one(PStage::Call(callw(vec![lit("echo"), var("X")]))),
+    ]);
+    let (log, status, out) = run_out(&p, &[]);
+    assert_eq!(out, "\n");
+    assert_eq!(status, 0);
+    assert_eq!(
+        log,
+        [
+            "pipe -> 1",
+            "scope-push",
+            "set-var X=1",
+            "scope-pop",
+            "scope-push",
+            "call true <1 >0",
+            "scope-pop",
+            "set-status 0",
+            "call echo $X <0 >0",
+            "set-status 0",
+        ]
+    );
+}
+
+/// `exit 3 | cat; echo after`
+fn p_stage_exit() -> Plan {
     plan(vec![
         PAndOr {
             first: pl(vec![c("exit 3"), c("cat")]),
@@ -815,15 +1010,49 @@ fn p_kw4() -> Plan {
 }
 
 #[test]
-fn known_wrong_kw4_exit_in_pipeline_stage_stops_plan() {
-    check(
-        &p_kw4(),
-        &[("exit", &[259])],
-        &["pipe -> 1", "call exit 3 <0 >1"],
-        3,
+fn subshell_exit_in_pipeline_stage_ends_only_the_stage() {
+    let (log, status, out) = run_out(&p_stage_exit(), &[]);
+    assert_eq!(out, "after\n");
+    assert_eq!(status, 0);
+    assert_eq!(
+        log,
+        [
+            "pipe -> 1",
+            "scope-push",
+            "call exit 3 <0 >1",
+            "scope-pop",
+            "scope-push",
+            "call cat <1 >0",
+            "scope-pop",
+            "set-status 0",
+            "call echo after <0 >0",
+            "set-status 0",
+        ]
     );
 }
 
+#[test]
+fn subshell_exit_in_last_stage_is_the_pipeline_status() {
+    // true | exit 4; echo $?  prints 4, and the plan goes on
+    let p = plan(vec![
+        PAndOr {
+            first: pl(vec![c("true"), c("exit 4")]),
+            rest: vec![],
+        },
+        one(PStage::Call(callw(vec![lit("echo"), var("?")]))),
+    ]);
+    let (_, status, out) = run_out(&p, &[]);
+    assert_eq!(out, "4\n");
+    assert_eq!(status, 0);
+}
+
+#[test]
+fn exit_at_top_level_still_stops_the_plan() {
+    // echo a; exit 3; echo b  with no scope open
+    let (_, status, out) = run_out(&p_exit(), &[]);
+    assert_eq!(out, "a\n");
+    assert_eq!(status, 3);
+}
 #[test]
 fn known_md_counts_are_pinned() {
     let text =
@@ -839,7 +1068,7 @@ fn known_md_counts_are_pinned() {
     };
     // Pinned: a change in either direction must update this test, KNOWN.md
     // and the tables in lib.rs together.
-    assert_eq!(KNOWN_WRONG.len(), 4);
+    assert_eq!(KNOWN_WRONG.len(), 0);
     assert_eq!(DECLINED.len(), 8);
     assert_eq!(header("Known-wrong count:"), KNOWN_WRONG.len());
     assert_eq!(header("Declined count:"), DECLINED.len());
@@ -1116,6 +1345,9 @@ const RULE_TESTS: &[(&str, &str)] = &[
     ("KC-R16", "single"),
     ("KC-R17", "glob_parts"),
     ("KC-R18", "glob_parts"),
+    ("KC-R19", "pipe3"),
+    ("KC-R20", "sub_exit"),
+    ("KC-R21", "exit"),
 ];
 
 #[test]
@@ -1193,7 +1425,7 @@ fn frozen_fixtures_match_committed_sha256() {
 #[ignore]
 fn write_fixture_plans() {
     for (name, p) in all_plans() {
-        if name == "empty" || name.starts_with("kw") {
+        if name == "empty" {
             continue;
         }
         let path = fixture_dir().join(format!("{name}.plan.json"));

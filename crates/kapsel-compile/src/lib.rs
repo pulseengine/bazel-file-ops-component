@@ -35,6 +35,13 @@
 //!
 //! Status: `set-status` follows every executed pipeline (after `!` is
 //! applied), so `$?` is right inside an and-or list and after it.
+//!
+//! Subshells: every `$(...)` body and every stage of a pipeline with two or
+//! more stages runs between `scope-push` and `scope-pop`, inside a wasm block.
+//! `exit n` inside a scope sets the status to n and branches to the end of
+//! the innermost scope's block, so the scope is popped and n becomes the
+//! substitution's or stage's status. Only with no scope open does `exit n`
+//! return n from `run`. Pipes are created outside the scopes.
 
 use kapsel_plan::{PLAN_SCHEMA, Plan, Span};
 
@@ -140,39 +147,25 @@ pub mod rule {
         FOR_LOOP     = "KC-R09", "for-loop",        "`for v in words; do body; done`";
         WHILE_LOOP   = "KC-R10", "while-loop",      "`while cond; do body; done`";
         UNTIL_LOOP   = "KC-R11", "until-loop",      "`until cond; do body; done`";
-        CAPTURE      = "KC-R12", "capture",         "`$(body)` part: body into a pipe, slot store";
+        CAPTURE      = "KC-R12", "capture",         "`$(body)` part: pipe, body in a subshell scope, slot store";
         REDIR_PATH   = "KC-R13", "redirect-path",   "`<`, `>`, `>>` with a word target";
         REDIR_DUP    = "KC-R14", "redirect-dup",    "`>&n`, `<&n` with an fd target";
         HEREDOC      = "KC-R15", "heredoc",         "`<<` with a body word";
         PART_LIT     = "KC-R16", "part-lit",        "literal word part";
         PART_VAR     = "KC-R17", "part-var",        "parameter word part";
         PART_GLOB    = "KC-R18", "part-glob",       "glob word part";
+        SCOPE_STAGE  = "KC-R19", "scope-stage",     "each stage of an N >= 2 pipeline in a subshell scope";
+        EXIT_SCOPE   = "KC-R20", "exit-scope",      "`exit n` inside a scope: pop it, status n";
+        EXIT_PLAN    = "KC-R21", "exit-plan",       "`exit n` with no scope open: run returns n";
     }
 }
 pub use rule::RULES;
 
 /// What the compiler knowingly gets wrong compared with POSIX `sh`. Each entry
 /// is listed in `KNOWN.md` with the test that pins it; the count is pinned too.
-pub const KNOWN_WRONG: &[(&str, &str)] = &[
-    (
-        "KW-1",
-        "`$(...)` is not a subshell: assignments and `$?` changes inside the body reach the session",
-    ),
-    (
-        "KW-2",
-        "`exit n` inside `$(...)` stops the whole plan, not only the substitution",
-    ),
-    (
-        "KW-3",
-        "all captures of a command run before the host expands its words, so `$?` in the same \
-         command sees the last capture's status",
-    ),
-    (
-        "KW-4",
-        "pipeline stages are not subshells: assignments persist and `exit` in any stage stops the \
-         plan",
-    ),
-];
+/// Empty since the WIT gained `scope-push`/`scope-pop` (KW-1..KW-4 are fixed
+/// and are now behaviour tests).
+pub const KNOWN_WRONG: &[(&str, &str)] = &[];
 
 /// Plan shapes the compiler declines with KC-001. Listed in `KNOWN.md`; the
 /// count is pinned by a test, and each has a decline test.
