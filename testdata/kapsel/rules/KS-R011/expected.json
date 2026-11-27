@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R011",
+    "severity": "warn",
+    "message": "`|| echo ...` as the last step prints a note when the command fails and then succeeds, so the failure no longer changes the exit status",
+    "span": {
+      "start": 6,
+      "end": 26
+    },
+    "excerpt": "|| echo \"cat failed\"",
+    "help": "stop the line on failure: `cmd || { echo 'cmd failed' >&2; exit 1; }`; keep `|| echo` only when the message is the whole report",
+    "notes": [
+      "`|| echo` was how two CI steps in kapsel#143 passed while the build or signature check had failed"
+    ]
+  }
+]

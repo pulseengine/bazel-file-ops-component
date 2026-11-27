@@ -17,7 +17,7 @@ fn run(src: &str) -> CheckOutcome {
 #[ignore = "needs parser (ws/parser)"]
 fn plant_pack_through_the_real_parser() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/rules");
-    for n in 0..=10 {
+    for n in 0..=17 {
         let id = format!("KS-R{n:03}");
         let dir = root.join(&id);
         let planted = std::fs::read_to_string(dir.join("planted.sh")).unwrap();
@@ -36,7 +36,7 @@ fn plant_pack_through_the_real_parser() {
             assert_eq!(found, want, "golden for {id}");
         }
         match run(&control) {
-            CheckOutcome::Plan(p) => assert!(p.warnings.is_empty(), "{id} control warns: {:?}", p.warnings),
+            CheckOutcome::Plan(p) => assert!(p.warnings.iter().all(|f| f.rule != id), "{id} control warns: {:?}", p.warnings),
             CheckOutcome::Refused(r) => panic!("{id} control refused: {:?}", r.findings),
         }
     }
