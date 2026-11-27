@@ -52,7 +52,7 @@ pub fn spec_for(tool: &str) -> Option<Spec> {
                 "dictionary-order", "ignore-leading-blanks", "version-sort", "human-numeric-sort",
                 "general-numeric-sort", "month-sort", "random-sort",
             ],
-            &[("key", 'k'), ("field-separator", 't'), ("output", 'o'), ("buffer-size", '_'), ("temporary-directory", '_')],
+            &[("key", 'k'), ("field-separator", 't'), ("output", 'o'), ("buffer-size", '_'), ("temporary-directory", 'T')],
             false,
         ),
         "uniq" => s(
@@ -137,16 +137,39 @@ pub struct Split<'a> {
     pub values: Vec<(char, PWord, Span)>,
     /// Some option was not understood; the caller must assume anything.
     pub unknown: bool,
+    /// An option-looking word has an expansion that is not consumed as an
+    /// option value (`-$X`): it may be any flag, so operands cannot be told.
+    pub opaque: bool,
 }
 
-/// The word after the first `off` bytes of its leading literal part.
-fn word_after(w: &PWord, off: usize) -> PWord {
-    let mut parts = Vec::new();
-    for (i, p) in w.parts.iter().enumerate() {
+/// The leading literal text of a word (adjacent literal parts joined, quoted
+/// or not) and how many parts it spans.
+fn leading_literal(w: &PWord) -> (String, usize) {
+    let mut text = String::new();
+    let mut n = 0;
+    for p in &w.parts {
         match p {
-            PPart::Lit { text, quoted } if i == 0 => {
+            PPart::Lit { text: t, .. } => {
+                text.push_str(t);
+                n += 1;
+            }
+            _ => break,
+        }
+    }
+    (text, n)
+}
+
+/// The word after the first `off` bytes of its leading literal text.
+fn word_after(w: &PWord, mut off: usize) -> PWord {
+    let mut parts = Vec::new();
+    for p in &w.parts {
+        match p {
+            PPart::Lit { text, quoted } if off > 0 => {
                 if off < text.len() {
                     parts.push(PPart::Lit { text: text[off..].to_string(), quoted: *quoted });
+                    off = 0;
+                } else {
+                    off -= text.len();
                 }
             }
             other => parts.push(other.clone()),
@@ -156,12 +179,19 @@ fn word_after(w: &PWord, off: usize) -> PWord {
 }
 
 /// Splits builtin arguments into options and positionals using `spec`. `--`
-/// ends the options. A non-literal argument is positional unless it starts
-/// with a literal `-`, in which case it is analysed as an option too
-/// (`--output=$F`).
+/// ends the options. A word whose leading literal text (adjacent literal
+/// parts joined) starts with `-` is an option, even when an expansion
+/// follows (`-$X`, `"-"rf`). An option word with an expansion that is not
+/// consumed as a value is `unknown` and `opaque`.
 pub fn split_args<'a>(spec: &Spec, args: &'a [PWord], spans: &[Span]) -> Split<'a> {
     let span_of = |i: usize| spans.get(i).copied().unwrap_or_default();
-    let mut sp = Split { positional: Vec::new(), opts: Vec::new(), values: Vec::new(), unknown: false };
+    let mut sp = Split {
+        positional: Vec::new(),
+        opts: Vec::new(),
+        values: Vec::new(),
+        unknown: false,
+        opaque: false,
+    };
     let mut after_dd = false;
     let mut i = 0;
     while i < args.len() {
@@ -172,26 +202,33 @@ pub fn split_args<'a>(spec: &Spec, args: &'a [PWord], spans: &[Span]) -> Split<'
             sp.positional.push((a, span_of(at)));
             continue;
         }
-        let head = match a.parts.first() {
-            Some(PPart::Lit { text, .. }) if text.len() > 1 && text.starts_with('-') => text.clone(),
-            _ => {
-                sp.positional.push((a, span_of(at)));
-                continue;
-            }
-        };
+        let (head, lead_parts) = leading_literal(a);
+        let nonlit = lead_parts < a.parts.len();
+        if !head.starts_with('-') || (head.len() == 1 && !nonlit) {
+            sp.positional.push((a, span_of(at)));
+            continue;
+        }
         if a.as_literal().as_deref() == Some("--") {
             after_dd = true;
             continue;
         }
         sp.opts.push(a.as_literal().unwrap_or_else(|| head.clone()));
-        let rest_parts = a.parts.len() > 1;
+        let mut attached_used = false;
         if let Some(body) = head.strip_prefix("--") {
             let (name, eq) = match body.split_once('=') {
                 Some((n, _)) => (n, true),
                 None => (body, false),
             };
             if let Some((_, key)) = spec.lv.iter().find(|(n, _)| *n == name) {
+                // `--name` with an expansion glued on and no `=` is some
+                // other option name: never take the next argument for it.
+                if !eq && nonlit {
+                    sp.unknown = true;
+                    sp.opaque = true;
+                    continue;
+                }
                 let value = if eq {
+                    attached_used = true;
                     word_after(a, 2 + name.len() + 1)
                 } else if i < args.len() {
                     i += 1;
@@ -203,46 +240,43 @@ pub fn split_args<'a>(spec: &Spec, args: &'a [PWord], spans: &[Span]) -> Split<'
                 if *key != '_' {
                     sp.values.push((*key, value, span_of(at)));
                 }
-            } else if spec.lb.contains(&name) && !eq && !rest_parts {
-                // understood flag
-            } else {
+            } else if !(spec.lb.contains(&name) && !eq) {
                 sp.unknown = true;
             }
-            continue;
-        }
-        // Short cluster.
-        let letters = &head[1..];
-        let mut consumed_all = true;
-        for (idx, c) in letters.char_indices() {
-            let after = 1 + idx + c.len_utf8();
-            if spec.sv.contains(c) {
-                let attached = word_after(a, after);
-                let value = if !attached.parts.is_empty() {
-                    attached
-                } else if i < args.len() {
-                    i += 1;
-                    args[i - 1].clone()
+        } else {
+            for (idx, c) in head[1..].char_indices() {
+                let after = 1 + idx + c.len_utf8();
+                if spec.sv.contains(c) {
+                    let attached = word_after(a, after);
+                    let value = if !attached.parts.is_empty() {
+                        attached_used = true;
+                        attached
+                    } else if i < args.len() {
+                        i += 1;
+                        args[i - 1].clone()
+                    } else {
+                        sp.unknown = true;
+                        PWord::literal("")
+                    };
+                    sp.values.push((c, value, span_of(at)));
+                    break;
+                } else if c == 'i' && spec.lb.contains(&"in-place") {
+                    // sed -i[SUFFIX]: the rest of the word is the suffix.
+                    break;
+                } else if spec.sb.contains(c) || (spec.digits && c.is_ascii_digit()) {
+                    continue;
                 } else {
                     sp.unknown = true;
-                    PWord::literal("")
-                };
-                sp.values.push((c, value, span_of(at)));
-                consumed_all = true;
-                break;
-            } else if c == 'i' && spec.lb.contains(&"in-place") {
-                // sed -i[SUFFIX]: the rest of the word is the suffix.
-                break;
-            } else if spec.sb.contains(c) || (spec.digits && c.is_ascii_digit()) {
-                consumed_all = true;
-            } else {
-                sp.unknown = true;
-                consumed_all = false;
-                break;
+                    break;
+                }
             }
         }
-        if consumed_all && rest_parts && !spec.sv.chars().any(|c| letters.contains(c)) && !letters.contains('i') {
-            // `-n$X`: flags followed by an expansion we cannot classify.
+        // Any expansion in an option word that was not taken as a value may
+        // change what the option is.
+        let value_has_expansion = attached_used;
+        if nonlit && !value_has_expansion {
             sp.unknown = true;
+            sp.opaque = true;
         }
     }
     sp
@@ -354,4 +388,22 @@ pub fn rm_danger(w: &PWord) -> Option<String> {
     }
     danger_of(&prefix)
         .map(|why| format!("is a glob directly under a path that {why}"))
+}
+
+/// A sed script with a `w`/`W`/`e` command or an `s` flag of `w` or `e`: it
+/// writes files or runs commands beyond what the arguments name.
+pub fn sed_script_acts(script: &str) -> bool {
+    script.split(['\n', ';']).any(|cmd| {
+        let cmd = cmd.trim_start();
+        if cmd.starts_with(['w', 'W', 'e']) {
+            return true;
+        }
+        match cmd.strip_prefix('s').and_then(|r| r.chars().next().map(|d| (d, r))) {
+            Some((d, r)) => {
+                let flags = r[d.len_utf8()..].rsplit(d).next().unwrap_or("");
+                r.matches(d).count() >= 3 && flags.chars().any(|c| c == 'w' || c == 'e')
+            }
+            None => false,
+        }
+    })
 }
