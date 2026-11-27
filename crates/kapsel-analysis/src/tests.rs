@@ -106,7 +106,8 @@ fn s002_planted_sort_same_input() {
     let src = "cat nums | sort -n > a\ncat nums | sort > b\n";
     let f = rule(src, KS_S002);
     assert_eq!(f.len(), 1, "{f:#?}");
-    assert_eq!(text(src, f[0].related[0].span), "sort -n > a");
+    assert_eq!(text(src, f[0].related[0].span), "sort -n");
+    assert_eq!(text(src, f[0].span), "sort");
     assert!(f[0].message.contains("no flags"));
 }
 
@@ -200,4 +201,26 @@ fn findings_are_deterministic() {
     assert_eq!(a, run(src));
     let ids: Vec<&str> = a.iter().map(|f| f.rule.as_str()).collect();
     assert_eq!(ids, [KS_S002, KS_S003, KS_S005]);
+}
+
+// ---- Work bounds --------------------------------------------------------
+
+#[test]
+fn large_script_and_session_stay_bounded() {
+    // 6000 commands in a script and 3000 in a session. With O(n²)
+    // comparisons this is tens of millions of pairs per rule; with the caps
+    // it is bounded by n * MAX_* and finishes quickly even in a debug build.
+    let mut src = String::new();
+    for i in 0..1500 {
+        src.push_str(&format!(
+            "echo x > out/f{i:05}.txt\ncat out/f{i:05}.txx\nsort -n out/f{i:05}.txt\nrm out/g{i:05}.txt\n"
+        ));
+    }
+    let t = std::time::Instant::now();
+    let f = run(&src);
+    assert!(f.iter().any(|f| f.rule == KS_S003));
+    let cmds: Vec<String> = (0..3000).map(|i| format!("cat in{}.txt", i % 7)).collect();
+    let (_, s) = session(&cmds.iter().map(|c| (c.as_str(), Some(1))).collect::<Vec<_>>());
+    assert!(s.iter().any(|f| f.finding.rule == KS_S001));
+    assert!(t.elapsed() < std::time::Duration::from_secs(30), "took {:?}", t.elapsed());
 }

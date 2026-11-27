@@ -1,0 +1,15 @@
+# kapsel-diag golden `ks-r005`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+set +e
+cat a.txt
+--- output
+error[KS-R005]: `set` changes shell options and is not a kapsel built-in
+ --> script.sh:1:1
+  |
+1 | set +e
+  | ^^^^^^
+  |
+  = help: remove it; kapsel has no implicit `set -e`, so handle failures with `&&` and `||`
+
+error: refused: 1 error

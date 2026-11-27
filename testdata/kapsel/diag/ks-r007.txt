@@ -1,0 +1,14 @@
+# kapsel-diag golden `ks-r007`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+nohup sleep 100
+--- output
+error[KS-R007]: `nohup` starts work that outlives the session
+ --> -c:1:1
+  |
+1 | nohup sleep 100
+  | ^^^^^
+  |
+  = help: run `sleep 100` in the foreground so its status is part of the plan
+
+error: refused: 1 error

@@ -95,6 +95,8 @@ pub struct CommandShape {
     /// Upstream stage key when this command reads a pipe.
     pub upstream: Option<String>,
     pub span: Span,
+    /// Span of the command name (the whole command when it has none).
+    pub tool_span: Span,
     /// Canonical identity: equal keys mean the same command up to quoting,
     /// whitespace and flag order.
     pub key: String,
@@ -312,6 +314,7 @@ fn walk_pipeline(
                     item,
                     upstream: None,
                     span: f.span,
+                    tool_span: f.span,
                     key: key.clone(),
                 });
                 for l in &f.body {
@@ -618,6 +621,7 @@ fn simple_shape(
         item,
         upstream,
         span: sc.span,
+        tool_span: name_word.map(|w| w.span).unwrap_or(sc.span),
         key,
     }
 }

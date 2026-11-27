@@ -1,0 +1,21 @@
+# kapsel-diag golden `ks-s001`. Regenerate with KAPSEL_BLESS=1.
+# file: history
+--- input
+grep -n foo missing.txt
+ls
+grep -n 'foo' missing.txt
+--- output
+warning[KS-S001]: retry without change: this command failed with exit status 2 and is run again as it was
+ --> history:3:1
+  |
+1 | grep -n foo missing.txt
+  | ----------------------- failed here with exit status 2
+2 | ls
+3 | grep -n 'foo' missing.txt
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: it differs from the failed run only in quoting, whitespace or flag order, which does not change what runs
+  = note: nothing that ran in between writes a file it reads, changes directory or sets a variable it uses
+  = help: it failed the same way before; change the input or read the error
+
+warning: 1 warning emitted

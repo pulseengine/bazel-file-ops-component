@@ -1,0 +1,20 @@
+# kapsel-diag golden `heredoc-span`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+cat <<EOF > notes.txt
+built on `date`
+by $USER
+EOF
+--- output
+error[KS-R000]: backquote command substitution is outside kapsel's subset, also inside a heredoc
+ --> script.sh:2:10
+  |
+1 | cat <<EOF > notes.txt
+  |     ----- heredoc starts here
+2 | built on `date`
+  |          ^^^^^^
+  |
+  = note: construct: backquote
+  = help: use $(date); heredoc bodies expand $(...) the same way
+
+error: refused: 1 error

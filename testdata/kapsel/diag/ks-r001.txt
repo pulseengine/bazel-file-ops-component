@@ -1,0 +1,17 @@
+# kapsel-diag golden `ks-r001`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+false || true
+--- output
+error[KS-R001]: `|| true` discards the exit status of `false`
+ --> -c:1:7
+  |
+1 | false || true
+  | ----- ^^^^^^^
+  | |
+  | this command's failure is thrown away
+  |
+  = note: a failure turned into success cannot stop the script or reach the caller
+  = help: handle the failure instead: `false || echo "false failed" >&2`
+
+error: refused: 1 error

@@ -1,0 +1,15 @@
+# kapsel-diag golden `ks-r003`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+rm -rf $BUILD/
+--- output
+error[KS-R003]: `rm -rf` path begins with an unquoted expansion that may be empty
+ --> -c:1:8
+  |
+1 | rm -rf $BUILD/
+  |        ^^^^^^^
+  |
+  = note: with BUILD unset or empty this is `rm -rf /`
+  = help: name the directory, or check and quote it: `test -n "$BUILD" && rm -rf "$BUILD"`
+
+error: refused: 1 error

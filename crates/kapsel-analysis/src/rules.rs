@@ -22,6 +22,20 @@ pub const RULES: &[(&str, Severity)] = &[
     (KS_S005, Severity::Refuse),
 ];
 
+/// Work bounds. The rules compare commands pairwise only within a bucket
+/// (same tool, same line key, or candidate paths) and only over a bounded
+/// window, so a script or session of n commands costs O(n * bound), never
+/// O(n²).
+///
+/// KS-S002 compares a command with at most this many earlier uses of the
+/// same tool.
+pub const MAX_BUCKET: usize = 64;
+/// KS-S001 and KS-S004 look back at most this many commands or lines.
+pub const MAX_LOOKBACK: usize = 256;
+/// KS-S003 and KS-S005 compare a path with at most this many distinct
+/// candidate paths (the most recent written ones; the most used ones).
+pub const MAX_CANDIDATES: usize = 1024;
+
 fn excerpt(source: &str, span: Span) -> String {
     source.get(span.start as usize..span.end as usize).unwrap_or("").to_string()
 }
@@ -143,12 +157,19 @@ fn show(set: &BTreeSet<String>) -> String {
 }
 
 fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<Finding>) {
+    let mut by_tool: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for (j, later) in shapes.iter().enumerate() {
         let Some(tool) = later.tool() else { continue };
         if matches!(tool, "echo" | "printf" | "test" | "[" | "export" | "exit") {
             continue;
         }
-        let earlier = shapes[..j].iter().filter(|s| s.tool() == Some(tool));
+        // Bucketed by tool; only the last MAX_BUCKET uses of the tool are
+        // compared, so the work is O(n * MAX_BUCKET).
+        let bucket = by_tool.entry(tool).or_default();
+        let from = bucket.len().saturating_sub(MAX_BUCKET);
+        let earlier_idx: Vec<usize> = bucket[from..].to_vec();
+        bucket.push(j);
+        let earlier = earlier_idx.iter().map(|&i| &shapes[i]);
         // (a) the same flag spelled two ways.
         let mut hit = false;
         'spell: for e in earlier.clone() {
@@ -204,7 +225,9 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
             if only_here.len() + only_there.len() > 2 {
                 continue;
             }
-            let span = later.flags.first().map(|f| f.span).unwrap_or(later.span);
+            // Underline the tool name and its flags, not the redirects.
+            let end_of = |s: &CommandShape| s.flags.iter().map(|f| f.span.end).max().unwrap_or(s.tool_span.end);
+            let span = Span::new(later.tool_span.start, end_of(later));
             let mut f = finding(
                 source,
                 KS_S002,
@@ -216,10 +239,10 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
                     show(&ef)
                 ),
             );
-            f.related.push(related(e.span, format!("`{tool}` with {} here", show(&ef))));
+            f.related.push(related(Span::new(e.tool_span.start, end_of(e)), format!("`{tool}` with {} here", show(&ef))));
+            let earlier_form = std::iter::once(tool.to_string()).chain(ef.iter().cloned()).collect::<Vec<_>>().join(" ");
             f.help = Some(format!(
-                "if both should give the same result, use the same flags in both places (e.g. `{}`); if they differ on purpose, give them different inputs or outputs",
-                excerpt(source, later.span)
+                "if both should give the same result, write `{earlier_form}` in both places; if they differ on purpose, make that visible with different outputs or a comment"
             ));
             f.notes.push(format!("only here: {}; only there: {}", show(&only_here), show(&only_there)));
             out.push(f);
@@ -236,17 +259,25 @@ fn s003_near_miss_path(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
         .map(|p| p.path.as_str())
         .collect();
     let mut reported = BTreeSet::new();
-    for (j, s) in shapes.iter().enumerate() {
+    // Distinct paths written so far, first write of each, in write order.
+    let mut written: Vec<&crate::shape::PathUse> = Vec::new();
+    let mut written_set: BTreeSet<&str> = BTreeSet::new();
+    for s in shapes {
         for r in &s.reads {
-            // Seen: the path itself, or a directory holding a seen path.
-            let is_seen = seen.iter().any(|p| *p == r.path || p.starts_with(&format!("{}/", r.path)));
+            // Seen: the path itself, or a directory holding a seen path
+            // (a range query, not a scan).
+            let dir = format!("{}/", r.path);
+            let is_seen = seen.contains(r.path.as_str())
+                || seen.range::<str, _>((std::ops::Bound::Included(dir.as_str()), std::ops::Bound::Unbounded)).next().is_some_and(|p| p.starts_with(&dir));
             if is_seen || reported.contains(&r.path) {
                 continue;
             }
-            // Candidates: paths written before this command, other than the
-            // read path's own directories.
+            // Candidates: the most recent MAX_CANDIDATES distinct paths
+            // written before this command, other than the read path's own
+            // directories.
             let mut best: Option<(usize, usize, &crate::shape::PathUse)> = None;
-            for (i, w) in shapes[..j].iter().enumerate().flat_map(|(i, e)| e.writes.iter().map(move |w| (i, w))) {
+            let from = written.len().saturating_sub(MAX_CANDIDATES);
+            for (i, w) in written.iter().enumerate().skip(from) {
                 if path_related(&r.path, &w.path) {
                     continue;
                 }
@@ -273,6 +304,11 @@ fn s003_near_miss_path(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
             ));
             out.push(f);
         }
+        for w in &s.writes {
+            if written_set.insert(w.path.as_str()) {
+                written.push(w);
+            }
+        }
     }
 }
 
@@ -291,25 +327,21 @@ fn line_of(source: &str, offset: u32) -> usize {
 fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Finding>) {
     let items = items(shapes);
     let list: Vec<(usize, &Vec<&CommandShape>)> = items.iter().map(|(k, v)| (*k, v)).collect();
+    // Bucketed by line key: the nearest earlier identical line is a lookup.
+    let mut last_by_key: BTreeMap<String, usize> = BTreeMap::new();
     for (b, (_, later)) in list.iter().enumerate() {
+        let key = line_key(later);
+        let prev = last_by_key.insert(key, b);
         if later.iter().any(|s| s.mutates() || s.tool().is_none()) || later.iter().all(|s| output_only(s.tool())) {
             continue;
         }
-        let key = line_key(later);
-        let inp = inputs(later.iter().copied());
-        // Nearest earlier identical line with nothing in between that may
-        // change the result.
-        for a in (0..b).rev() {
+        // The nearest earlier identical line within MAX_LOOKBACK, with
+        // nothing in between that may change the result.
+        if let Some(a) = prev.filter(|&a| b - a <= MAX_LOOKBACK) {
             let (_, earlier) = list[a];
-            let between = list[a + 1..b].iter().flat_map(|(_, v)| v.iter());
-            if line_key(earlier) != key {
-                if between.clone().any(|s| may_change(s, &inp)) {
-                    break;
-                }
+            let inp = inputs(later.iter().copied());
+            if list[a + 1..b].iter().flat_map(|(_, v)| v.iter()).any(|s| may_change(s, &inp)) {
                 continue;
-            }
-            if between.clone().any(|s| may_change(s, &inp)) {
-                break;
             }
             let span = line_span(later);
             let first = line_span(earlier);
@@ -327,7 +359,6 @@ fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
             f.help = Some("remove the repeat, or save the first result (`> file`) and reuse it".into());
             f.notes.push("note-level: a repeat is harmless but usually a copy-paste slip".into());
             out.push(f);
-            break;
         }
     }
 }
@@ -349,6 +380,11 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
             }
         }
     }
+    // Candidates: paths used by at least 2 commands, most used first,
+    // at most MAX_CANDIDATES of them.
+    let mut heavy: Vec<(&String, &(BTreeSet<usize>, Span))> = uses.iter().filter(|(_, (set, _))| set.len() >= 2).collect();
+    heavy.sort_by(|a, b| (std::cmp::Reverse(a.1.0.len()), a.0).cmp(&(std::cmp::Reverse(b.1.0.len()), b.0)));
+    heavy.truncate(MAX_CANDIDATES);
     for (r, s) in shapes.iter().enumerate() {
         if !matches!(s.tool(), Some("rm" | "mv")) {
             continue;
@@ -360,8 +396,8 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
                 continue;
             }
             let mut best: Option<(usize, usize, &String, Span)> = None;
-            for (u, (set, first)) in &uses {
-                let n = set.iter().filter(|&&i| i != r).count();
+            for &(u, (set, first)) in &heavy {
+                let n = set.len() - usize::from(set.contains(&r));
                 if n < 2 {
                     continue;
                 }
@@ -446,6 +482,7 @@ fn shifted(shapes: &[CommandShape], by: u32, item: usize) -> Vec<CommandShape> {
         .map(|s| {
             let mut s = s.clone();
             s.span = shift(s.span, by);
+            s.tool_span = shift(s.tool_span, by);
             for f in &mut s.flags {
                 f.span = shift(f.span, by);
             }
@@ -481,24 +518,27 @@ pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'
         .iter()
         .map(|e| line_key(&e.shapes.iter().collect::<Vec<_>>()))
         .collect();
+    // Bucketed by key: entry indices per key, in order.
+    let mut by_key: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for j in 0..entries.len() {
-        if entries[j].shapes.is_empty() {
+        let earlier_same: Vec<usize> = by_key.get(keys[j].as_str()).cloned().unwrap_or_default();
+        by_key.entry(keys[j].as_str()).or_default().push(j);
+        if entries[j].shapes.is_empty() || earlier_same.is_empty() {
             continue;
         }
         let inp = inputs(entries[j].shapes);
-        for i in (0..j).rev() {
-            let ei = &entries[i];
-            let between_changes = entries[i + 1..j]
-                .iter()
-                .filter(|e| e.status.is_some())
-                .flat_map(|e| e.shapes.iter())
-                .any(|s| may_change(s, &inp));
-            if between_changes {
+        // The window: at most MAX_LOOKBACK entries back, and not past the
+        // latest entry that ran and may have changed the inputs.
+        let floor = j.saturating_sub(MAX_LOOKBACK);
+        let last_change = (floor..j)
+            .rev()
+            .find(|&k| entries[k].status.is_some() && entries[k].shapes.iter().any(|s| may_change(s, &inp)))
+            .unwrap_or(floor);
+        for &i in earlier_same.iter().rev() {
+            if i < last_change {
                 break;
             }
-            if keys[i] != keys[j] {
-                continue;
-            }
+            let ei = &entries[i];
             let status = match ei.status {
                 // Refused: it never ran, so it says nothing about the retry.
                 None => continue,

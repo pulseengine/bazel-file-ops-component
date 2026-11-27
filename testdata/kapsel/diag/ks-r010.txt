@@ -1,0 +1,14 @@
+# kapsel-diag golden `ks-r010`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+$CMD --version
+--- output
+error[KS-R010]: the command name comes from `$CMD`, so the check stage cannot tell what runs
+ --> -c:1:1
+  |
+1 | $CMD --version
+  | ^^^^
+  |
+  = help: write the command name literally
+
+error: refused: 1 error
