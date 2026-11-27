@@ -51,13 +51,16 @@ struct Outcome {
     files: BTreeMap<String, Vec<u8>>,
 }
 
-fn run(program: &Path, script: &Path, cwd: &Path) -> Outcome {
+fn run(program: &Path, script: &Path, cwd: &Path, home: &Path) -> Outcome {
+    // kapsel keeps its signing key and module cache under KAPSEL_HOME, outside
+    // the compared scratch directory.
     let out = Command::new(program)
         .arg(script)
         .current_dir(cwd)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("LC_ALL", "C")
+        .env("KAPSEL_HOME", home)
         .output()
         .unwrap_or_else(|e| panic!("running {}: {e}", program.display()));
     Outcome {
@@ -87,8 +90,9 @@ fn corpus_agrees_with_dash() {
     let mut mismatches = Vec::new();
     for script in &scripts {
         let name = script.file_stem().unwrap().to_string_lossy().into_owned();
-        let dash = run(Path::new("/bin/dash"), script, &scratch(&name, "dash"));
-        let kapsel = run(&bin, script, &scratch(&name, "kapsel"));
+        let home = scratch(&name, "home");
+        let dash = run(Path::new("/bin/dash"), script, &scratch(&name, "dash"), &home);
+        let kapsel = run(&bin, script, &scratch(&name, "kapsel"), &home);
         let mut diffs = Vec::new();
         if dash.stdout != kapsel.stdout {
             diffs.push(format!("stdout\n  dash:   {:?}\n  kapsel: {:?}", dash.stdout, kapsel.stdout));
