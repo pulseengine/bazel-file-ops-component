@@ -1,0 +1,35 @@
+# kapsel-diag golden `multi-error`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+false || true
+jq . a.json
+head -5 a.log
+head -n 5 b.log
+--- output
+error[KS-R001]: `|| true` discards the exit status of `false`
+ --> script.sh:1:7
+  |
+1 | false || true
+  |       ^^^^^^^
+  |
+  = help: handle the failure instead: `false || echo "false failed" >&2`
+
+error[KS-R009]: `jq` is not a kapsel built-in
+ --> script.sh:2:1
+  |
+2 | jq . a.json
+  | ^^
+  |
+  = help: use a built-in (grep, sed, cut), or run `jq` outside kapsel until v0.5
+
+warning[KS-S002]: inconsistent flags for `head`: `-n 5` here, `-5` earlier in the script for the same option
+ --> script.sh:4:6
+  |
+3 | head -5 a.log
+  |      -- spelled `-5` here
+4 | head -n 5 b.log
+  |      ^^^^
+  |
+  = help: use one spelling throughout; `head -n 5` is the POSIX form
+
+error: refused: 2 errors, 1 warning

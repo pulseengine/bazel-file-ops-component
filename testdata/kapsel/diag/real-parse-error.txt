@@ -1,0 +1,25 @@
+# kapsel-diag golden `real-parse-error`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+echo `date`
+(cd sub && ls)
+--- output
+error[KS-R000]: `backquote` is outside kapsel's shell subset and is refused: backquote: backquote command substitution is not in kapsel's shell subset
+ --> script.sh:1:6
+  |
+1 | echo `date`
+  |      ^^^^^^
+  |
+  = note: kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)
+  = help: use $(...)
+
+error[KS-R000]: `subshell` is outside kapsel's shell subset and is refused: subshell: subshells `( ... )` are not in kapsel's shell subset
+ --> script.sh:2:1
+  |
+2 | (cd sub && ls)
+  | ^^^^^^^^^^^^^^
+  |
+  = note: kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)
+  = help: write the commands without the parentheses; `cd dir && cmd` keeps a cd scoped to one line
+
+error: refused: 2 errors

@@ -1,0 +1,98 @@
+# kapsel-diag golden `multi-error-json`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+false || true
+jq . a.json
+head -5 a.log
+head -n 5 b.log
+--- output
+{
+  "schema": "kapsel.diag.v0",
+  "file": "script.sh",
+  "errors": 2,
+  "warnings": 1,
+  "diagnostics": [
+    {
+      "rule": "KS-R001",
+      "level": "error",
+      "severity": "refuse",
+      "message": "`|| true` discards the exit status of `false`",
+      "span": {
+        "start": 6,
+        "end": 13
+      },
+      "start": {
+        "line": 1,
+        "col": 7
+      },
+      "end": {
+        "line": 1,
+        "col": 14
+      },
+      "excerpt": "|| true",
+      "help": "handle the failure instead: `false || echo \"false failed\" >&2`",
+      "notes": [],
+      "related": []
+    },
+    {
+      "rule": "KS-R009",
+      "level": "error",
+      "severity": "refuse",
+      "message": "`jq` is not a kapsel built-in",
+      "span": {
+        "start": 14,
+        "end": 16
+      },
+      "start": {
+        "line": 2,
+        "col": 1
+      },
+      "end": {
+        "line": 2,
+        "col": 3
+      },
+      "excerpt": "jq",
+      "help": "use a built-in (grep, sed, cut), or run `jq` outside kapsel until v0.5",
+      "notes": [],
+      "related": []
+    },
+    {
+      "rule": "KS-S002",
+      "level": "warning",
+      "severity": "warn",
+      "message": "inconsistent flags for `head`: `-n 5` here, `-5` earlier in the script for the same option",
+      "span": {
+        "start": 45,
+        "end": 49
+      },
+      "start": {
+        "line": 4,
+        "col": 6
+      },
+      "end": {
+        "line": 4,
+        "col": 10
+      },
+      "excerpt": "-n 5",
+      "help": "use one spelling throughout; `head -n 5` is the POSIX form",
+      "notes": [],
+      "related": [
+        {
+          "label": "spelled `-5` here",
+          "span": {
+            "start": 31,
+            "end": 33
+          },
+          "start": {
+            "line": 3,
+            "col": 6
+          },
+          "end": {
+            "line": 3,
+            "col": 8
+          }
+        }
+      ]
+    }
+  ]
+}

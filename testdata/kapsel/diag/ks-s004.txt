@@ -1,0 +1,20 @@
+# kapsel-diag golden `ks-s004`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+wc -l data.txt
+grep -c x data.txt
+wc -l data.txt
+--- output
+warning[KS-S004]: duplicated command: this repeats line 1 and nothing in between can change its result
+ --> script.sh:3:1
+  |
+1 | wc -l data.txt
+  | -------------- first run here
+2 | grep -c x data.txt
+3 | wc -l data.txt
+  | ^^^^^^^^^^^^^^
+  |
+  = note: note-level: a repeat is harmless but usually a copy-paste slip
+  = help: remove the repeat, or save the first result (`> file`) and reuse it
+
+warning: 1 warning emitted

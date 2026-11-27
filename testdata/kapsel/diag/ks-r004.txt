@@ -1,0 +1,15 @@
+# kapsel-diag golden `ks-r004`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+CMD='rm out.txt'
+eval "$CMD"
+--- output
+error[KS-R004]: `eval` runs code from a string, which the check stage cannot see
+ --> script.sh:2:1
+  |
+2 | eval "$CMD"
+  | ^^^^^^^^^^^
+  |
+  = help: write the command directly: `rm out.txt`
+
+error: refused: 1 error

@@ -1,0 +1,14 @@
+# kapsel-diag golden `ks-r008`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+pkill node
+--- output
+error[KS-R008]: `pkill` kills by name pattern and can hit processes you did not start
+ --> -c:1:1
+  |
+1 | pkill node
+  | ^^^^^^^^^^
+  |
+  = help: kill the specific PID you started instead
+
+error: refused: 1 error

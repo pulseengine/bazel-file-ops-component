@@ -1,0 +1,17 @@
+# kapsel-diag golden `end-of-input`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+echo "hello
+--- output
+error[KS-R000]: unterminated double quote
+ --> -c:1:12
+  |
+1 | echo "hello
+  |      -     ^ expected `"`
+  |      |
+  |      quote opened here
+  |
+  = note: expected `"`, found end of input
+  = help: close the quote opened at column 6: `echo "hello"`
+
+error: refused: 1 error

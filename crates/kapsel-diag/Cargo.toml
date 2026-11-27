@@ -1,0 +1,20 @@
+[package]
+name = "kapsel-diag"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rustc-style rendering, JSON output and long-form explanations for kapsel findings"
+
+[dependencies]
+kapsel-ast.workspace = true
+kapsel-plan.workspace = true
+annotate-snippets.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+kapsel-analysis = { workspace = true, features = ["testkit"] }
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true

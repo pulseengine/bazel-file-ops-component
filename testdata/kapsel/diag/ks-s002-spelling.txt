@@ -1,0 +1,17 @@
+# kapsel-diag golden `ks-s002-spelling`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+head -5 access.log
+head -n 5 error.log
+--- output
+warning[KS-S002]: inconsistent flags for `head`: `-n 5` here, `-5` earlier in the script for the same option
+ --> script.sh:2:6
+  |
+1 | head -5 access.log
+  |      -- spelled `-5` here
+2 | head -n 5 error.log
+  |      ^^^^
+  |
+  = help: use one spelling throughout; `head -n 5` is the POSIX form
+
+warning: 1 warning emitted

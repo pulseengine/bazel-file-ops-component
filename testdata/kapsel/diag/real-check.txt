@@ -1,0 +1,35 @@
+# kapsel-diag golden `real-check`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+false || true
+cat missing.txt | sort
+jq . a.json
+--- output
+error[KS-R001]: `|| true` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`
+ --> script.sh:1:7
+  |
+1 | false || true
+  |       ^^^^^^^
+  |
+  = note: `|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)
+  = help: handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| true`
+
+warning[KS-R016]: `cat missing.txt` reads a path that may not exist in a pipeline stage that is not the last, so a failure here cannot change the pipeline's status
+ --> script.sh:2:5
+  |
+2 | cat missing.txt | sort
+  |     ^^^^^^^^^^^
+  |
+  = note: the status of a pipeline is its last stage, so a missing path in an earlier stage prints an error and still exits 0 (187 measured)
+  = help: test the path first (`[ -e missing.txt ] &&`) or make it the last stage
+
+error[KS-R009]: `jq` is not a kapsel built-in and is refused; native tools arrive in v0.5 (REQ-KS-030)
+ --> script.sh:3:1
+  |
+3 | jq . a.json
+  | ^^
+  |
+  = note: every command is compiled to a WASM component and run in a sandbox; programs outside the built-in list need native tools, planned for v0.5 (REQ-KS-030)
+  = help: use one of the built-ins (:, true, false, cd, export, exit, test, [, pwd, cat, echo, printf, head, tail, wc, ls, mkdir, cp, mv, rm, grep, sed, sort, uniq, cut, tr, tee, date, seq, sleep), or wait for native tools in v0.5 (REQ-KS-030)
+
+error: refused: 2 errors, 1 warning
