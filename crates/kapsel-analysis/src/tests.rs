@@ -203,6 +203,31 @@ fn findings_are_deterministic() {
     assert_eq!(ids, [KS_S002, KS_S003, KS_S005]);
 }
 
+// ---- The real parser agrees with the fixture parser ----------------------
+
+#[test]
+fn real_parser_gives_the_same_findings() {
+    let planted = [
+        "head -5 a.txt\nhead -n 5 b.txt\n",
+        "grep -r foo src\ngrep -R bar src\n",
+        "cat nums | sort -n > a\ncat nums | sort > b\n",
+        "mkdir -p out\necho hi > out/a.txt\ncat out/a.text\n",
+        "wc -l data.txt\ngrep x data.txt\nwc -l data.txt\n",
+        "mkdir -p results\necho a > results/a.txt\ncat results/a.txt\nrm -r reslts\n",
+        "for f in a b; do cat $f; done\necho $(ls out) > list.txt\ncat list.txt\n",
+    ];
+    for src in planted {
+        let real = kapsel_syntax::parse(src).unwrap_or_else(|e| panic!("{src:?}: {e:?}"));
+        let a: Vec<String> = shapes(src, &parse(src)).into_iter().map(|s| s.key).collect();
+        let b: Vec<String> = shapes(src, &real).into_iter().map(|s| s.key).collect();
+        assert_eq!(a, b, "shape keys differ for {src:?}");
+        let fa: Vec<(String, kapsel_plan::Span)> = run(src).into_iter().map(|f| (f.rule, f.span)).collect();
+        let fb: Vec<(String, kapsel_plan::Span)> =
+            analyze_script(src, &real).into_iter().map(|f| (f.rule, f.span)).collect();
+        assert_eq!(fa, fb, "findings differ for {src:?}");
+    }
+}
+
 // ---- Work bounds --------------------------------------------------------
 
 #[test]

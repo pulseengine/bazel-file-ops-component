@@ -5,7 +5,7 @@
 /// Every rule id with an explanation, in order.
 pub const RULE_IDS: &[&str] = &[
     "KS-R000", "KS-R001", "KS-R002", "KS-R003", "KS-R004", "KS-R005", "KS-R006", "KS-R007", "KS-R008", "KS-R009",
-    "KS-R010", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
+    "KS-R010", "KS-R011", "KS-R012", "KS-R013", "KS-R014", "KS-R015", "KS-R016", "KS-R017", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
 ];
 
 /// The long-form explanation of `rule_id`, or `None` for an unknown id.
@@ -24,6 +24,13 @@ pub fn explain(rule_id: &str) -> Option<&'static str> {
         "KS-R008" => R008,
         "KS-R009" => R009,
         "KS-R010" => R010,
+        "KS-R011" => R011,
+        "KS-R012" => R012,
+        "KS-R013" => R013,
+        "KS-R014" => R014,
+        "KS-R015" => R015,
+        "KS-R016" => R016,
+        "KS-R017" => R017,
         "KS-S001" => S001,
         "KS-S002" => S002,
         "KS-S003" => S003,
@@ -211,6 +218,103 @@ What to do instead:
 - Write the command name literally.
 - To choose between a few commands, use `test` with `&&`/`||`:
   `test \"$MODE\" = fast && sort a || sort -s a`.
+";
+
+const R011: &str = "\
+KS-R011: `|| echo` as the last step turns a failure into success (warn)
+
+`cmd || echo \"failed\"` prints a message and then exits 0, so the caller
+sees success. Two CI steps in kapsel#143 passed this way while the build or
+signature check had failed.
+
+    cosign verify ... || echo \"verify failed\"
+
+What to do instead:
+- Stop on failure: `cmd || { echo 'cmd failed' >&2; exit 1; }`.
+- Keep `|| echo` only when the message is the whole report and success
+  really is the right status.
+";
+
+const R012: &str = "\
+KS-R012: unquoted expansion in a redirect target (warn)
+
+`> $FILE` splits or globs when the value has spaces or wildcards, and shells
+differ on whether that is an error, so the output can go to the wrong file
+or nowhere.
+
+    echo hi > $OUT
+
+What to do instead:
+- Quote the target: `> \"$OUT\"`.
+";
+
+const R013: &str = "\
+KS-R013: unquoted operand in `test` / `[` (warn)
+
+`[ $n -eq 0 ]` with an empty `n` becomes `[ -eq 0 ]`, a syntax error that
+reads as false, so the wrong branch runs without any visible error.
+
+    [ $n -eq 0 ] && echo empty
+
+What to do instead:
+- Quote the operand: `[ \"$n\" -eq 0 ]`.
+";
+
+const R014: &str = "\
+KS-R014: `cd X; cmd` runs `cmd` in the old directory if `cd` fails (warn)
+
+After `;` the next command runs whatever the status of `cd`. If the
+directory is missing, `cmd` runs where you were, which matters most for
+`rm`, `mv` and writes.
+
+    cd build; rm -r *
+
+What to do instead:
+- Chain with `&&`: `cd build && rm -r *`, so the next command runs only if
+  the `cd` worked.
+";
+
+const R015: &str = "\
+KS-R015: unquoted glob inside an option value or a URL (warn)
+
+`--include=*.rs` and `https://x/issues?since=1` contain glob characters.
+Unquoted, the shell tries to expand them against files first; with no match
+the word fails or changes. It was the commonest single failure in measured
+agent shell calls (268 `no matches found`).
+
+    grep -r --include=*.rs foo src
+
+What to do instead:
+- Quote the word so the glob reaches the program: `--include='*.rs'`,
+  `'https://x/issues?since=1'`.
+";
+
+const R016: &str = "\
+KS-R016: an earlier pipeline stage's failure cannot change the status (warn)
+
+The status of a pipeline is its last stage's (no pipefail). If an earlier
+stage fails, for example because its input path is missing, it prints an
+error and the pipeline still exits 0 (187 measured).
+
+    cat missing.txt | sort
+
+What to do instead:
+- Test the path first: `[ -e missing.txt ] && cat missing.txt | sort`.
+- Or make the failing step the last stage, or give it the file directly:
+  `sort missing.txt`.
+";
+
+const R017: &str = "\
+KS-R017: a path that starts with a variable that may be empty (warn)
+
+`\"$DIR/x\"` with `DIR` unset or empty is `/x`: the command silently works on
+the filesystem root instead of the intended directory (91 measured).
+
+    cp a.txt \"$DEST/a.txt\"
+
+What to do instead:
+- Check it first: `test -n \"$DEST\" && cp a.txt \"$DEST/a.txt\"`.
+- Or use a literal relative path.
 ";
 
 const S001: &str = "\

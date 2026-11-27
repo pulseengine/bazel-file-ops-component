@@ -281,10 +281,10 @@ fn s003_near_miss_path(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
                 if path_related(&r.path, &w.path) {
                     continue;
                 }
-                if let Some(d) = near_miss(&r.path, &w.path) {
-                    if best.is_none_or(|(bd, bi, _)| (d, i) < (bd, bi)) {
-                        best = Some((d, i, w));
-                    }
+                if let Some(d) = near_miss(&r.path, &w.path)
+                    && best.is_none_or(|(bd, bi, _)| (d, i) < (bd, bi))
+                {
+                    best = Some((d, i, w));
                 }
             }
             let Some((d, _, w)) = best else { continue };

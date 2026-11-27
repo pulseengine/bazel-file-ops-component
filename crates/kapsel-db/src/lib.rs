@@ -82,8 +82,8 @@ pub struct Session {
 
 /// Result of parsing one source file.
 ///
-/// TODO(ws/parser): add the lossless rowan green tree once
-/// `kapsel_syntax::parse_green(text) -> Parse { green, errors }` lands, as
+/// TODO(ws/parser): add the lossless rowan green tree from
+/// `kapsel_syntax::parse_green(text) -> Parse { green, errors }` (now merged), as
 /// spar's `ParseResult` does, and lower to the AST from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseOutcome {
@@ -129,7 +129,7 @@ pub fn shapes(db: &dyn Db, file: SourceFile) -> Arc<Vec<CommandShape>> {
 /// KS-S002..S005 within one file.
 #[salsa::tracked]
 pub fn script_findings(db: &dyn Db, file: SourceFile) -> Arc<Vec<Finding>> {
-    Arc::new(kapsel_analysis::analyze_shapes(file.text(db), &shapes(db, file)))
+    Arc::new(kapsel_analysis::analyze_shapes(file.text(db), shapes(db, file)))
 }
 
 /// The full check: the check stage plus the similar-command rules of this

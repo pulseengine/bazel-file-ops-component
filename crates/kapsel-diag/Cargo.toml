@@ -16,3 +16,5 @@ serde_json.workspace = true
 
 [dev-dependencies]
 kapsel-analysis = { workspace = true, features = ["testkit"] }
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true

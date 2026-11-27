@@ -357,3 +357,36 @@ fn out_of_range_span_does_not_panic() {
     let out = render_report(Source::new("-c", src), &[f], Options::default());
     assert!(out.contains("error[KS-R009]"));
 }
+
+// ---- The real parser and check stage ----------------------------------
+
+/// What `kapsel` prints once the CLI renders with kapsel-diag: the real
+/// parse and check outcome, rendered.
+fn real(src: &str) -> kapsel_plan::CheckOutcome {
+    match kapsel_syntax::parse(src) {
+        Ok(script) => kapsel_check::check(src, &script),
+        Err(errors) => kapsel_check::refuse_parse_errors(src, &errors),
+    }
+}
+
+#[test]
+fn real_check_outcome() {
+    let src = "false || true\ncat missing.txt | sort\njq . a.json\n";
+    let out = kapsel_diag::render_outcome(Source::new("script.sh", src), &real(src), Options::default());
+    golden("real-check", "script.sh", src, &out);
+}
+
+#[test]
+fn real_parse_error() {
+    let src = "echo `date`\n(cd sub && ls)\n";
+    let out = kapsel_diag::render_outcome(Source::new("script.sh", src), &real(src), Options::default());
+    golden("real-parse-error", "script.sh", src, &out);
+}
+
+#[test]
+fn every_check_rule_has_an_explanation() {
+    use kapsel_check::*;
+    for id in [R000, R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013, R014, R015, R016, R017] {
+        assert!(kapsel_diag::explain(id).is_some(), "{id} has no explanation");
+    }
+}

@@ -8,8 +8,9 @@
 //! `for NAME in ...; do ...; done`. It panics on anything else: it is a test
 //! fixture, not a parser.
 //!
-//! TODO(ws/parser): delete once `kapsel_syntax::parse` is implemented and the
-//! tests switch to it.
+//! `real_parser_gives_the_same_findings` checks that shapes and findings agree
+//! with `kapsel_syntax::parse` on the planted cases. TODO: move the remaining
+//! tests to the real parser and delete this module.
 
 use kapsel_ast::*;
 

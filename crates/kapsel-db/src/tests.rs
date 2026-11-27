@@ -153,3 +153,25 @@ fn refuse_level_similar_command_finding_refuses_the_plan() {
     assert_eq!(p.warnings[0].rule, "KS-S002");
     assert_eq!(&**compile(&db, ok).as_ref().unwrap(), b"len22");
 }
+
+/// The default frontend: kapsel_syntax, kapsel_check and kapsel_compile.
+#[test]
+fn default_frontend_runs_the_real_stages() {
+    let db = RootDatabase::default();
+    let ok = SourceFile::new(&db, "-c".into(), "mkdir -p out && echo hi > out/a.txt && cat out/a.txt".into());
+    assert!(parse(&db, ok).ok());
+    assert!(matches!(check(&db, ok), CheckOutcome::Plan(_)), "{:#?}", check(&db, ok));
+    let bytes = compile(&db, ok).as_ref().expect("compiles").clone();
+    assert!(bytes.starts_with(b"\0asm"));
+    // The memo is the module cache: the same Arc comes back.
+    assert!(Arc::ptr_eq(compile(&db, ok).as_ref().unwrap(), &bytes));
+
+    let src = "mkdir -p results\necho a > results/a.txt\ncat results/a.txt\nrm -r reslts\n";
+    let typo = SourceFile::new(&db, "s.sh".into(), src.into());
+    let CheckOutcome::Refused(r) = check(&db, typo) else { panic!("expected a refusal") };
+    assert!(r.findings.iter().any(|f| f.rule == "KS-S005"), "{r:#?}");
+
+    let bad = SourceFile::new(&db, "-c".into(), "false || true".into());
+    let CheckOutcome::Refused(r) = check(&db, bad) else { panic!("expected a refusal") };
+    assert_eq!(r.findings[0].rule, "KS-R001");
+}
