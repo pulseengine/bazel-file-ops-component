@@ -1,0 +1,66 @@
+[
+  {
+    "name": "rules-wasm-component-execroot-relative",
+    "from": "REQ-KS-017: file_ops_actions.bzl writes workspace_dir \".\" with File.path destinations",
+    "layouts": ["relative"],
+    "tree": {"files": {"bazel-out/bin/pkg/a.txt": "a\n", "bazel-out/bin/pkg/hdrs/h.h": "h\n", "bazel-out/bin/pkg/b.txt": "b\n"}},
+    "config": {"workspace_dir": ".", "operations": [
+      {"type": "copy_file", "src_path": "bazel-out/bin/pkg/a.txt", "dest_path": "bazel-out/bin/pkg/out/a.txt"},
+      {"type": "mkdir", "path": "bazel-out/bin/pkg/out/inc"},
+      {"type": "copy_directory_contents", "src_path": "bazel-out/bin/pkg/hdrs", "dest_path": "bazel-out/bin/pkg/out/inc"},
+      {"type": "concatenate_files", "sources": ["bazel-out/bin/pkg/a.txt", "bazel-out/bin/pkg/b.txt"], "dest_path": "bazel-out/bin/pkg/out/ab.txt"}
+    ]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses workspace_dir \".\" (must be an absolute path); the Rust component runs it."},
+    "expect_rust": {"code": 0, "exists": ["bazel-out/bin/pkg/out/a.txt", "bazel-out/bin/pkg/out/inc/h.h", "bazel-out/bin/pkg/out/ab.txt"]}
+  },
+  {
+    "name": "relative-destination-escape",
+    "layouts": ["relative"],
+    "tree": {"dirs": ["sub"]},
+    "config": {"workspace_dir": "sub", "operations": [{"type": "write_file", "path": "../escape.txt", "content": "x"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses a relative workspace_dir; the Rust component accepts it and refuses the escaping destination."},
+    "expect_rust": {"code": 1, "absent": ["escape.txt"], "stderr_contains": "resolves outside sub"}
+  },
+  {
+    "name": "relative-symlink-escape",
+    "layouts": ["relative"],
+    "tree": {"dirs": ["ws", "outside"], "symlinks": {"ws/link": "../outside"}},
+    "config": {"workspace_dir": "ws", "operations": [{"type": "write_file", "path": "link/f.txt", "content": "x"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses a relative workspace_dir; the Rust component refuses the destination through the symlink."},
+    "expect_rust": {"code": 1, "absent": ["outside/f.txt"], "stderr_contains": "resolves outside ws"}
+  },
+  {
+    "name": "relative-move-source-outside",
+    "layouts": ["relative"],
+    "tree": {"files": {"keep.txt": "k"}, "dirs": ["ws"]},
+    "config": {"workspace_dir": "ws", "operations": [{"type": "move_path", "src_path": "keep.txt", "dest_path": "moved.txt"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses a relative workspace_dir; the Rust component refuses a move source outside the workspace."},
+    "expect_rust": {"code": 1, "exists": ["keep.txt"], "absent": ["ws/moved.txt"], "stderr_contains": "src_path keep.txt resolves outside ws"}
+  },
+  {
+    "name": "relative-source-traversal",
+    "layouts": ["relative"],
+    "config": {"workspace_dir": ".", "operations": [{"type": "copy_file", "src_path": "../x", "dest_path": "y"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses workspace_dir \".\"; the Rust component refuses the source's .. component."},
+    "expect_rust": {"code": 1, "absent": ["y"], "stderr_contains": "path contains path traversal attempts: ../x"}
+  },
+  {
+    "name": "relative-unknown-operation",
+    "layouts": ["relative"],
+    "config": {"workspace_dir": ".", "operations": [{"type": "copy_file", "src_path": "a", "dest_path": "b"}, {"type": "copy_files"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses workspace_dir \".\" first; the Rust component fails on the unknown operation before anything runs."},
+    "expect_rust": {"code": 1, "stderr_contains": "operation 1: unknown operation type: copy_files"}
+  },
+  {
+    "name": "relative-dotdot-workspace",
+    "layouts": ["relative"],
+    "config": {"workspace_dir": "../up", "operations": [{"type": "mkdir", "path": "d"}]},
+    "allow": {"relative": "REQ-KS-017: TinyGo refuses a relative workspace_dir; the Rust component refuses its .. component."},
+    "expect_rust": {"code": 1, "absent": ["d"], "stderr_contains": "path traversal"}
+  },
+  {
+    "name": "absolute-workspace-in-relative-layout",
+    "layouts": ["relative"],
+    "config": {"workspace_dir": "/c/ws", "operations": [{"type": "write_file", "path": "a.txt", "content": "x"}]}
+  }
+]

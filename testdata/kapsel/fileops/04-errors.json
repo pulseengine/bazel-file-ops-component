@@ -1,0 +1,134 @@
+[
+  {
+    "name": "copy-missing-source",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/nope", "dest_path": "x"}]}
+  },
+  {
+    "name": "copy-source-is-directory",
+    "tree": {"dirs": ["src"]},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src", "dest_path": "x"}]}
+  },
+  {
+    "name": "copy-dest-under-a-file",
+    "tree": {"files": {"src.txt": "s", "ws/file": "f"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src.txt", "dest_path": "file/x"}]}
+  },
+  {
+    "name": "copy-directory-missing-source",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/nope", "dest_path": "d"}]}
+  },
+  {
+    "name": "copy-directory-source-is-file",
+    "tree": {"files": {"a.txt": "a"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/a.txt", "dest_path": "d"}]}
+  },
+  {
+    "name": "read-file-missing",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/nope"}]}
+  },
+  {
+    "name": "read-file-directory",
+    "tree": {"dirs": ["src"]},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src"}]},
+    "allow": {"*": "The TinyGo component crashes (panic: slice out of range in os.ReadFile, wasm trap, exit 134); the Rust component reports an error and exits 1."},
+    "expect_rust": {"code": 1, "stderr_contains": "failed to read file"}
+  },
+  {
+    "name": "concatenate-missing-source",
+    "tree": {"files": {"a.txt": "a"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": ["{W}/a.txt", "{W}/nope"], "dest_path": "cc"}]}
+  },
+  {
+    "name": "move-missing-source",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/nope", "dest_path": "mm"}]}
+  },
+  {
+    "name": "mkdir-over-a-file",
+    "tree": {"files": {"ws/file": "f"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "file"}]}
+  },
+  {
+    "name": "mkdir-under-a-file",
+    "tree": {"files": {"ws/file": "f"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "file/sub"}]}
+  },
+  {
+    "name": "write-to-workspace-root",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": ".", "content": "x"}]}
+  },
+  {
+    "name": "workspace-is-a-file",
+    "tree": {"files": {"ws": "not a dir"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "a"}]}
+  },
+  {
+    "name": "source-outside-every-preopen",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "/nopreopen/a", "dest_path": "x"}]}
+  },
+  {
+    "name": "run-command-bare-name",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "echo", "args": ["x"]}]}
+  },
+  {
+    "name": "run-command-path-no-dev",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "output_file": "o.txt"}]}
+  },
+  {
+    "name": "run-command-path-with-dev-output",
+    "dev": true,
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "output_file": "out/o.txt"}]}
+  },
+  {
+    "name": "run-command-path-with-dev-no-output",
+    "dev": true,
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "work_dir": "sub"}]}
+  },
+  {
+    "name": "run-command-quoted-name",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "we\"ird\tname"}]}
+  },
+  {
+    "name": "run-command-missing-command",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "args": ["x"]}]}
+  },
+  {
+    "name": "second-operation-fails",
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "write_file", "path": "first.txt", "content": "1"},
+      {"type": "copy_file", "src_path": "{W}/nope", "dest_path": "z"},
+      {"type": "write_file", "path": "third.txt", "content": "3"}
+    ]}
+  },
+  {
+    "name": "unknown-operation-after-valid-runs-nothing",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "a"}, {"type": "bogus"}]}
+  },
+  {
+    "name": "relative-source-under-absolute-workspace",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "src/a.txt", "dest_path": "a.txt"}]}
+  },
+  {
+    "name": "read-file-relative-path",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "a.txt"}]}
+  },
+  {
+    "name": "write-file-absolute-path",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "/abs.txt", "content": "x"}]}
+  },
+  {
+    "name": "concatenate-relative-source",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": ["{W}/a", "rel"], "dest_path": "o"}]}
+  },
+  {
+    "name": "concatenate-missing-dest",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": ["{W}/a"]}]}
+  },
+  {
+    "name": "move-missing-fields",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/a"}]}
+  },
+  {
+    "name": "append-missing-path",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "append_to_file", "content": "x"}]}
+  }
+]
