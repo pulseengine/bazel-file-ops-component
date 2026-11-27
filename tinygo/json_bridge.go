@@ -462,6 +462,11 @@ func executeJsonMovePath(op Operation, workspaceDir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A move removes its source, so unlike copy sources it must also resolve
+	// inside the workspace (owner decision 2026-11-27).
+	if err := requireWithin(workspaceDir, op.SrcPath, "src_path"); err != nil {
+		return nil, err
+	}
 
 	if err := MovePath(op.SrcPath, dest); err != nil {
 		return nil, err

@@ -145,6 +145,34 @@ func TestJsonDestinationsStayInWorkspace(t *testing.T) {
 	}
 }
 
+func TestJsonMoveSourceStaysInWorkspace(t *testing.T) {
+	tempDir := t.TempDir()
+	workspaceDir := filepath.Join(tempDir, "ws")
+	outside := filepath.Join(tempDir, "outside.txt")
+	if err := os.WriteFile(outside, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runConfig(t, workspaceDir, Operation{Type: "move_path", SrcPath: outside, DestPath: "moved.txt"})
+	if err == nil {
+		t.Error("move_path with a source outside the workspace succeeded")
+	}
+	if PathExists(outside) != PathFile {
+		t.Fatal("move_path removed a source outside the workspace")
+	}
+
+	inside := filepath.Join(workspaceDir, "in.txt")
+	if err := runConfig(t, workspaceDir,
+		Operation{Type: "write_file", Path: "in.txt", Content: "x"},
+		Operation{Type: "move_path", SrcPath: inside, DestPath: "moved.txt"},
+	); err != nil {
+		t.Fatalf("move_path inside the workspace rejected: %v", err)
+	}
+	if PathExists(filepath.Join(workspaceDir, "moved.txt")) != PathFile || PathExists(inside) != PathNotFound {
+		t.Error("move_path inside the workspace did not move the file")
+	}
+}
+
 func TestJsonDestinationThroughSymlinkRejected(t *testing.T) {
 	tempDir := t.TempDir()
 	workspaceDir := filepath.Join(tempDir, "ws")
