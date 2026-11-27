@@ -1,0 +1,363 @@
+artifacts:
+  - id: DD-KS-001
+    type: design-decision
+    title: "Confinement checks: Rel at a separator boundary, no raw '..', no writes through symlinks"
+    status: verified
+    release: v0.2.2
+    description: "How confinement is checked so that the checked path and the path used are the same."
+    fields:
+      decision: >
+        resolvePath (Abs plus EvalSymlinks, with not-yet-existing tails appended) feeds a
+        filepath.Rel comparison. requireWithin refuses a raw ".." component first, and
+        refuseSymlink runs before every write and directory creation.
+      rationale: >
+        Abs removes ".." lexically while the kernel resolves symlinks first, so checking the
+        cleaned string and using the raw one disagree. Refusing ".." and symlink writes makes the
+        checked path and the used path the same.
+      alternatives: >
+        openat/O_NOFOLLOW per component (not available in TinyGo's WASI target); Go 1.24 os.Root
+        (go.mod is 1.22 and TinyGo support is unclear).
+    links:
+      - type: satisfies
+        target: REQ-KS-001
+      - type: satisfies
+        target: REQ-KS-003
+      - type: satisfies
+        target: REQ-KS-002
+      - type: satisfies
+        target: REQ-KS-004
+
+  - id: DD-KS-002
+    type: design-decision
+    title: "Own POSIX-subset parser in Rust, on rowan"
+    status: approved
+    release: v0.3.0
+    description: "How commands are parsed: a lossless tree over a closed grammar."
+    fields:
+      decision: >
+        A hand-written parser producing a lossless rowan tree, as spar and rivet do. The grammar
+        is the decided subset; everything else becomes an error node that the check stage turns
+        into a refusal.
+      rationale: >
+        Verb: decide, before anything runs, exactly which part of a command we understand. brush
+        aims at bash compatibility and executes through std::process, the opposite of
+        fail-closed on wasip2. Borrowed from court stenography and legal transcription: the
+        record keeps every character, including what the court did not rule on. A lossless tree
+        lets a refusal quote the exact span it refuses, so a reviewer checks the message against
+        the source. Second field, air-traffic phraseology: only a closed set of phrases is valid,
+        and anything else gets "say again" rather than a guess.
+      alternatives: "brush (bash-compatible, spawns processes); tree-sitter-bash (grammar too wide, C dependency)."
+      source-ref: "kapsel#140"
+    links:
+      - type: satisfies
+        target: REQ-KS-010
+
+  - id: DD-KS-003
+    type: design-decision
+    title: "A check stage returns a plan; only plans execute"
+    status: approved
+    release: v0.3.0
+    description: "Analysis and execution are separate acts, joined only by the plan."
+    fields:
+      decision: >
+        kapsel check produces a plan or a refusal; kapsel run is check followed by executing the
+        plan, never a separate path.
+      rationale: >
+        Verb: verify an order before acting on it. Borrowed from hospital pharmacy: a pharmacist
+        verifies every prescription against the patient's record before anything is dispensed,
+        and dispensing works only from a verified order. Second field, aviation's pre-flight
+        checklist read as challenge and response: the check is a separate act with its own
+        record. The plan is that record, so CI and zwinger can review it without running the
+        command.
+      source-ref: "kapsel#140"
+    links:
+      - type: satisfies
+        target: REQ-KS-011
+      - type: satisfies
+        target: REQ-KS-022
+
+  - id: DD-KS-004
+    type: design-decision
+    title: "Harmful constructs: a named list, each refuse or warn, each with a planted test"
+    status: approved
+    release: v0.3.0
+    description: "How harmful constructs are listed, judged and tested."
+    fields:
+      decision: >
+        Every rule has an id, a reason, a refuse-or-warn severity, and a planted script plus
+        control in the plant pack. `|| true` and `|| :` are refuse from the start.
+      rationale: >
+        Verb: stop errors that hide other errors. Borrowed from surgery's "never events" list: a
+        short, published list of events that are never acceptable, each reviewed on its own
+        rather than by a general rule. Second field, the electrical code: a named rule per hazard,
+        and an inspector checks each installed instance against its rule. The plant pack is the
+        inspection: each rule must catch its planted case.
+      source-ref: "kapsel#140"
+    links:
+      - type: satisfies
+        target: REQ-KS-012
+      - type: satisfies
+        target: REQ-KS-016
+
+  - id: DD-KS-005
+    type: design-decision
+    title: "Compile plans to WASM and cache the module"
+    status: approved
+    release: v0.4.0
+    description: "A checked plan becomes a reproducible, signed, cached WASM module."
+    fields:
+      decision: >
+        The plan is the compiler's input. The output is a component that imports `command` and
+        native-exec. The module is reproducible, cached by plan plus interface versions, and
+        signed. Grants are never compiled in.
+      rationale: >
+        Verb: turn a reviewed instruction into a sealed unit that runs the same way every time.
+        Borrowed from pharmaceutical batch records: a validated batch is made by a fixed master
+        record, and any change to the record makes a new batch, never a modified old one. Hence
+        the cache key covers everything that shapes the module. Second field, sealed evidence
+        bags in forensics: a sealed unit is signed when it is made and checked before use. Later,
+        gale and synth can compile the same module further.
+      source-ref: "kapsel#140, owner 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-020
+      - type: satisfies
+        target: REQ-KS-021
+
+  - id: DD-KS-006
+    type: design-decision
+    title: "One `command` WIT, tools composed with wac"
+    status: approved
+    release: v0.4.0
+    description: "The interface every tool implements and how tools are combined."
+    fields:
+      decision: >
+        Tools export run(args, env, stdio) -> exit code; the shell imports the tools it knows and
+        the parts are composed with wac. file-operations.wit stays a design record.
+      rationale: >
+        A wasip2 component cannot spawn another component, so tools are composed in or provided
+        by the host. One small interface keeps every tool replaceable and testable on its own.
+      alternatives: "One world per tool (more glue); host-provided spawn (moves authority to the host)."
+      source-ref: "kapsel#140"
+    links:
+      - type: satisfies
+        target: REQ-KS-024
+
+  - id: DD-KS-007
+    type: design-decision
+    title: "Grants arrive as ZWINGER_GRANTS JSON with identity preopens"
+    status: approved
+    release: v0.4.0
+    description: "How kapsel learns what it may touch."
+    fields:
+      decision: >
+        zwinger.grants.v1 JSON in one env var; PATH::PATH preopens, read entries read-only and
+        write entries read-write; exit 78 on anything missing or unknown. The deny_* pre-check
+        is usability only: the kernel sandbox enforces.
+      rationale: >
+        It is the channel zwinger already uses, it keeps a YAML parser out of the runtime, and
+        identity paths keep the paths agents type working.
+      source-ref: "kapsel#140 comment 7212256233"
+    links:
+      - type: satisfies
+        target: REQ-KS-023
+
+  - id: DD-KS-008
+    type: design-decision
+    title: "Children of native tools: C now, D on Linux"
+    status: approved
+    release: v0.5.0
+    description: "How child processes of native tools are bounded."
+    fields:
+      decision: >
+        Host-enforced native-exec with a per-tool profile loaded from the grant; zwinger's
+        exec: plus exec_trees: at the kernel; on Linux a per-child Landlock domain stacked on the
+        session's. macOS stays at C.
+      rationale: >
+        The WASM boundary bounds only what the guest asks for, and the kernel session layer can
+        express only the union of trees. Per-tool separation has to live in the host, and on
+        Linux the kernel can add it per child because Landlock domains stack.
+      alternatives: "A: Execute on the exact files only (builds break). B: no native builds in v1."
+      source-ref: "kapsel#140 comment 7213901387; owner decision via zwinger, 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-030
+      - type: satisfies
+        target: REQ-KS-031
+      - type: satisfies
+        target: REQ-KS-032
+
+  - id: DD-KS-009
+    type: design-decision
+    title: "The native-exec WIT lives in the kiln repo"
+    status: approved
+    release: v0.5.0
+    description: "Where the native-exec interface is defined."
+    fields:
+      decision: >
+        pulseengine:native-exec@0.1.0 is owned by the org, defined in the kiln repo next to
+        HostImportHandler, and vendored here for the wasmtime implementation.
+      rationale: >
+        A change to the WIT and to kiln's handler lands in one PR, and gale can attach to it from
+        kiln.
+      source-ref: "kiln#741"
+    links:
+      - type: satisfies
+        target: REQ-KS-030
+
+  - id: DD-KS-010
+    type: design-decision
+    title: "The git broker writes .git; zwinger makes .git read-only"
+    status: approved
+    release: v0.5.0
+    description: "How agents use git without writing .git themselves."
+    fields:
+      decision: >
+        Policy in kapsel's git host profile; a per-session broker outside the confinement domain
+        is the only .git writer and holds the signing key; zwinger makes .git read-only (Seatbelt
+        deny on macOS, a read-only mount namespace on Linux via zwinger#14).
+      rationale: >
+        Verb: let an agent record work without letting it rewrite history or run code through
+        git. Borrowed from bank teller dual control: the teller fills in the slip, and a second
+        party who holds the key posts it. Second field, notaries: the notary drafts and seals the
+        document from the facts presented, never from a document the client brings. Hence the
+        broker builds the tree itself.
+      source-ref: "kapsel#140; owner 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-033
+
+  - id: DD-KS-011
+    type: design-decision
+    title: "Bazel uses kapsel's JSON-config mode"
+    status: approved
+    release: v0.3.0
+    description: "The contract Bazel builds bind to."
+    fields:
+      decision: >
+        One config-path argument, the operations Bazel uses, workspace-relative paths bound
+        inside the workspace, and an unknown operation is an error.
+        rules_wasm_component moves its toolchain from its Go wrapper to kapsel.
+      rationale: >
+        It leaves one implementation, and makes it fail closed: the wrapper skipped unknown
+        operations silently.
+      source-ref: "rules_wasm_component#775, #776"
+    links:
+      - type: satisfies
+        target: REQ-KS-017
+
+  - id: DD-KS-012
+    type: design-decision
+    title: "Rust for the shell and its tools"
+    status: approved
+    release: v0.3.0
+    description: "The implementation language and the hand-over from TinyGo."
+    fields:
+      decision: >
+        The shell, the check stage, the compiler and the host are Rust; the TinyGo component stays
+        shipped until REQ-KS-041's equivalence test passes.
+      rationale: >
+        kiln and the rest of the chain are Rust, and sigil, witness and scry gates expect it.
+      source-ref: "kapsel#140"
+    links:
+      - type: satisfies
+        target: REQ-KS-018
+      - type: satisfies
+        target: REQ-KS-041
+
+  - id: DD-KS-013
+    type: design-decision
+    title: "File modes 0750/0640 and a blocking gosec with a reviewed threshold"
+    status: verified
+    release: v0.2.1
+    description: "How file permissions and static analysis gate the code."
+    fields:
+      decision: >
+        Directories 0750, files 0640; gosec blocks in the required checks with tinygo/gosec.json
+        setting G302/G306 to 0640, and every #nosec carries its reason.
+      rationale: >
+        A build sandbox needs no group or world write. A threshold in a reviewed config file is
+        visible, where a blanket exclusion would hide new findings.
+    links:
+      - type: satisfies
+        target: REQ-KS-005
+
+  - id: DD-KS-014
+    type: design-decision
+    title: "The workflow scanner reads YAML with rivet-yaml and treats expressions as opaque"
+    status: approved
+    release: v0.3.0
+    description: "How Phase 0 reads workflows and reports."
+    fields:
+      decision: >
+        rivet-yaml, pinned by rivet git tag with a lockfile, gives positions for each run:
+        block; ${{ ... }} is replaced by an opaque token before checking; one report per run, and
+        an issue only for a repository with refusals.
+      rationale: >
+        Verb: measure a gap before enforcing a rule. Borrowed from epidemiology's surveillance
+        before intervention: count cases with a fixed case definition first, then intervene, and
+        keep counting with the same definition. Second field, building inspection's pre-purchase
+        survey: report findings without changing anything. The scanner runs advisory beside CI
+        for at least one release before any gate uses it.
+      source-ref: "rivet#1099; dogfooding proposal (zwinger), owner 2026-11-27"
+    links:
+      - type: satisfies
+        target: REQ-KS-015
+
+  - id: DD-KS-015
+    type: design-decision
+    title: "Differential execution on wasmtime and kiln over a pinned corpus"
+    status: approved
+    release: v0.4.0
+    description: "How two runtimes check each other."
+    fields:
+      decision: >
+        Each corpus script runs on wasmtime and on meld-fused kiln; outputs, exit codes and errno
+        values are compared, and any difference fails. The corpus ships as a release asset with a
+        sha256.
+      rationale: >
+        Verb: catch an error neither side would notice alone. Borrowed from double-entry
+        bookkeeping: two independent ledgers must balance, and a mismatch points at an entry, not
+        at a guess. Second field, aviation's cross-checked instruments: two sources for the same
+        reading, and a disagreement is flagged, not averaged.
+      source-ref: "kiln measurements, SR-106"
+    links:
+      - type: satisfies
+        target: REQ-KS-026
+
+  - id: DD-KS-016
+    type: design-decision
+    title: "Actions custom shell: kapsel takes the script-file path"
+    status: approved
+    release: v0.5.0
+    description: "How kapsel plugs into GitHub Actions steps."
+    fields:
+      decision: >
+        `shell: kapsel {0}`, where Actions writes the step's script to a temporary file; kapsel
+        checks it, writes the plan to the log, then runs it under zwinger.
+      rationale: >
+        Actions' custom-shell mechanism passes the script as a file path, so a script-file
+        argument is the whole integration.
+    links:
+      - type: satisfies
+        target: REQ-KS-035
+
+  - id: DD-KS-017
+    type: design-decision
+    title: "'Protected' is a conjunction of five checkable conditions"
+    status: approved
+    release: v1.0.0
+    description: "When a kapsel step may be called protected."
+    fields:
+      decision: >
+        Planted refusals with controls, wasmtime and kiln agreeing on the pinned corpus, running
+        under zwinger, native tools only through native-exec, and the plan in the job log. All
+        five, or the step is a prototype in Status.
+      rationale: >
+        Verb: earn a claim instead of asserting it. Borrowed from aviation airworthiness: an
+        aircraft is airworthy only when every item on the type certificate holds, and one missing
+        item grounds it. Second field, food safety's HACCP: each critical control point is
+        monitored, and a single failure stops the line.
+    links:
+      - type: satisfies
+        target: REQ-KS-040

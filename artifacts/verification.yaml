@@ -1,0 +1,84 @@
+artifacts:
+  - id: VER-KS-001
+    type: verification
+    title: "JSON destinations stay inside the workspace"
+    status: verified
+    release: v0.2.2
+    fields:
+      method: automated-test
+      test-location: tinygo/confinement_test.go
+      test-name: "TestJsonDestinationsStayInWorkspace, TestJsonDestinationThroughSymlinkRejected, TestCopyIntoExistingSymlinkRefused, TestWriteThroughExistingFileSymlinkRefused, TestDotDotInWorkDirAndWorkspaceRefused"
+    links:
+      - type: verifies
+        target: REQ-KS-001
+      - type: verifies
+        target: FEAT-KS-001
+
+  - id: VER-KS-002
+    type: verification
+    title: "run_command bounds"
+    status: verified
+    release: v0.2.2
+    fields:
+      method: automated-test
+      test-location: tinygo/confinement_test.go
+      test-name: TestJsonRunCommandBounds
+    links:
+      - type: verifies
+        target: REQ-KS-002
+
+  - id: VER-KS-003
+    type: verification
+    title: "move_path sources stay inside the workspace"
+    status: verified
+    release: v0.2.2
+    fields:
+      method: automated-test
+      test-location: tinygo/confinement_test.go
+      test-name: "TestJsonMoveSourceStaysInWorkspace, TestMoveSourceSymlinkDotDotRefused"
+    links:
+      - type: verifies
+        target: REQ-KS-003
+
+  - id: VER-KS-004
+    type: verification
+    title: "Separator-boundary containment"
+    status: verified
+    release: v0.2.1
+    fields:
+      method: automated-test
+      test-location: tinygo/confinement_test.go
+      test-name: "TestIsWithin, TestValidatePathAllowedDirsBoundary, TestContainsPathTraversal"
+    links:
+      - type: verifies
+        target: REQ-KS-004
+      - type: verifies
+        target: DD-KS-001
+
+  - id: VER-KS-005
+    type: verification
+    title: "gosec blocks in the required Security Vulnerability Scan"
+    status: verified
+    release: v0.2.1
+    fields:
+      method: automated-test
+      test-location: .github/workflows/security.yml
+      test-name: "Run Gosec Security Scanner (Go)"
+    links:
+      - type: verifies
+        target: REQ-KS-005
+
+  - id: VER-KS-006
+    type: verification
+    title: "The WASI component refuses escapes under wasmtime"
+    status: verified
+    release: v0.2.2
+    fields:
+      method: demonstration
+      steps:
+        - "bazel build //tinygo:file_ops_component"
+        - "wasmtime run --dir <tmp>::/w with configs that move through link/.. and copy into a symlinked subdirectory"
+        - "Both runs fail with a refusal and nothing outside the workspace changes"
+    links:
+      - type: verifies
+        target: FEAT-KS-001
