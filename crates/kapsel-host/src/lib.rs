@@ -144,7 +144,7 @@ impl Session {
         env: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self, HostError> {
         let g = grants::Grants::new(&grants)?;
-        let cwd = grants::resolve(&PathBuf::from("/"), &cwd);
+        let cwd = grants::resolve(&PathBuf::from("/"), &cwd).map_err(|e| HostError(format!("cwd: {}", e.reason())))?;
         let mut sh = Shell::new(g, cwd.clone());
         for (k, v) in env {
             sh.exported.insert(k.clone());
@@ -217,3 +217,14 @@ impl Session {
 
 /// The built-ins this host implements: exactly `kapsel_plan::BUILTINS`.
 pub const BUILTINS: &[&str] = kapsel_plan::BUILTINS;
+
+#[doc(hidden)]
+pub mod testing;
+#[doc(hidden)]
+pub use testing::TPart;
+
+impl Session {
+    pub(crate) fn shell_mut(&mut self) -> &mut Shell {
+        self.shell.as_mut().expect("session shell")
+    }
+}

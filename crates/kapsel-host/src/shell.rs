@@ -144,6 +144,14 @@ impl Shell {
         self.pipes.len() as u32
     }
 
+    pub fn pipe_write(&mut self, h: u32, bytes: &[u8]) {
+        self.pipes[h as usize - 1].borrow_mut().extend_from_slice(bytes);
+    }
+
+    pub fn pipe_read(&self, h: u32) -> Vec<u8> {
+        self.pipes[h as usize - 1].borrow().clone()
+    }
+
     fn pipe(&self, h: u32) -> R<Rc<RefCell<Vec<u8>>>> {
         if h == 0 || h as usize > self.pipes.len() {
             return Err(HostError(format!("bad pipe handle {h}")));
@@ -301,7 +309,7 @@ impl Shell {
                     let name: String = seg.iter().map(|x| x.0).collect();
                     let p = format!("{cand}{name}");
                     if last {
-                        if std::fs::symlink_metadata(self.cwd.join(&p)).is_ok() {
+                        if self.exists_visible(&p) {
                             next.push(p);
                         }
                     } else {
@@ -332,17 +340,31 @@ impl Shell {
         cands
     }
 
+    /// A path outside every grant does not exist as far as globbing can tell:
+    /// no stat runs on it. The entry itself is probed without following a
+    /// final symlink.
+    fn exists_visible(&self, p: &str) -> bool {
+        if grants::has_dotdot(p) {
+            return false;
+        }
+        match grants::resolve_nofollow_last(&self.cwd, Path::new(p)) {
+            Ok(r) if self.grants.can_read(&r) => std::fs::symlink_metadata(&r).is_ok(),
+            _ => false,
+        }
+    }
+
     fn dir_ok(&self, p: &str) -> bool {
-        let full = self.cwd.join(p);
-        full.is_dir()
+        match self.grants.check_read(&self.cwd, p) {
+            Ok(r) => r.is_dir(),
+            Err(_) => false,
+        }
     }
 
     fn list_dir(&self, cand: &str) -> Vec<String> {
-        let dir = if cand.is_empty() { self.cwd.clone() } else { self.cwd.join(cand) };
-        let resolved = grants::resolve(&self.cwd, &dir);
-        if !self.grants.can_read(&resolved) {
+        let arg = if cand.is_empty() { "." } else { cand };
+        let Ok(resolved) = self.grants.check_read(&self.cwd, arg) else {
             return Vec::new();
-        }
+        };
         let mut v: Vec<String> = match std::fs::read_dir(&resolved) {
             Ok(rd) => rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).collect(),
             Err(_) => Vec::new(),
@@ -457,10 +479,10 @@ impl Shell {
                         *stdin = Box::new(io::empty());
                         return Ok(());
                     }
-                    let resolved = grants::resolve(&self.cwd, Path::new(path));
-                    if !self.grants.can_read(&resolved) {
-                        return Err(format!("kapsel: {path}: outside the session's grants"));
-                    }
+                    let resolved = self
+                        .grants
+                        .check_read(&self.cwd, path)
+                        .map_err(|w| format!("kapsel: {path}: {}", w.reason()))?;
                     let f = std::fs::File::open(&resolved)
                         .map_err(|e| format!("kapsel: {path}: {}", errstr(&e)))?;
                     *stdin = Box::new(f);
@@ -471,10 +493,10 @@ impl Shell {
                     let sink = if path == "/dev/null" {
                         Sink::null()
                     } else {
-                        let resolved = grants::resolve(&self.cwd, Path::new(path));
-                        if !self.grants.can_write(&resolved) {
-                            return Err(format!("kapsel: {path}: outside the session's grants"));
-                        }
+                        let resolved = self
+                            .grants
+                            .check_write(&self.cwd, path, true)
+                            .map_err(|w| format!("kapsel: {path}: {}", w.reason()))?;
                         let mut oo = std::fs::OpenOptions::new();
                         oo.create(true).write(true);
                         if r.op == ROp::Append {

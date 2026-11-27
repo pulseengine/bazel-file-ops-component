@@ -231,7 +231,7 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
     let chars: Vec<char> = fmt.chars().collect();
     let mut i = 0;
     let mut used = false;
-    let mut next_arg = |pos: &mut usize, used: &mut bool| -> Option<String> {
+    let next_arg = |pos: &mut usize, used: &mut bool| -> Option<String> {
         if *pos < args.len() {
             *pos += 1;
             *used = true;

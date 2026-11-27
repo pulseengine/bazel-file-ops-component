@@ -2,7 +2,7 @@
 //! returns 256 + n. Messages follow GNU: `name: operand: reason`.
 
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::grants;
 use crate::shell::{Shell, Sink, errstr};
@@ -35,36 +35,32 @@ impl Ctx<'_> {
         self.msg(&m);
     }
 
-    pub fn grants_msg(&mut self, operand: &str) {
-        let _ = writeln!(self.err, "kapsel: {operand}: outside the session's grants");
+
+    pub fn deny_msg(&mut self, operand: &str, why: grants::GrantErr) {
+        let _ = writeln!(self.err, "kapsel: {operand}: {}", why.reason());
     }
 
-    /// Resolves a path for reading; prints the grants message and returns
-    /// None when it is outside every grant.
+    /// Resolves a path for reading; prints the refusal and returns None when
+    /// it is outside every grant (or has `..`, or loops).
     pub fn rpath(&mut self, arg: &str) -> Option<PathBuf> {
-        let r = grants::resolve(&self.sh.cwd, Path::new(arg));
-        if self.sh.grants.can_read(&r) {
-            Some(r)
-        } else {
-            self.grants_msg(arg);
-            None
+        match self.sh.grants.check_read(&self.sh.cwd, arg) {
+            Ok(r) => Some(r),
+            Err(w) => {
+                self.deny_msg(arg, w);
+                None
+            }
         }
     }
 
     /// Resolves a path for writing. `follow_last` false keeps a final symlink
-    /// itself (rm, mv source).
+    /// itself (rm, mv source); true refuses to write through one.
     pub fn wpath(&mut self, arg: &str, follow_last: bool) -> Option<PathBuf> {
-        let p = Path::new(arg);
-        let r = if follow_last {
-            grants::resolve(&self.sh.cwd, p)
-        } else {
-            grants::resolve_nofollow_last(&self.sh.cwd, p)
-        };
-        if self.sh.grants.can_write(&r) {
-            Some(r)
-        } else {
-            self.grants_msg(arg);
-            None
+        match self.sh.grants.check_write(&self.sh.cwd, arg, follow_last) {
+            Ok(r) => Some(r),
+            Err(w) => {
+                self.deny_msg(arg, w);
+                None
+            }
         }
     }
 

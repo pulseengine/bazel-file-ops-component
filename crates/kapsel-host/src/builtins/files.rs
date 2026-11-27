@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::timefmt;
 use super::{Ctx, Spec, getopt};
-use crate::grants;
+use crate::grants::{self, Grants};
 
 pub fn mkdir(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec { short: "pv", long: &[("parents", 'p'), ("verbose", 'v')], numeric: false, supported: "-p -v" };
@@ -100,24 +100,56 @@ pub fn rm(ctx: &mut Ctx, a: &[String]) -> i32 {
     status
 }
 
-fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
-    let md = fs::symlink_metadata(src)?;
+fn ioe(e: std::io::Error) -> String {
+    crate::shell::errstr(&e)
+}
+
+/// Copies `src` to `dst` (both absolute, resolved). Every path written is
+/// grant-checked, nothing is written through an existing symlink, and a
+/// source symlink is recreated only if its target lies inside the grants.
+fn copy_tree(g: &Grants, src: &Path, dst: &Path) -> Result<(), String> {
+    let md = fs::symlink_metadata(src).map_err(ioe)?;
+    let dest_check = g.check_dest_abs(dst);
     if md.file_type().is_symlink() {
-        let t = fs::read_link(src)?;
-        let _ = fs::remove_file(dst);
-        std::os::unix::fs::symlink(t, dst)
-    } else if md.is_dir() {
-        if !dst.is_dir() {
-            fs::create_dir(dst)?;
+        let t = fs::read_link(src).map_err(ioe)?;
+        let target = grants::resolve(src.parent().unwrap_or(Path::new("/")), &t)
+            .map_err(|w| format!("symlink '{}': {}", src.display(), w.reason()))?;
+        if !g.can_read(&target) {
+            return Err(format!("symlink '{}' points outside the session's grants", src.display()));
         }
-        let mut names: Vec<_> = fs::read_dir(src)?.filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+        match dest_check {
+            Ok(()) => {}
+            // Replacing a link with a link acts on the link itself.
+            Err(grants::GrantErr::Symlink) => fs::remove_file(dst).map_err(ioe)?,
+            Err(w) => return Err(format!("'{}': {}", dst.display(), w.reason())),
+        }
+        return std::os::unix::fs::symlink(t, dst).map_err(ioe);
+    }
+    dest_check.map_err(|w| format!("'{}': {}", dst.display(), w.reason()))?;
+    if md.is_dir() {
+        match fs::symlink_metadata(dst) {
+            Ok(m) if m.is_dir() => {}
+            Ok(_) => return Err(format!("cannot overwrite non-directory '{}' with directory", dst.display())),
+            Err(_) => fs::create_dir(dst).map_err(ioe)?,
+        }
+        let mut names: Vec<_> = fs::read_dir(src).map_err(ioe)?.filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
         names.sort();
         for n in names {
-            copy_tree(&src.join(&n), &dst.join(&n))?;
+            copy_tree(g, &src.join(&n), &dst.join(&n))?;
         }
         Ok(())
     } else {
-        fs::copy(src, dst).map(|_| ())
+        let mut oo = fs::OpenOptions::new();
+        oo.write(true);
+        if fs::symlink_metadata(dst).is_ok() {
+            oo.truncate(true);
+        } else {
+            oo.create_new(true);
+        }
+        let mut out = oo.open(dst).map_err(ioe)?;
+        let mut inp = fs::File::open(src).map_err(ioe)?;
+        std::io::copy(&mut inp, &mut out).map_err(ioe)?;
+        Ok(())
     }
 }
 
@@ -181,12 +213,12 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
         };
         // Target text for messages and the grant check on the final path.
         let tshown = if dest_is_dir { format!("{}/{}", dest.trim_end_matches('/'), basename(s).unwrap_or_default()) } else { dest.clone() };
-        let tres = grants::resolve(&ctx.sh.cwd, &target);
-        if !ctx.sh.grants.can_write(&tres) {
-            ctx.grants_msg(&tshown);
+        if let Err(w) = ctx.sh.grants.check_dest_abs(&target) {
+            ctx.deny_msg(&tshown, w);
             status = 1;
             continue;
         }
+        let tres = target.clone();
         if let (Ok(a), Ok(b)) = (fs::canonicalize(&sres), fs::canonicalize(&tres)) {
             if a == b {
                 ctx.msg(&format!("'{s}' and '{tshown}' are the same file"));
@@ -204,16 +236,17 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
             status = 1;
             continue;
         }
+        let g = ctx.sh.grants.clone();
         let r = if moving {
             match fs::rename(&sres, &tres) {
                 Ok(()) => Ok(()),
-                Err(e) if e.raw_os_error() == Some(18) => copy_tree(&sres, &tres).and_then(|_| {
-                    if smd.is_dir() { fs::remove_dir_all(&sres) } else { fs::remove_file(&sres) }
+                Err(e) if e.raw_os_error() == Some(18) => copy_tree(&g, &sres, &tres).and_then(|_| {
+                    if smd.is_dir() { fs::remove_dir_all(&sres) } else { fs::remove_file(&sres) }.map_err(ioe)
                 }),
-                Err(e) => Err(e),
+                Err(e) => Err(ioe(e)),
             }
         } else {
-            copy_tree(&sres, &tres)
+            copy_tree(&g, &sres, &tres)
         };
         match r {
             Ok(()) => {
@@ -224,9 +257,9 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
             Err(e) => {
                 let what = if moving { "move" } else { "create regular file" };
                 if moving {
-                    ctx.msg(&format!("cannot {what} '{s}' to '{tshown}': {}", crate::shell::errstr(&e)));
+                    ctx.msg(&format!("cannot {what} '{s}' to '{tshown}': {}", e));
                 } else {
-                    ctx.msg(&format!("cannot {what} '{tshown}': {}", crate::shell::errstr(&e)));
+                    ctx.msg(&format!("cannot {what} '{tshown}': {}", e));
                 }
                 status = 1;
             }
@@ -334,7 +367,8 @@ pub fn ls(ctx: &mut Ctx, a: &[String]) -> i32 {
         if md.is_dir() && !dir_self {
             dirs.push((o.clone(), r));
         } else {
-            files.push(Entry { name: o.clone(), path: grants::resolve_nofollow_last(&ctx.sh.cwd, Path::new(o)) });
+            let path = grants::resolve_nofollow_last(&ctx.sh.cwd, Path::new(o)).unwrap_or(r);
+            files.push(Entry { name: o.clone(), path });
         }
     }
     files.sort_by(|x, y| x.name.cmp(&y.name));
