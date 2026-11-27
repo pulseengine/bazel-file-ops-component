@@ -1,0 +1,11 @@
+name: t
+on: push
+jobs:
+  a:
+    runs-on: &r ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux"]') || 'ubuntu-24.04' }}
+    steps:
+      - run: echo hi
+  b:
+    runs-on: *r
+    steps:
+      - run: echo hi
