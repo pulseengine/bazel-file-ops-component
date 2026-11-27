@@ -1,0 +1,161 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "one"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 8
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 8
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 8
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 8
+      }
+    },
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 10,
+                  "end": 14
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "two"
+                  }
+                ],
+                "span": {
+                  "start": 15,
+                  "end": 18
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 10,
+              "end": 18
+            }
+          }
+        ],
+        "span": {
+          "start": 10,
+          "end": 18
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 10,
+        "end": 18
+      }
+    },
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 19,
+                  "end": 23
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "three"
+                  }
+                ],
+                "span": {
+                  "start": 24,
+                  "end": 29
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 19,
+              "end": 29
+            }
+          }
+        ],
+        "span": {
+          "start": 19,
+          "end": 29
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 19,
+        "end": 29
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 29
+  }
+}

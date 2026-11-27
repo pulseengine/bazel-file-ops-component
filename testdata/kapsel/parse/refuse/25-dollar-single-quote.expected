@@ -1,0 +1,3 @@
+error[dollar-single-quote] 5..12 "$'a\\tb'"
+  message: dollar-single-quote: `$'...'` strings are not in kapsel's shell subset
+  help: use plain quotes, or printf for escapes: printf 'a\tb\n'

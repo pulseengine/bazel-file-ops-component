@@ -1,0 +1,79 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [
+              {
+                "name": "LC_ALL",
+                "value": {
+                  "parts": [
+                    {
+                      "kind": "literal",
+                      "text": "C"
+                    }
+                  ],
+                  "span": {
+                    "start": 7,
+                    "end": 8
+                  }
+                },
+                "span": {
+                  "start": 0,
+                  "end": 8
+                }
+              }
+            ],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "sort"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 13
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "file.txt"
+                  }
+                ],
+                "span": {
+                  "start": 14,
+                  "end": 22
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 22
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 22
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 22
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 22
+  }
+}

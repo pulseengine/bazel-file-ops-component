@@ -1,0 +1,138 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 3
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "a\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 17,
+                      "end": 19
+                    }
+                  },
+                  "quoted": false,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 4,
+                  "end": 7
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 7
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 7
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 7
+      }
+    },
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "cat"
+                  }
+                ],
+                "span": {
+                  "start": 9,
+                  "end": 12
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "heredoc",
+                "target": {
+                  "kind": "heredoc",
+                  "body": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "b\n"
+                      }
+                    ],
+                    "span": {
+                      "start": 21,
+                      "end": 23
+                    }
+                  },
+                  "quoted": false,
+                  "strip_tabs": false
+                },
+                "span": {
+                  "start": 13,
+                  "end": 16
+                }
+              }
+            ],
+            "span": {
+              "start": 9,
+              "end": 16
+            }
+          }
+        ],
+        "span": {
+          "start": 9,
+          "end": 16
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 9,
+        "end": 16
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 25
+  }
+}

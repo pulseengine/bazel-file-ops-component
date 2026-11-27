@@ -1,0 +1,94 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": true,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 2,
+                  "end": 6
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "a"
+                  }
+                ],
+                "span": {
+                  "start": 7,
+                  "end": 8
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 2,
+              "end": 8
+            }
+          },
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "grep"
+                  }
+                ],
+                "span": {
+                  "start": 11,
+                  "end": 15
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "b"
+                  }
+                ],
+                "span": {
+                  "start": 16,
+                  "end": 17
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 11,
+              "end": 17
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 17
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 17
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 17
+  }
+}

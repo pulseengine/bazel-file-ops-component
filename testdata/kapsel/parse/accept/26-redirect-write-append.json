@@ -1,0 +1,158 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "a"
+                  }
+                ],
+                "span": {
+                  "start": 5,
+                  "end": 6
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "write",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "out.txt"
+                      }
+                    ],
+                    "span": {
+                      "start": 9,
+                      "end": 16
+                    }
+                  }
+                },
+                "span": {
+                  "start": 7,
+                  "end": 16
+                }
+              }
+            ],
+            "span": {
+              "start": 0,
+              "end": 16
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 16
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 0,
+        "end": 16
+      }
+    },
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "echo"
+                  }
+                ],
+                "span": {
+                  "start": 18,
+                  "end": 22
+                }
+              },
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "b"
+                  }
+                ],
+                "span": {
+                  "start": 23,
+                  "end": 24
+                }
+              }
+            ],
+            "redirects": [
+              {
+                "fd": null,
+                "op": "append",
+                "target": {
+                  "kind": "word",
+                  "word": {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "out.txt"
+                      }
+                    ],
+                    "span": {
+                      "start": 28,
+                      "end": 35
+                    }
+                  }
+                },
+                "span": {
+                  "start": 25,
+                  "end": 35
+                }
+              }
+            ],
+            "span": {
+              "start": 18,
+              "end": 35
+            }
+          }
+        ],
+        "span": {
+          "start": 18,
+          "end": 35
+        }
+      },
+      "rest": [],
+      "span": {
+        "start": 18,
+        "end": 35
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 35
+  }
+}

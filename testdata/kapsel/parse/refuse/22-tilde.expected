@@ -1,0 +1,6 @@
+error[tilde] 3..4 "~"
+  message: tilde: tilde expansion `~` is not in kapsel's shell subset
+  help: write "$HOME" instead of ~, or quote it ('~') to mean a literal tilde
+error[tilde] 9..14 "~user"
+  message: tilde: tilde expansion `~` is not in kapsel's shell subset
+  help: write "$HOME" instead of ~, or quote it ('~') to mean a literal tilde

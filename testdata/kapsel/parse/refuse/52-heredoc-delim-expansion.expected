@@ -1,0 +1,4 @@
+error[syntax] 6..8 "$X"
+  message: syntax: a heredoc delimiter must be a plain word, not an expansion
+  expected: delimiter
+  help: use a fixed word such as EOF

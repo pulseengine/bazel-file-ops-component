@@ -1,0 +1,3 @@
+error[subshell] 0..16 "(cd sub && make)"
+  message: subshell: subshells `( ... )` are not in kapsel's shell subset
+  help: write the commands without the parentheses; `cd dir && cmd` keeps a cd scoped to one line

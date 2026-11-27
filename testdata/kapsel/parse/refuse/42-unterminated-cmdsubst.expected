@@ -1,0 +1,3 @@
+error[syntax] 5..7 "$("
+  message: syntax: `$(` is not closed: expected `)`, found end of input
+  expected: )

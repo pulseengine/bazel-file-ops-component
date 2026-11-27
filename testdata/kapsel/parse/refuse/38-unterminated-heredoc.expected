@@ -1,0 +1,4 @@
+error[syntax] 4..9 "<<EOF"
+  message: syntax: the heredoc is missing its closing `EOF` line
+  expected: EOF
+  help: end the body with a line containing only the delimiter
