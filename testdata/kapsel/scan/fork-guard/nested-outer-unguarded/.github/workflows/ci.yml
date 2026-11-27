@@ -1,0 +1,7 @@
+name: t
+on: [push, pull_request]
+jobs:
+  a:
+    runs-on: ${{ (github.ref == 'refs/heads/main') && fromJSON('["self-hosted","linux","x64","rust-cpu"]') || 'ubuntu-24.04' }}
+    steps:
+      - run: echo hi
