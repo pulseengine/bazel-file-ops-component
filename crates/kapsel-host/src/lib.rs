@@ -19,6 +19,7 @@ mod builtins;
 mod grants;
 mod shell;
 
+pub use builtins::xflags_for;
 pub use shell::SharedBuf;
 use shell::{ROp, Shell, Sink, WPart, WRedirect, WWord};
 

@@ -1,0 +1,3 @@
+fn new() {
+    println!("new");
+}

@@ -1,0 +1,7 @@
+compiling a
+warning: unused variable
+  --> src/lib.rs:3:9
+compiling b
+error[E0308]: mismatched types
+  --> src/main.rs:7:5
+done

@@ -1,0 +1,3 @@
+  PID TTY           TIME CMD
+  101 ttys000    0:00.10 -zsh
+  202 ttys001    0:02.50 cargo test --workspace

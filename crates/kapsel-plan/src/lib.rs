@@ -230,12 +230,15 @@ pub mod exit {
 
 /// The built-in command names (REQ-KS-025 plus the special built-ins). The
 /// check stage accepts exactly these; the host implements exactly these.
+#[rustfmt::skip]
 pub const BUILTINS: &[&str] = &[
     // special
     ":", "true", "false", "cd", "export", "exit", "test", "[", "pwd",
     // first batch, measured (REQ-KS-025)
     "cat", "echo", "printf", "head", "tail", "wc", "ls", "mkdir", "cp", "mv", "rm", "grep", "sed",
     "sort", "uniq", "cut", "tr", "tee", "date", "seq", "sleep",
+    // file edits and structured data without an interpreter (REQ-KS-063)
+    "edit", "json", "yaml", "toml", "field", "lines", "base64", "sha256sum",
 ];
 
 /// Normalization for caching and attestation (REQ-KS-021).

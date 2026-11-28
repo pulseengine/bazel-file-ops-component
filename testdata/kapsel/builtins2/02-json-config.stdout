@@ -1,0 +1,9 @@
+demo
+dist
+src
+{"test":"jest","lint":"eslint ."}
+{
+  "test": "jest --ci",
+  "build": "tsc"
+}
+30
