@@ -46,6 +46,7 @@ Owner decision 2026-11-27: every line, script and `-c` command is compiled and r
 **Stretch target:** kapsel check classifies every `run:` block in every pulseengine workflow with no parser crash, and every refusal rule has a planted script and control. The measure is the scanner report's crash count and the plant pack's rule coverage.
 
 ### v0.4.0: sealed and composed
+- **Browser playground** (REQ-KS-028, owner 2026-11-28): stage 1 check-only, stage 2 runs against OPFS or a directory the user picks, which becomes the only grant. Published from each release tag; hosting agreed with pulseengine.eu.
 - **Wider subset** (REQ-KS-027, owner 2026-11-28): `if`, `${x:-y}` operators, `{ }`, `$(( ))` proven with ordeal, and `case`, the five most-refused constructs in the v0.3.0 fleet scan (2,977 run: blocks, 56 accepted).
 - **Cache** (REQ-KS-021): keyed and signed; grants never compiled in.
 - **Executor and host** (REQ-KS-022, REQ-KS-023, DD-KS-007): ZWINGER_GRANTS, identity preopens, exit 78.

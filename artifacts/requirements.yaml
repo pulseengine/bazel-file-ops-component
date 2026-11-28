@@ -439,6 +439,26 @@ artifacts:
       verification-criteria: "Fails if any of the five constructs is refused, a refusal rule stops firing inside one of them, an arithmetic lowering has no ordeal certificate, or the scanner's accepted-block count on the v0.3.0 fleet snapshot does not rise."
       upstream-ref: "kapsel#140"
 
+  - id: REQ-KS-028
+    type: requirement
+    title: "A browser playground runs kapsel against a directory the user grants"
+    status: approved
+    release: v0.4.0
+    description: >
+      A web page shows kapsel in action with the same parser, check stage, compiler and host,
+      compiled to WebAssembly and loaded with jco (owner, 2026-11-28). Stage 1 is check-only: a
+      typed command shows its plan, grants and any refusal with the rendered diagnostic. Stage 2
+      runs the compiled component against files in the browser: the browser's private file system
+      (OPFS) for a sample project, or a directory the user picks through the File System Access
+      API. The picked directory is the session's only grant, so the browser's permission prompt
+      plays the role of `--rw DIR`. Each release publishes the page from the same tag; where it is
+      hosted is agreed with pulseengine.eu.
+    fields:
+      priority: should
+      category: functional
+      verification-criteria: "Fails if the page's plan, refusal or output for a corpus script differs from the native kapsel binary at the same tag, a command reaches a file outside the granted directory, or the published page was built from a different tag than the release."
+      upstream-ref: "kapsel#140"
+
   # --- v0.5.0: native tools ---
 
   - id: REQ-KS-030
