@@ -31,9 +31,6 @@ global flags:
   --rw DIR     grant read and write access to DIR (the current directory is always granted)
   --ro DIR     grant read access to DIR
   --key FILE   signing key (default: a key under $KAPSEL_HOME/keys, created on first use)
-  --grants-from-plan  (testing, REQ-KS-013) run FILE or -c with exactly the paths the
-               plan grants, not the current directory; refused if the grants are dynamic
-  --drop-grant PATH   (testing, with --grants-from-plan) leave PATH out of those grants
   -h, --help   this text
 ";
 
@@ -137,6 +134,17 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
             return Err(usage_error("`explain` takes exactly one RULE-ID"));
         }
         return Ok(o);
+    }
+    // Test-only flags (REQ-KS-013): they replace the session's grants, so
+    // they refuse to start unless the test harness asks for them.
+    if (o.grants_from_plan || !o.drop_grants.is_empty())
+        && std::env::var("KAPSEL_TESTING").as_deref() != Ok("1")
+    {
+        eprintln!(
+            "kapsel: --grants-from-plan and --drop-grant are for kapsel's own tests and need \
+             KAPSEL_TESTING=1"
+        );
+        return Err(exit::USAGE);
     }
     if o.json && o.sub != Sub::Check {
         return Err(usage_error("--json belongs to `check`"));
@@ -712,7 +720,18 @@ fn plan_grants(
             return Err(exit::GRANTS);
         }
     }
-    let abs = |p: &String| cwd.join(p);
+    // A plan grant is a path under the current directory: an absolute path,
+    // or one whose `..` climbs out of it, would widen the grants.
+    for p in plan.grants.read.iter().chain(&plan.grants.write) {
+        if inside_cwd(p).is_none() {
+            eprintln!(
+                "kapsel: --grants-from-plan: the plan grant {p} is absolute or outside the \
+                 current directory"
+            );
+            return Err(exit::GRANTS);
+        }
+    }
+    let abs = |p: &String| cwd.join(inside_cwd(p).unwrap_or_default());
     let keep = |p: &&String| !drop.contains(p);
     grants
         .paths_read
@@ -721,6 +740,26 @@ fn plan_grants(
         .paths_write
         .extend(plan.grants.write.iter().filter(keep).map(abs));
     Ok(())
+}
+
+/// A relative path with its `.` and `..` resolved without leaving the
+/// current directory, or None when it is absolute or a `..` climbs out.
+fn inside_cwd(p: &str) -> Option<PathBuf> {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in std::path::Path::new(p).components() {
+        match c {
+            Component::Normal(n) => out.push(n),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    Some(out)
 }
 
 fn main() {
