@@ -39,6 +39,13 @@ pub const R015: &str = "KS-R015";
 pub const R016: &str = "KS-R016";
 pub const R017: &str = "KS-R017";
 
+/// Every rule id this crate can put on a finding, in order. One list: the plant
+/// pack, the explain table and the registry tests read it (REQ-KS-016).
+pub const RULES: &[&str] = &[
+    R000, R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013, R014, R015,
+    R016, R017,
+];
+
 /// Shells that `-c` turns into code-from-strings (KS-R004).
 const SHELLS: &[&str] = &["sh", "bash", "dash", "zsh", "ksh"];
 /// Programs that fetch from the network (KS-R006).

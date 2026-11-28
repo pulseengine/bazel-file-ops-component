@@ -24,6 +24,12 @@ printf 'echo one\necho two\n' > s.sh && kapsel s.sh              # one, two
 kapsel                                                          # prompt; cd and X=1 persist across lines
 ```
 
+The plan and refusal JSON of `kapsel check --json` is described by `schemas/kapsel.plan.v0.json`
+(JSON Schema 2020-12). It is generated from the `kapsel-plan` types (`cargo test -p kapsel-plan --test
+schema`, re-blessed with `KAPSEL_BLESS=1`), and the CLI tests validate every plan and refusal the
+suites produce against it. The command also adds one `diagnostics` field (`kapsel.diag.v0`), which
+the schema permits.
+
 Day two, same release: `for`/`while`/`until`, `$(...)`, globs and heredocs through the compiler.
 The parser and check stage cover them from the start.
 

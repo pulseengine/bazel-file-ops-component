@@ -26,6 +26,16 @@ pub mod testkit;
 pub use rules::{HistoryEntry, SessionFinding, analyze_session, analyze_shapes, history_text};
 pub use shape::{CommandShape, shapes};
 
+/// Every rule id this crate can put on a finding, in order (REQ-KS-016).
+/// KS-S001 is session-only (`analyze_session`); the others also run on a script.
+pub const RULES: &[&str] = &[
+    rules::KS_S001,
+    rules::KS_S002,
+    rules::KS_S003,
+    rules::KS_S004,
+    rules::KS_S005,
+];
+
 use kapsel_ast::Script;
 use kapsel_plan::Finding;
 

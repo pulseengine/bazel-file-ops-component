@@ -189,12 +189,8 @@ fn every_rule_catches_its_planted_case_and_passes_its_control() {
 
 #[test]
 fn every_rule_id_has_a_case() {
-    for id in [
-        "R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010",
-        "R011", "R012", "R013", "R014", "R015", "R016", "R017",
-    ] {
-        let full = format!("KS-{id}");
-        assert!(CASES.iter().any(|c| c.0 == full), "no case for {full}");
+    for full in RULES {
+        assert!(CASES.iter().any(|c| c.0 == *full), "no case for {full}");
     }
 }
 
@@ -658,11 +654,8 @@ fn pack_dir() -> std::path::PathBuf {
 #[test]
 fn plant_pack_files_agree_with_rules() {
     let mut seen = 0;
-    for id in [
-        "R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010",
-        "R011", "R012", "R013", "R014", "R015", "R016", "R017",
-    ] {
-        let rule = format!("KS-{id}");
+    for id in RULES {
+        let rule = id.to_string();
         let dir = pack_dir().join(&rule);
         let planted = std::fs::read_to_string(dir.join("planted.sh"))
             .unwrap_or_else(|e| panic!("{rule} planted: {e}"));
@@ -690,7 +683,7 @@ fn plant_pack_files_agree_with_rules() {
         );
         seen += 1;
     }
-    assert_eq!(seen, 18);
+    assert_eq!(seen, RULES.len());
 }
 
 fn findings_of(src: &str) -> Vec<(String, Severity)> {
