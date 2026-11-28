@@ -25,7 +25,7 @@ artifacts:
   - id: FEAT-KS-010
     type: feature
     title: "kapsel check: analyze a command without running it"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: "Analyze any command and get a plan or a refusal with reasons, without running it."
     fields:
@@ -48,6 +48,12 @@ artifacts:
       - type: satisfies
         target: REQ-KS-014
 
+      - type: satisfies
+        target: REQ-KS-060
+      - type: satisfies
+        target: REQ-KS-061
+      - type: satisfies
+        target: REQ-KS-062
   - id: FEAT-KS-011
     type: feature
     title: "Workflow scanner report (Phase 0)"
@@ -107,10 +113,12 @@ artifacts:
       - type: satisfies
         target: REQ-KS-026
 
+      - type: satisfies
+        target: REQ-KS-019
   - id: FEAT-KS-021
     type: feature
     title: "Built-in commands, first batch"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: "The most-used commands run inside kapsel without leaving the WASM sandbox."
     fields:

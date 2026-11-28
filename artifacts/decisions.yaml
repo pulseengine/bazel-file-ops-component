@@ -30,7 +30,7 @@ artifacts:
   - id: DD-KS-002
     type: design-decision
     title: "Own POSIX-subset parser in Rust, on rowan"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How commands are parsed: a lossless tree over a closed grammar."
     fields:
@@ -55,7 +55,7 @@ artifacts:
   - id: DD-KS-003
     type: design-decision
     title: "A check stage returns a plan; only plans execute"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "Analysis and execution are separate acts, joined only by the plan."
     fields:
@@ -79,7 +79,7 @@ artifacts:
   - id: DD-KS-004
     type: design-decision
     title: "Harmful constructs: a named list, each refuse or warn, each with a planted test"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How harmful constructs are listed, judged and tested."
     fields:
@@ -102,7 +102,7 @@ artifacts:
   - id: DD-KS-005
     type: design-decision
     title: "Compile plans to WASM and cache the module"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: "A checked plan becomes a reproducible, signed, cached WASM module."
     fields:
@@ -230,7 +230,7 @@ artifacts:
   - id: DD-KS-011
     type: design-decision
     title: "Bazel uses kapsel's JSON-config mode"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: "The contract Bazel builds bind to."
     fields:
@@ -249,7 +249,7 @@ artifacts:
   - id: DD-KS-012
     type: design-decision
     title: "Rust for the shell and its tools"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "The implementation language and the hand-over from TinyGo."
     fields:
@@ -265,6 +265,8 @@ artifacts:
       - type: satisfies
         target: REQ-KS-041
 
+      - type: satisfies
+        target: REQ-KS-064
   - id: DD-KS-013
     type: design-decision
     title: "File modes 0750/0640 and a blocking gosec with a reviewed threshold"
@@ -365,7 +367,7 @@ artifacts:
   - id: DD-KS-018
     type: design-decision
     title: "rowan and salsa, as in spar and rivet"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How kapsel holds source and derived facts: a lossless rowan tree under an incremental salsa database."
     fields:
@@ -390,7 +392,7 @@ artifacts:
   - id: DD-KS-019
     type: design-decision
     title: "The compiler follows synth: decline loudly, validate every compile, pin fixtures"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How kapsel-compile earns trust in its output."
     fields:

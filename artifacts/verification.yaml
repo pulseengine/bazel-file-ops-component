@@ -3,7 +3,9 @@ artifacts:
     type: verification
     title: "JSON destinations stay inside the workspace"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.2. tinygo/confinement_test.go was deleted in v0.3.0 (#144). Rust equivalents in crates/kapsel-fileops/tests/ported.rs, ported one to one: json_destinations_stay_in_workspace, json_destination_through_symlink_rejected, copy_into_existing_symlink_refused, write_through_existing_file_symlink_refused, dot_dot_in_work_dir_and_workspace_refused. Ran in rust.yml run 46115737938 on f2355247 and locally (exit 0) on ws/trace 533534a. The same cases run through the shipped component in testdata/kapsel/fileops/02-confinement.json (the fileops equivalence test, crates/kapsel-fileops/tests/equivalence.rs)."
     release: v0.2.2
+    tags: [historical]
     fields:
       method: automated-test
       test-location: tinygo/confinement_test.go
@@ -18,7 +20,9 @@ artifacts:
     type: verification
     title: "run_command bounds"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.2. TestJsonRunCommandBounds was deleted in v0.3.0 (#144). Rust equivalent: crates/kapsel-fileops/tests/ported.rs json_run_command_bounds, plus json_run_command_cannot_spawn (the wasip2 component cannot spawn). Ran in rust.yml run 46115737938 on f2355247 and locally (exit 0) on ws/trace 533534a. Through the shipped component: 02-confinement.json run-command-* cases (the fileops equivalence test, crates/kapsel-fileops/tests/equivalence.rs)."
     release: v0.2.2
+    tags: [historical]
     fields:
       method: automated-test
       test-location: tinygo/confinement_test.go
@@ -31,7 +35,9 @@ artifacts:
     type: verification
     title: "move_path sources stay inside the workspace"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.2. The TinyGo tests were deleted in v0.3.0 (#144). Rust equivalents: crates/kapsel-fileops/tests/ported.rs json_move_source_stays_in_workspace, move_source_symlink_dot_dot_refused. Ran in rust.yml run 46115737938 on f2355247 and locally (exit 0) on ws/trace 533534a. Through the shipped component: 02-confinement.json move-source-* cases (the fileops equivalence test, crates/kapsel-fileops/tests/equivalence.rs)."
     release: v0.2.2
+    tags: [historical]
     fields:
       method: automated-test
       test-location: tinygo/confinement_test.go
@@ -44,7 +50,9 @@ artifacts:
     type: verification
     title: "Separator-boundary containment"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.1. The TinyGo tests were deleted in v0.3.0 (#144). Rust equivalents: crates/kapsel-fileops/tests/ported.rs is_within_cases (includes work-other for work), crates/kapsel-fileops/src/security.rs security::tests::path_traversal and security::tests::dot_dot_component. TestValidatePathAllowedDirsBoundary has no one-to-one port. Ran in rust.yml run 46115737938 on f2355247 and locally (exit 0) on ws/trace 533534a. Through the shipped component: 02-confinement.json prefix-sibling-directory and prefix-sibling-through-symlink (the fileops equivalence test, crates/kapsel-fileops/tests/equivalence.rs)."
     release: v0.2.1
+    tags: [historical]
     fields:
       method: automated-test
       test-location: tinygo/confinement_test.go
@@ -59,7 +67,9 @@ artifacts:
     type: verification
     title: "gosec blocks in the required Security Vulnerability Scan"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.1. gosec scanned the Go sources; the Go sources and the gosec step were removed in v0.3.0 (#144). There is no Rust equivalent: clippy -D warnings and cargo-deny run instead, and neither checks file modes. Kept as the record of what v0.2.1 shipped."
     release: v0.2.1
+    tags: [historical]
     fields:
       method: automated-test
       test-location: .github/workflows/security.yml
@@ -72,7 +82,9 @@ artifacts:
     type: verification
     title: "The WASI component refuses escapes under wasmtime"
     status: verified
+    description: "Historical record: this verified the TinyGo component shipped in v0.2.2, built with bazel from //tinygo (deleted in v0.3.0, #144). Rust equivalent: crates/kapsel-fileops/tests/equivalence.rs rust_component_matches_tinygo_oracle runs the shipped file_ops_component.wasm under wasmtime on testdata/kapsel/fileops/02-confinement.json, which includes move-source-symlink-then-dotdot and directory-copy-into-existing-symlink, and must leave the same files and exit code as the v0.2.2 artifact (ci.yml run 46115737949, locally exit 0)."
     release: v0.2.2
+    tags: [historical]
     fields:
       method: demonstration
       steps:
@@ -86,7 +98,7 @@ artifacts:
   - id: VER-KS-007
     type: verification
     title: "The Rust component matches the TinyGo v0.2.2 artifact on the equivalence corpus"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Every case in testdata/kapsel/fileops runs under wasmtime with the sha256-pinned v0.2.2
@@ -96,14 +108,17 @@ artifacts:
       method: automated-test
       test-location: crates/kapsel-fileops/tests/equivalence.rs
       test-name: "rust_component_matches_tinygo_oracle (--ignored), run by the required Component Build & Test jobs, by Integration Testing on the AOT-embedded build and by release.yml on both assets before publishing"
+      steps: "cmd: cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release && CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture; local: exit 0 on ws/trace 533534a (macOS, 2026-11-28, wasmtime from varve), 197 cases, 384 runs, 285 agree, 99 allowlisted, 0 disagree; ci: ci.yml run 46115737949 on f2355247ca62aba5cb54471c7104b0e05a106b5b, rust_component_matches_tinygo_oracle ok in Component Build & Test (ubuntu-24.04), Component Build & Test (macos-latest) and Integration Testing (AOT-embedded build), all success"
     links:
       - type: verifies
         target: REQ-KS-041
 
+      - type: verifies
+        target: DD-KS-012
   - id: VER-KS-008
     type: verification
     title: "No Go or Python sources in the tree"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The required Quality & Security Gate fails if `git ls-files '*.go' '*.py'` lists anything.
@@ -111,8 +126,280 @@ artifacts:
       method: automated-test
       test-location: .github/workflows/ci.yml
       test-name: "Quality & Security Gate: No Go or Python sources"
+      steps: "cmd: git ls-files '*.go' '*.py' (must print nothing); local: 0 files on ws/trace 533534a (2026-11-28); ci: ci.yml run 46115737949 on f2355247ca62aba5cb54471c7104b0e05a106b5b, job Quality & Security Gate, step 'No Go or Python sources (REQ-KS-041, REQ-KS-064)', success"
     links:
       - type: verifies
         target: REQ-KS-064
       - type: verifies
         target: REQ-KS-041
+
+      - type: verifies
+        target: DD-KS-012
+  - id: VER-KS-009
+    type: verification
+    title: The parser accepts the decided subset and refuses everything else
+    status: verified
+    release: v0.3.0
+    description: "Every accept case parses to its golden tree with exact spans, every one of the 54 refuse cases (if, case, functions, subshells, backquotes, arithmetic, process substitution, here-strings, ...) yields parse errors naming the construct, the tree is lossless on all goldens, dash accepts every accept case, the corpus parses, and a parse error becomes a KS-R000 refusal through the real parser. A refusal never runs: the no-run-without-a-plan tests in crates/kapsel-cli/tests show it."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-syntax --test golden; cargo test --locked -p kapsel-check); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-syntax/tests/golden.rs; crates/kapsel-check/tests/plant_pack.rs; crates/kapsel-check/src/tests.rs
+      test-name: accept_goldens, accept_spans_exact_and_nested, refuse_goldens, lossless_on_all_goldens, dash_accepts_accept_cases, corpus_parses, incomplete_inputs; plant_pack_through_the_real_parser (KS-R000); tests::parse_errors_become_r000_one_each
+    links:
+      - type: verifies
+        target: REQ-KS-010
+      - type: verifies
+        target: DD-KS-002
+
+  - id: VER-KS-010
+    type: verification
+    title: kapsel check runs nothing (one input)
+    status: implemented
+    release: v0.3.0
+    description: "kapsel check --json on 'cat a | sort -u > b' prints the plan and b is not created; a refused input exits 65. PARTIAL: REQ-KS-011's criterion covers every input and also process spawn and network access; only one plan input is checked for writes, and nothing checks spawns or network. Missing test: run kapsel check over the plant pack, the parse goldens and the error corpus in an empty scratch directory and assert no file is created or changed and no child process starts."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli --test acceptance); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-cli/tests/acceptance.rs
+      test-name: check_json_reports_the_plan_grants, check_json_of_a_refusal_exits_65
+    links:
+      - type: verifies
+        target: REQ-KS-011
+
+  - id: VER-KS-011
+    type: verification
+    title: "|| true and || : are refused with a rule id and a reason"
+    status: verified
+    release: v0.3.0
+    description: Every placement of '|| true' and '|| :' (top level, after &&, inside $(...), in loops) is refused as KS-R001; the span covers operator and command; every finding of every rule's planted case has a rule id, a help line and a note; the CLI exits 65 with error[KS-R001] at -c:1:7.
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-check; cargo test --locked -p kapsel-cli --test acceptance); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-check/src/tests.rs; crates/kapsel-check/src/tests/quality.rs; crates/kapsel-check/tests/plant_pack.rs; crates/kapsel-cli/tests/acceptance.rs
+      test-name: tests::or_true_always_refuses_everywhere, tests::r001_span_covers_operator_and_command, tests::quality::every_finding_has_help_and_a_note, plant_pack_through_the_real_parser (KS-R001), or_true_is_refused_with_ks_r001
+    links:
+      - type: verifies
+        target: REQ-KS-012
+
+  - id: VER-KS-012
+    type: verification
+    title: Every rule has a planted script and a control, and CI fails if either flips
+    status: verified
+    release: v0.3.0
+    description: "testdata/kapsel/rules/KS-R000..KS-R017 each hold planted.sh, control.sh and expected.json; the plant pack test runs them through the real parser and fails when a planted case is not caught, its golden changes or its control warns or is refused. The KS-S001..S005 rules have planted and control cases in kapsel-analysis. Note: the rule lists in these tests are written out by hand (0..=17); a new rule id added without a plant would not fail them (see the gap list)."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-check -p kapsel-analysis); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-check/tests/plant_pack.rs; crates/kapsel-check/src/tests.rs; crates/kapsel-analysis/src/tests.rs
+      test-name: plant_pack_through_the_real_parser, tests::plant_pack_files_agree_with_rules, tests::every_rule_catches_its_planted_case_and_passes_its_control, tests::every_rule_id_has_a_case, tests::s001_planted_*/s001_control_*, s002_*, s003_planted/s003_control, s004_planted/s004_control, s005_planted/s005_control
+    links:
+      - type: verifies
+        target: REQ-KS-016
+      - type: verifies
+        target: DD-KS-004
+
+  - id: VER-KS-013
+    type: verification
+    title: "-c, script files and the exit codes through the kapsel binary"
+    status: implemented
+    release: v0.3.0
+    description: "The real binary runs a script file, returns the last command's status, and exits 64 (usage), 65 (refused), 70 (internal) and 78 (grants) in the cases named. PARTIAL: no test runs the same content once with -c and once as a script file and compares stdout, stderr and status, which REQ-KS-014's criterion requires."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli --test acceptance); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-cli/tests/acceptance.rs
+      test-name: script_file, script_status_is_the_last_command, usage_errors_exit_64, or_true_is_refused_with_ks_r001, a_missing_key_file_is_an_internal_error, invalid_grants_exit_78, no_home_fails_closed_with_78_and_writes_nothing
+    links:
+      - type: verifies
+        target: REQ-KS-014
+
+  - id: VER-KS-014
+    type: verification
+    title: JSON-config mode accepts workspace_dir '.' and fails on an unknown operation
+    status: verified
+    release: v0.3.0
+    description: "A relative workspace_dir with execroot-relative paths is accepted, an escaping destination is refused, and an unknown operation fails before anything runs, in the library and through the shipped wasm component (testdata/kapsel/fileops/07-relative-workspace.json: rules-wasm-component-execroot-relative, relative-destination-escape). The equivalence part ran in ci.yml run 46115737949 (Component Build & Test on ubuntu-24.04 and macos-latest, Integration Testing on the AOT asset) and locally with exit 0 (197 cases, 384 runs, 0 disagree)."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release && cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture; local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-config/src/tests.rs; crates/kapsel-fileops/tests/ported.rs; crates/kapsel-fileops/tests/equivalence.rs
+      test-name: tests::relative_workspace_dir_is_accepted, tests::unknown_operation_fails_in_relative_mode, unknown_operation_fails_before_anything_runs, json_destinations_stay_in_workspace; rust_component_matches_tinygo_oracle (--ignored)
+    links:
+      - type: verifies
+        target: REQ-KS-017
+      - type: verifies
+        target: DD-KS-011
+
+  - id: VER-KS-015
+    type: verification
+    title: Exit codes through the shipped component and the binary
+    status: implemented
+    release: v0.3.0
+    description: "The shipped file_ops_component.wasm and its AOT asset exit with the TinyGo oracle's code (0 or 1) on all 197 equivalence cases (ci.yml run 46115737949; locally exit 0); the kapsel binary's 64, 65, 70, 78 and pass-through statuses are asserted. CI builds with Rust 1.100.0 and rust-toolchain.toml and Cargo.toml rust-version pin 1.100. PARTIAL: nothing fails if both pins are lowered together; built-in status 2 is asserted only in-process (kapsel-host), not through the binary; nothing checks the covalent 2026.11.28 toolchain layer."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture; local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-fileops/tests/equivalence.rs; crates/kapsel-cli/tests/acceptance.rs
+      test-name: rust_component_matches_tinygo_oracle (--ignored), usage_errors_exit_64, invalid_grants_exit_78, a_missing_key_file_is_an_internal_error, script_status_is_the_last_command
+    links:
+      - type: verifies
+        target: REQ-KS-018
+
+  - id: VER-KS-016
+    type: verification
+    title: Interactive lines are checked, compiled and run, and the session persists
+    status: implemented
+    release: v0.3.0
+    description: "cd and assignments persist across lines (binary and host), $? at EOF is the last status, exit ends the session, a refused line prints its finding and the next line runs, a refused rm does not run. PARTIAL: no test feeds a refused line that contains an assignment or cd and then shows the session unchanged, which REQ-KS-019's criterion requires."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli -p kapsel-host); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-host/tests/real_compiler.rs; crates/kapsel-host/tests/e2e.rs
+      test-name: interactive_session_keeps_cd_and_variables, interactive_continuation_prompt_and_refused_line, interactive_eof_exits_with_the_last_status_and_exit_ends_the_session, interactive_ks_s005_refuses_the_line_and_the_session_goes_on, cd_and_variables_persist_between_lines, variables_persist_across_components, cd_persists_across_components
+    links:
+      - type: verifies
+        target: REQ-KS-019
+
+  - id: VER-KS-017
+    type: verification
+    title: The compiler declines loudly, validates every compile and pins its fixtures
+    status: verified
+    release: v0.3.0
+    description: Every lowering rule has a test that fires it; KNOWN.md counts are pinned; frozen fixtures match their committed sha256; the translation validator rejects a component of another plan and a wrong and/or shape (KC900); every decline KD1..KD8 is tested; ordeal proves each rule's status arithmetic and the layout bounds, every rule is proven or listed, and a wrong negation is refuted. The proofs also ran in rust.yml's 'Compiler proofs (ordeal)' step of run 46115737938.
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo test --locked -p kapsel-compile --test proofs -- --nocapture; local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-compile/tests/compile.rs; crates/kapsel-compile/tests/proofs.rs
+      test-name: every_rule_has_a_test_that_fires_it, known_md_counts_are_pinned, frozen_fixtures_match_committed_sha256, kc900_validator_rejects_component_of_another_plan, kc900_validator_rejects_wrong_and_or_shape, kd1_empty_pipeline..kd8_while_empty_condition; status_logic_proofs, layout_proofs, every_rule_is_proven_or_listed, negative_control_wrong_negation_is_refuted
+    links:
+      - type: verifies
+        target: DD-KS-019
+
+  - id: VER-KS-018
+    type: verification
+    title: A plan compiles to the same bytes twice and imports only kapsel:shell/host
+    status: implemented
+    release: v0.3.0
+    description: "One plan compiled twice gives identical bytes; the component imports only kapsel:shell/host and exports only run; grants never enter a module. NOT a full verification of REQ-KS-020 or DD-KS-005: both texts say the component imports the 'command' interface and native-exec, but the v0.3 compiler imports kapsel:shell/host by design (docs/first-shell.md, Oracles); the 'command' WIT is planned for v0.4.0. The requirement text must change before this can verify it."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-compile --test compile); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-compile/tests/compile.rs
+      test-name: determinism_same_plan_same_bytes, validity_imports_only_host_exports_only_run, no_cabi_realloc_exported, grants_are_never_compiled_in
+    links:
+      - type: verifies
+        target: REQ-KS-020
+      - type: verifies
+        target: DD-KS-005
+
+  - id: VER-KS-019
+    type: verification
+    title: Modules are signed, attest both hashes, and are cached by the normalized plan
+    status: verified
+    release: v0.3.0
+    description: A sealed module round-trips both input hashes; a flipped byte, another key, a stripped signature, a missing attestation or an attested plan hash other than the key all fail verification; a whitespace-only change hits the cache and an argv change misses; tampered or wrongly keyed cache entries are rejected and removed; grants change the key but never enter a module; the CLI serves 'echo   hi' from the cache entry of 'echo hi'.
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-seal -p kapsel-compile -p kapsel-cli); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-seal/src/tests.rs; crates/kapsel-compile/tests/compile.rs; crates/kapsel-cli/tests/diagnostics.rs
+      test-name: tests::round_trip_returns_both_input_hashes, tests::different_expected_hash_fails, tests::flipped_byte_fails, tests::different_key_fails, tests::stripped_signature_fails, tests::signed_without_attestation_fails, tests::whitespace_only_change_hits_and_argv_change_misses, tests::tampered_cache_file_is_rejected_and_removed, tests::wrongly_keyed_cache_entry_is_rejected_and_removed, tests::grants_change_the_key_but_never_enter_a_module, grants_are_never_compiled_in, bytes_equal_compile_of_normalized_plan, compile_still_seals_and_caches_by_plan_hash
+    links:
+      - type: verifies
+        target: REQ-KS-021
+
+  - id: VER-KS-020
+    type: verification
+    title: Nothing runs without a plan from the check stage
+    status: verified
+    release: v0.3.0
+    description: "On every entry path a refused input runs no part of itself: -c (marker not created), script file (KS-S005, results/ not created), interactive line (refused rm not run), compile (exit 65, no output file), unknown command (KS-R009); a refuse-level similar-command finding refuses the plan; a component importing WASI does not instantiate in the host."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli -p kapsel-host -p kapsel-db); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-host/tests/e2e.rs; crates/kapsel-db/src/tests.rs
+      test-name: nothing_runs_when_check_refuses, compile_of_a_refused_input_exits_65_and_writes_nothing, unknown_command_is_refused_not_run, script_ks_s005_refuses_and_nothing_runs, interactive_ks_s005_refuses_the_line_and_the_session_goes_on, a_component_importing_wasi_does_not_instantiate, tests::refuse_level_similar_command_finding_refuses_the_plan
+    links:
+      - type: verifies
+        target: REQ-KS-022
+      - type: verifies
+        target: DD-KS-003
+
+  - id: VER-KS-021
+    type: verification
+    title: Built-ins agree with dash and GNU coreutils on the corpus
+    status: implemented
+    release: v0.3.0
+    description: "All 20 corpus scripts agree with dash on Linux (rust.yml step 'Corpus agrees with dash': 20 scripts, 0 mismatches); every built-in name dispatches; per-built-in goldens; unsupported flags list the supported set; built-ins reach only granted paths. Locally on macOS the corpus comparison is advisory (BSD tools): 4 mismatches, as expected. PARTIAL: the corpus does not exercise each built-in's measured flag set (for example grep -E -n -i -v -r -l -c -o -q, sed -n 'a,bp', sort -u -r -n -k), which REQ-KS-025's criterion requires."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo test --locked -p kapsel-corpus -- --nocapture (authoritative on Linux); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-corpus/tests/corpus.rs; crates/kapsel-host/tests/builtins.rs; crates/kapsel-host/tests/grants.rs
+      test-name: corpus_agrees_with_dash, every_builtin_name_dispatches, grep_cases, sed_cases, sort_cases (and the other *_cases), unknown_flags_are_errors_listing_the_supported_set, outside_paths_are_refused_and_untouched
+    links:
+      - type: verifies
+        target: REQ-KS-025
+      - type: verifies
+        target: FEAT-KS-021
+
+  - id: VER-KS-022
+    type: verification
+    title: Every finding says what is wrong, where, and what to do
+    status: verified
+    release: v0.3.0
+    description: Rendered diagnostics are golden files that fail unless re-blessed (KAPSEL_BLESS=1), including real check outcomes and real parse errors; every finding of every rule's planted case has a help line and a note; a parse error without parser help still gets a fix; every rule has an explanation and kapsel explain prints it; built-in errors name the built-in and the supported flags.
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-diag -p kapsel-cli -p kapsel-check -p kapsel-host); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-diag/tests/golden.rs; crates/kapsel-cli/tests/golden.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-check/src/tests/quality.rs; crates/kapsel-host/tests/builtins.rs
+      test-name: kapsel-diag golden.rs (27 tests incl. r000_parse_error_backquote, real_check_outcome, real_parse_error, every_check_rule_has_an_explanation); kapsel-cli golden.rs or_true, curl_pipe_sh, destructive_near_miss_script; explain_prints_the_long_form_text; tests::quality::every_finding_has_help_and_a_note, tests::quality::r000_passes_parser_expected_and_help_through; unknown_flags_are_errors_listing_the_supported_set, sed_unsupported_command_names_it
+    links:
+      - type: verifies
+        target: REQ-KS-060
+
+  - id: VER-KS-023
+    type: verification
+    title: Similar commands are analysed together, incrementally
+    status: verified
+    release: v0.3.0
+    description: Each KS-S rule's planted case is reported with its related span and its control is quiet (kapsel-analysis, and the kapsel-diag goldens from the real analysis); findings are deterministic and the same through the real parser; work stays bounded; in the salsa database editing one command recomputes only that command and a new status reruns only the session analysis; the CLI warns KS-S001 across interactive lines.
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-analysis -p kapsel-db -p kapsel-diag); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-analysis/src/tests.rs; crates/kapsel-db/src/tests.rs; crates/kapsel-diag/tests/golden.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-syntax/tests/semantics.rs
+      test-name: tests::s001_*..s005_* (planted and control), tests::findings_are_deterministic, tests::real_parser_gives_the_same_findings, tests::large_script_and_session_stay_bounded, tests::editing_one_command_recomputes_only_that_command, tests::new_status_reruns_only_the_session_analysis, s001_session_retry, s002_spelling, s003, s004, s005, interactive_retry_without_change_warns_ks_s001_across_lines, parse_is_comparable_for_salsa
+    links:
+      - type: verifies
+        target: REQ-KS-061
+      - type: verifies
+        target: DD-KS-018
+
+  - id: VER-KS-024
+    type: verification
+    title: Error corpus cases match their expect lines
+    status: implemented
+    release: v0.3.0
+    description: "All 25 cases in testdata/kapsel/errors/ci are read; the 22 refuse, warn and plan cases must match their expect line and the corpus size is pinned. A grep on ws/trace for home paths, host names, user names and tokens found nothing. PARTIAL: the 3 run-error cases are counted but their outcome is not asserted, and no test fails if a committed case contains a home path, host name, user name or token."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-check); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-check/src/tests/security.rs
+      test-name: tests::security::error_corpus_matches_expectations
+    links:
+      - type: verifies
+        target: REQ-KS-062
+
+  - id: VER-KS-025
+    type: verification
+    title: The Rust fork-guard rule against the frozen Python oracle
+    status: implemented
+    release: v0.3.0
+    description: "The oracle body is pinned by sha256; every fixture under testdata/kapsel/scan/fork-guard is classified; Rust agrees with or is stricter than the script, and the cases where it accepts more (Accepts, Looser: block-scalar-text) are pinned. The no-Go/no-Python half is the Quality & Security Gate step in ci.yml. PARTIAL against REQ-KS-064's criterion as written ('disagrees on any workflow in the fixtures'): the test allows documented Stricter, MoreSites, Accepts and Looser differences, so the criterion and the test disagree until the owner restates one of them."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-scan --test equivalence); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
+      test-location: crates/kapsel-scan/tests/equivalence.rs
+      test-name: oracle_is_the_frozen_original, every_fixture_is_classified_and_there_are_enough, rust_agrees_with_or_is_stricter_than_the_oracle, looser_cases_are_exactly_the_documented_ones, cli_matches_library_and_json_is_valid
+    links:
+      - type: verifies
+        target: REQ-KS-064
