@@ -1196,7 +1196,7 @@ dependencies = [
 name = "kapsel-aot-embed"
 version = "0.3.0-dev"
 dependencies = [
- "sha2 0.10.9",
+ "sha2 0.11.2",
 ]
 
 [[package]]
@@ -1214,7 +1214,7 @@ dependencies = [
  "kapsel-plan",
  "kapsel-syntax",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
 ]
 
 [[package]]
@@ -1241,7 +1241,7 @@ dependencies = [
  "kapsel-plan",
  "ordeal",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
  "wasm-encoder",
  "wasmparser",
  "wasmtime",
@@ -1294,7 +1294,7 @@ version = "0.3.0-dev"
 dependencies = [
  "kapsel-config",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
 ]
 
 [[package]]
@@ -1320,7 +1320,7 @@ dependencies = [
  "kapsel-ast",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
 ]
 
 [[package]]
@@ -1329,7 +1329,7 @@ version = "0.3.0-dev"
 dependencies = [
  "rivet-yaml",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
 ]
 
 [[package]]
@@ -1339,7 +1339,7 @@ dependencies = [
  "kapsel-compile",
  "kapsel-plan",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.2",
  "wat",
  "wsc",
  "wsc-attestation",

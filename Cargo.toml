@@ -21,7 +21,7 @@ salsa = "0.28.5"
 annotate-snippets = "0.12.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 
 # ordeal re-checks the kapsel-compile proof certificates in `cargo test` and solves
 # the obligations under KAPSEL_BLESS=1; an
