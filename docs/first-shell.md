@@ -24,6 +24,12 @@ printf 'echo one\necho two\n' > s.sh && kapsel s.sh              # one, two
 kapsel                                                          # prompt; cd and X=1 persist across lines
 ```
 
+The plan and refusal JSON of `kapsel check --json` is described by `schemas/kapsel.plan.v0.json`
+(JSON Schema 2020-12). It is generated from the `kapsel-plan` types (`cargo test -p kapsel-plan --test
+schema`, re-blessed with `KAPSEL_BLESS=1`), and the CLI tests validate every plan and refusal the
+suites produce against it. The command also adds one `diagnostics` field (`kapsel.diag.v0`), which
+the schema permits.
+
 Day two, same release: `for`/`while`/`until`, `$(...)`, globs and heredocs through the compiler.
 The parser and check stage cover them from the start.
 
@@ -37,7 +43,7 @@ The parser and check stage cover them from the start.
 | `kapsel-syntax` | rowan parser → `kapsel-ast` | REQ-KS-010, DD-KS-002 |
 | `kapsel-check` | AST → `CheckOutcome` (plan or refusal) | REQ-KS-011, 012, 013, DD-KS-003, 004 |
 | `kapsel-compile` | `Plan` → component bytes, deterministic | REQ-KS-020, DD-KS-005 |
-| `kapsel-host` | wasmtime host, built-ins, session state, grants | REQ-KS-022, 025 |
+| `kapsel-host` | wasmtime host, built-ins, session state, grants | REQ-KS-022, 025, 063 |
 | `kapsel-cli` | the `kapsel` binary: `-c`, script file, interactive, `check`, `compile` | REQ-KS-014 |
 
 The three contract files change only additively during the slice, and every change is called out
@@ -47,6 +53,10 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
 
 - **POSIX defaults:** no implicit `set -e`. The exit status of a script is the status of its
   last command.
+- **Assignments with a redirect and no command** (`X=1 > f`) set the variables, then perform
+  the redirect; the status is the redirect's. Known difference from dash: when the redirect
+  fails (`X=1 > /`), kapsel keeps `X` and exits 1, as bash does, while dash drops the
+  assignment and exits 2. POSIX leaves the order open; no corpus script depends on it.
 - **Pipelines run in order.** Each stage reads the previous stage's complete output from an
   in-memory pipe. `$?` of a pipeline is the last stage's status, as in POSIX without pipefail.
 - **Unknown commands are refused**, not run: native tools arrive in v0.5 (REQ-KS-030).
@@ -54,8 +64,53 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
 - **Grants:** the session may read and write the current directory and nothing else unless
   `--rw DIR` / `--ro DIR` add more. A path outside every grant fails the built-in with exit 1 and a
   message; it never touches the file. `ZWINGER_GRANTS` (REQ-KS-023) replaces the flags in v0.4.
+  For testing REQ-KS-013 only, `--grants-from-plan` grants exactly the plan's read and write
+  paths and not the current directory (refused when the plan's grants are dynamic), and
+  `--drop-grant PATH` leaves one of them out. Both refuse to start (exit 64) unless
+  `KAPSEL_TESTING=1` is set, and the usage text does not list them; a plan grant that is
+  absolute or whose `..` leaves the current directory is refused with exit 78.
+  `crates/kapsel-cli/tests/grants_from_plan.rs` runs the dash corpus and the acceptance lines
+  both ways.
 - **Exit codes** (`kapsel_plan::exit`): command status 0 to 255 passes through; 64 usage,
   65 refused, 70 internal, 78 grants. Built-ins use only 0, 1 and 2.
+  A script can still `exit 64`, `65`, `70` or `78` itself (KS-R018 warns when it does), so the
+  status alone does not say who failed. A caller tells them apart this way: kapsel's own failures
+  print on stderr, a line starting `kapsel:` for usage, grants and internal errors, and an
+  `error[KS-…]` diagnostic for a refusal; and `kapsel check --json` settles refusal before
+  anything runs (exit 65 with a refusal object, or 0 with a plan), so after a passing check a 65
+  from the run came from the script.
+- **Call sites (WIT `site`).** Right before every `call`, the compiled component calls
+  `site(id)`, where `id` is the command's index in a pre-order walk of the plan
+  (`kapsel_plan::Plan::commands()`: and-or lists and pipeline stages in order, a command before
+  the `$(...)` bodies in its words, loop items or the condition before the body, assignment-only
+  commands counted). Ids depend only on the plan's shape, so the normalized plan compiles to the
+  same bytes and the cache key is unchanged. `site` changes no shell state.
+
+## Run errors (REQ-KS-060)
+
+A built-in that fails at run time still prints its own line on stderr (`cat: missing.txt: No
+such file or directory`, `kapsel: /etc/x: outside the session's grants`), so scripts that read
+stderr see the same text. After the run, kapsel also renders each failure as a diagnostic: the
+host records the site of the failing call, a stable class and a help line, and the CLI finds the
+command's span through the same pre-order walk over the original plan:
+
+```text
+error[run:not-found]: cat: result.txt: No such file or directory
+ --> s.sh:2:1
+  |
+2 | cat result.txt
+  | ^^^^^^^^^^^^^^
+  |
+  = help: `result.txt` does not exist; did you mean `results.txt`, which the script writes?
+```
+
+The ids are `run:grants`, `run:symlink`, `run:not-found`, `run:permission`, `run:usage`,
+`run:regex`, `run:edit-no-match`, `run:parse`, `run:io` and `run:failed`; `kapsel explain
+run:grants` prints the long form. They never start with `KS-`, so `error[KS-…]` still marks only
+kapsel's own refusals. Only failing calls (status 1 to 255) are reported; identical errors of one
+command (a loop body) render once. In an interactive session the source is `history`, as for
+warnings. stdout and exit codes do not change. Run errors are not part of `check --json`, which
+runs nothing.
 
 ## Refusal rules, first batch (DD-KS-004)
 
@@ -63,7 +118,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 
 | Id | Severity | Construct |
 |---|---|---|
-| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal) |
+| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is 0 by the definition of what it runs, judged with the host's own `test` and `exit` code (`kapsel_plan::sem`): a pipeline with a `true` or `:` stage; an `exit` that certainly runs with status 0 (`exit 0`, `exit -256`, `exit " 0"`, a bare `exit` after status 0 or `echo`/`printf`, also in a loop); `!` of what always fails (`false`, a false or malformed test, `export 1bad`, `X=$(false)`); a `test`/`[` that is true whatever its expansions are (`test x -o y`, `test "x$(cmd)"`); assignments with no `$(...)` or whose last `$(...)` always ends with 0; `export` of valid literal names with quoted values; a `for` loop with no items; a loop whose body never runs or always ends in one of these. Not refused: anything whose status the run decides (`X=$(cmd)`, `test -n "$X"`, `[ $X = y ]`, `[ -e f ]`), and `pwd`, `cd .`, `seq 0`, `echo` (0 in practice, but they can fail; `\|\| echo` is KS-R011) |
 | KS-R002 | warn | `2>/dev/null` on a command whose failure is not otherwise handled |
 | KS-R003 | refuse | `rm -r`/`-rf` whose path is `/`, `~`, `.`, `..`, empty, or begins with an unquoted or possibly-empty expansion (`rm -rf $X/`) |
 | KS-R004 | refuse | code from strings: `eval`, `sh -c`, `bash -c`, `source`, `.` |
@@ -71,9 +126,10 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 | KS-R006 | refuse | network into an interpreter: `curl`/`wget` piped to `sh`/`bash` or another interpreter |
 | KS-R007 | refuse | escaping the session: `nohup`, `setsid`, `disown`, trailing `&` |
 | KS-R008 | refuse | killing by pattern: `pkill`, `killall` |
-| KS-R009 | refuse | a command that is not a built-in (names the command, points at v0.5 native tools) |
+| KS-R009 | refuse | a command that is not a built-in (names the command, points at v0.5 native tools; for python, perl, node, ruby, awk, jq or yq, names the built-in that covers the common use) |
 | KS-R010 | refuse | a dynamic command name |
 | KS-R000 | refuse | a parse error: the construct is outside the subset (names it) |
+| KS-R018 | warn | `exit 64`, `65`, `70` or `78` (modulo 256): the script's status collides with kapsel's own failure codes |
 
 ## Oracles
 

@@ -33,6 +33,11 @@
 //! run in POSIX expansion order: command words, then redirections, then
 //! assignments.
 //!
+//! Sites (REQ-KS-060): right before every `call` the module calls `site(id)`,
+//! `id` being the command's index in `kapsel_plan::Plan::commands()` (a
+//! pre-order walk), so the host can say which source command failed. Ids depend
+//! only on the plan's shape, never on spans (KC-R22).
+//!
 //! Status: `set-status` follows every executed pipeline (after `!` is
 //! applied), so `$?` is right inside an and-or list and after it.
 //!
@@ -157,6 +162,8 @@ pub mod rule {
         SCOPE_STAGE  = "KC-R19", "scope-stage",     "each stage of an N >= 2 pipeline in a subshell scope";
         EXIT_SCOPE   = "KC-R20", "exit-scope",      "`exit n` inside a scope: pop it, status n";
         EXIT_PLAN    = "KC-R21", "exit-plan",       "`exit n` with no scope open: run returns n";
+        CALL_SITE    = "KC-R22", "call-site",       "`site(id)` right before each call: the command's pre-order index";
+        ASSIGN_REDIR = "KC-R23", "assign-redirect", "`X=v > f` with no command: set-var each, then `:` with the redirects";
     }
 }
 pub use rule::RULES;
@@ -178,7 +185,6 @@ pub const DECLINED: &[(&str, &str)] = &[
         "KD-5",
         "command with no tool and no assignments (e.g. a redirect-only `> f`)",
     ),
-    ("KD-6", "command with no tool but with redirects"),
     (
         "KD-7",
         "redirect whose target kind does not match its operator",

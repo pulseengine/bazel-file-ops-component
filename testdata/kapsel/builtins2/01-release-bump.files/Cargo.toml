@@ -1,0 +1,7 @@
+# Workspace manifest
+[package]
+name = "demo"        # crate name
+version = "0.3.0"    # bumped by release
+
+[dependencies]
+serde = "1.0.200"

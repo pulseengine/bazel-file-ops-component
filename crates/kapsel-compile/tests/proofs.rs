@@ -378,6 +378,7 @@ fn decode_run(module: &[u8]) -> Vec<Op> {
                         "bind-item" => "bind-item",
                         "scope-push" => "scope-push",
                         "scope-pop" => "scope-pop",
+                        "site" => "site",
                         other => panic!("unknown import {other}"),
                     };
                     imports.push(name);
@@ -629,6 +630,11 @@ fn exec_wasm(ops: &[Op]) -> Vec<Run> {
                     }
                     "scope-push" => s.trace.push(Ev::ScopePush),
                     "scope-pop" => s.trace.push(Ev::ScopePop),
+                    // `site(id)` only names the next call's command for run-error
+                    // reports: no status, no trace event.
+                    "site" => {
+                        pop(&mut s);
+                    }
                     other => panic!("{other}"),
                 },
             }
@@ -684,7 +690,7 @@ fn number_sites(plan: &Plan) -> BTreeMap<usize, u32> {
                     for w in capture_words(c) {
                         captures_of(w, m);
                     }
-                    if c.tool.is_some() {
+                    if host_call(c) {
                         let k = m.len() as u32;
                         m.insert(c as *const _ as usize, k);
                     }
@@ -716,10 +722,17 @@ fn number_sites(plan: &Plan) -> BTreeMap<usize, u32> {
     m
 }
 
+/// Whether a command makes a host call: a built-in, or (POSIX 2.9.1) a command
+/// with no name but with redirections, which are performed (by `:`) after the
+/// assignments persist; its status is that call's.
+fn host_call(c: &kapsel_plan::Call) -> bool {
+    c.tool.is_some() || !c.redirects.is_empty()
+}
+
 /// The words of a command whose `$(...)` parts run before it, in POSIX
 /// expansion order.
 fn capture_words(c: &kapsel_plan::Call) -> Vec<&PWord> {
-    if c.tool.is_none() {
+    if !host_call(c) {
         return c.assignments.iter().map(|(_, w)| w).collect();
     }
     let mut v: Vec<&PWord> = c.argv.iter().collect();
@@ -898,7 +911,7 @@ impl Spec<'_> {
             return vec![s];
         }
         match st {
-            PStage::Call(c) if c.tool.is_some() => {
+            PStage::Call(c) if host_call(c) => {
                 let k = self.sites[&(c as *const _ as usize)];
                 let words = capture_words(c);
                 let mut out = Vec::new();
@@ -1129,6 +1142,7 @@ const PROVEN: &[(&str, &str)] = &[
     ("KC-R19", "stage_exit"),
     ("KC-R20", "sub_exit"),
     ("KC-R21", "exit"),
+    ("KC-R23", "assign_redirect"),
 ];
 
 /// Rules with no status arithmetic: they lay out argument data only.
@@ -1156,6 +1170,12 @@ const NO_ARITHMETIC: &[(&str, &str)] = &[
     (
         "KC-R18",
         "part-glob: lays out a part variant, computes and tests no status",
+    ),
+    (
+        "KC-R22",
+        "call-site: passes a compile-time constant to `site`, a host call with no result; \
+         the symbolic executor models it as a no-op, so every status proof covers plans \
+         that contain it",
     ),
 ];
 

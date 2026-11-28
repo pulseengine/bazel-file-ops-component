@@ -62,9 +62,8 @@ artifacts:
     title: "Created directories are 0750 and files 0640, and gosec blocks"
     status: verified
     release: v0.2.1
-    description: >
-      gosec runs blocking in the required checks with tinygo/gosec.json setting the G302/G306
-      threshold to 0640; each #nosec states its reason.
+    description: "gosec runs blocking in the required checks with tinygo/gosec.json setting the G302/G306 threshold to 0640; each #nosec states its reason. Historical (v0.2.1): this applied to the TinyGo component. Its Go sources, tinygo/gosec.json and the gosec step were removed in v0.3.0 (#144), so its gosec verification record is historical. The Rust component sets no file modes (wasip2 has no mode argument; the host decides), and the fileops equivalence test (crates/kapsel-fileops/tests/equivalence.rs) shows only that modes equal the v0.2.2 artifact's under wasmtime. No current test asserts 0750 or 0640."
+    tags: [historical]
     fields:
       priority: should
       category: non-functional
@@ -75,7 +74,7 @@ artifacts:
   - id: REQ-KS-010
     type: requirement
     title: "The parser accepts a defined POSIX subset and refuses everything else with a reason"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The subset is pipes, redirection, && and ||, ;, quoting, environment variables, globs,
@@ -91,7 +90,7 @@ artifacts:
   - id: REQ-KS-011
     type: requirement
     title: "Analysis is separate from execution"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       A check stage parses a command, applies the grammar and the policy, and names the grants,
@@ -106,7 +105,7 @@ artifacts:
   - id: REQ-KS-012
     type: requirement
     title: "Constructs that destroy the error signal are refused"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
@@ -122,7 +121,7 @@ artifacts:
   - id: REQ-KS-013
     type: requirement
     title: "The check stage's plan is a versioned JSON document"
-    status: proposed
+    status: verified
     release: v0.3.0
     description: >
       The plan lists each pipeline stage, the built-in or native tool it uses, the read and
@@ -136,7 +135,7 @@ artifacts:
   - id: REQ-KS-014
     type: requirement
     title: "kapsel takes a command with -c or from a script file, with defined exit codes"
-    status: proposed
+    status: verified
     release: v0.3.0
     description: >
       `kapsel check` and `kapsel run` accept `-c <command>` and a script-file argument (GitHub
@@ -150,7 +149,7 @@ artifacts:
   - id: REQ-KS-015
     type: requirement
     title: "The workflow scanner checks every run: block of a repository's workflows offline"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Phase 0 of the dogfooding rollout (owner, 2026-11-27): `kapsel check` over GitHub
@@ -164,7 +163,7 @@ artifacts:
   - id: REQ-KS-016
     type: requirement
     title: "Every refusal rule has a planted script and a planted control"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The refusal corpus is a plant pack in this repository: each rule has a script that must be
@@ -177,7 +176,7 @@ artifacts:
   - id: REQ-KS-017
     type: requirement
     title: "JSON-config mode accepts a relative workspace_dir and fails on an unknown operation"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       rules_wasm_component writes workspace_dir "." with execroot-relative paths (#776). kapsel
@@ -194,7 +193,7 @@ artifacts:
   - id: REQ-KS-018
     type: requirement
     title: "Rust components follow the fleet exit-code rule"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Rust 1.100 or later pinned, std::process::exit on WASI, and every exit code asserted
@@ -208,7 +207,7 @@ artifacts:
   - id: REQ-KS-019
     type: requirement
     title: "Interactive mode compiles and runs each line, and the session state persists"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       With no command and no script, kapsel reads lines from a terminal. Each complete line goes
@@ -228,7 +227,7 @@ artifacts:
   - id: REQ-KS-060
     type: requirement
     title: "Every refusal, warning and run error says what is wrong, where, and what to do"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Diagnostics are rendered rustc-style: rule id, file:line:col, the source line with the span
@@ -245,7 +244,7 @@ artifacts:
   - id: REQ-KS-061
     type: requirement
     title: "Commands that repeat an earlier command with a small difference are analysed together"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       A salsa database holds every command of a script or session. The analysis compares command
@@ -261,7 +260,7 @@ artifacts:
   - id: REQ-KS-062
     type: requirement
     title: "Real mistakes from CI and agent sessions form a regression corpus"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       testdata/kapsel/errors/ holds minimized, scrubbed cases from CI failures and failed agent
@@ -270,14 +269,14 @@ artifacts:
       text or log is committed.
     fields:
       priority: must
-      category: verification
+      category: non-functional
       verification-criteria: "Fails if a corpus case's outcome differs from its expect line, or a committed case contains a home path, hostname, user name or token."
       upstream-ref: "kapsel#140"
 
   - id: REQ-KS-063
     type: requirement
     title: "Built-ins for file edits and structured data make python, perl and awk unnecessary for basic work"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Measured on this machine (80,836 agent shell calls, 2026-11-27): 19.1% used python, perl,
@@ -297,7 +296,7 @@ artifacts:
   - id: REQ-KS-064
     type: requirement
     title: "The repository has no Python, and no Go once the JSON-config mode is Rust"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       scripts/check_selfhosted_fork_guard.py becomes the first rule of kapsel's workflow scanner
@@ -307,7 +306,7 @@ artifacts:
     fields:
       priority: must
       category: constraint
-      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag, or the Rust fork-guard rule disagrees with the Python script on any workflow in the fixtures."
+      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag (the fork-guard oracle is kept only as frozen test data, testdata/kapsel/scan/oracle/*.py.frozen), or the Rust fork-guard rule passes a workflow the Python script fails, except for the pinned, reasoned cases: the script's false positive on runs-on text inside a run: block, and the semantically guarded variants the owner approved on 2026-11-28 (hosted fallback other than ubuntu-24.04, trailing comment, nested selection, matrix guards whose self-hosted entries say self-hosted, matrix.os conditionals, anchors and aliases)."
       upstream-ref: "kapsel#140"
     links:
       - type: derives-from
@@ -318,21 +317,24 @@ artifacts:
   - id: REQ-KS-020
     type: requirement
     title: "A checked plan compiles to a WASM component that calls kapsel's interfaces"
-    status: proposed
+    status: verified
     release: v0.3.0
     description: >
-      The compiler turns a plan into a component that imports the `command` interface for each
-      built-in and native-exec for each native tool. The same plan and the same interface
-      versions produce a byte-identical module.
+      The compiler turns a plan into a component of world `kapsel:shell/plan` that imports only
+      `kapsel:shell/host@0.1.0` (wit/kapsel-shell.wit): built-ins, expansion and session state are
+      host calls, and all control flow is compiled in. The same plan and the same interface
+      versions produce a byte-identical module. Built-ins as composed `command` components and
+      native tools through native-exec replace host calls in v0.4.0 and v0.5.0 (REQ-KS-024,
+      REQ-KS-030); this text was narrowed to the first-shell design on 2026-11-28.
     fields:
       priority: must
       category: functional
-      verification-criteria: "Fails if one plan compiled twice with the same interface versions gives two different modules, or a compiled module calls anything other than the command and native-exec imports."
+      verification-criteria: "Fails if one plan compiled twice with the same interface versions gives two different modules, or a compiled module imports anything other than kapsel:shell/host@0.1.0."
 
   - id: REQ-KS-021
     type: requirement
     title: "Compiled modules are signed with sigil, attest both input hashes, and are cached by the normalized one"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Every compiled module is signed with sigil (wsc) and carries a transformation attestation
@@ -351,7 +353,7 @@ artifacts:
   - id: REQ-KS-022
     type: requirement
     title: "The executor runs only plans the check stage produced"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       There is no path from a command line to execution that skips the check stage.
@@ -392,7 +394,7 @@ artifacts:
   - id: REQ-KS-025
     type: requirement
     title: "The most-used commands are built in"
-    status: proposed
+    status: verified
     release: v0.3.0
     description: >
       First batch, ranked by measured agent use: cat, echo, printf, head, tail, wc, ls, mkdir,
@@ -417,6 +419,52 @@ artifacts:
       priority: must
       category: non-functional
       verification-criteria: "Fails if wasmtime and kiln differ in output, exit code or errno on any corpus script."
+
+  - id: REQ-KS-027
+    type: requirement
+    title: "The subset widens to if, parameter operators, brace groups, arithmetic and case"
+    status: approved
+    release: v0.4.0
+    description: >
+      The v0.3.0 workflow scan read 2,977 run: blocks across the fleet with no parser crash, and
+      kapsel accepted 56. The five most-refused constructs were `if` (886), `${x:-y}`-style
+      parameter operators (519), `{ }` brace groups (401), `$(( ))` arithmetic (162) and `case`
+      (94). v0.4.0 adds all five to the parser, check stage and compiler (owner, 2026-11-28).
+      `${x:?message}` becomes the fix KS-R017 suggests, and arithmetic is 64-bit, proven with
+      ordeal against shell semantics as the compiler's other rules are. Refusal rules that apply
+      inside the new constructs keep their planted tests.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any of the five constructs is refused, a refusal rule stops firing inside one of them, an arithmetic lowering has no ordeal certificate, or the scanner's accepted-block count on the v0.3.0 fleet snapshot does not rise."
+      upstream-ref: "kapsel#140"
+
+  - id: REQ-KS-028
+    type: requirement
+    title: "A browser playground runs kapsel against a directory the user grants"
+    status: approved
+    release: v0.4.0
+    description: >
+      A web page shows kapsel in action with the same parser, check stage, compiler and host,
+      compiled to WebAssembly and loaded with jco (owner, 2026-11-28). Stage 1 is check-only: a
+      typed command shows its plan, grants and any refusal with the rendered diagnostic. Stage 2
+      runs the compiled component against files in the browser: the browser's private file system
+      (OPFS) for a sample project, or a directory the user picks through the File System Access
+      API, falling back to OPFS where that API is missing (Firefox, Safari). The picked directory is
+      the session's only grant, so the browser's permission prompt plays the role of `--rw DIR`.
+      Hosting, agreed with pulseengine.eu on 2026-11-28: the page lives at
+      pulseengine.eu/kapsel/playground/. Each kapsel release publishes kapsel-playground-<v>.tar.gz,
+      listed in the cosign-signed checksums; pulseengine.eu pins version and sha256, verifies the
+      signature against kapsel's release-workflow identity on deploy, and each release opens a
+      pin-bump PR there. The tarball carries everything (no CDN or third-party loads), the wasm
+      loads after the first interaction and is served compressed (stage 1 at most 5 MB compressed,
+      stage 2 at most 20 MB, sizes printed in the release notes), and the page says it is work in
+      progress and that nothing leaves the browser.
+    fields:
+      priority: should
+      category: functional
+      verification-criteria: "Fails if the page's plan, refusal or output for a corpus script differs from the native kapsel binary at the same tag, a command reaches a file outside the granted directory, the page makes a network request after load, it loads anything from a third party, the stage 1 or stage 2 wasm exceeds 5 MB or 20 MB compressed, it fails without the File System Access API, or the published tarball was built from a different tag than the release."
+      upstream-ref: "kapsel#140"
 
   # --- v0.5.0: native tools ---
 
@@ -526,7 +574,7 @@ artifacts:
   - id: REQ-KS-041
     type: requirement
     title: "The Rust implementation replaces the TinyGo JSON-config component after an equivalence test"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The existing JSON configs are the oracle: the Rust implementation produces the same files,
@@ -534,7 +582,7 @@ artifacts:
     fields:
       priority: must
       category: constraint
-      verification-criteria: "Fails if the Rust implementation differs from the TinyGo artifact in files, errors or exit codes on any existing JSON config."
+      verification-criteria: "Fails if the Rust implementation differs from the TinyGo v0.2.2 artifact in files, errors or exit codes on any existing JSON config, outside the counted, owner-approved difference classes the equivalence test allowlists (relative workspace_dir per REQ-KS-017, the src_paths alias, the fixed same-path preopen walk, and TinyGo crashes), each class pinned by count."
 
   # --- Backlog: no release yet ---
 

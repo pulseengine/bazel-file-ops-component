@@ -1,0 +1,638 @@
+{
+  "$defs": {
+    "AndOrOp": {
+      "enum": [
+        "and",
+        "or"
+      ],
+      "type": "string"
+    },
+    "Call": {
+      "properties": {
+        "argv": {
+          "description": "Includes the command name as `argv[0]`, which is always a literal.",
+          "items": {
+            "$ref": "#/$defs/PWord"
+          },
+          "type": "array"
+        },
+        "assignments": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/PWord"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "redirects": {
+          "items": {
+            "$ref": "#/$defs/PRedirect"
+          },
+          "type": "array"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tool"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`None` for an assignment-only command (`X=1`): the compiler emits\n`set-var` for each assignment and no call."
+        }
+      },
+      "required": [
+        "argv",
+        "assignments",
+        "redirects",
+        "span"
+      ],
+      "type": "object"
+    },
+    "Finding": {
+      "description": "A rule hit. Rule ids are stable, e.g. `KS-R001` (`|| true`).",
+      "properties": {
+        "excerpt": {
+          "description": "The exact source text of `span`.",
+          "type": "string"
+        },
+        "help": {
+          "description": "A concrete fix the user can apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "notes": {
+          "description": "Extra context lines (why the rule exists, what was measured).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "related": {
+          "description": "Secondary spans with labels, e.g. the earlier command a duplicate repeats.",
+          "items": {
+            "$ref": "#/$defs/Related"
+          },
+          "type": "array"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        }
+      },
+      "required": [
+        "rule",
+        "severity",
+        "message",
+        "span",
+        "excerpt"
+      ],
+      "type": "object"
+    },
+    "Grants": {
+      "properties": {
+        "dynamic": {
+          "description": "True when some path depends on a parameter or command substitution, so\nthe lists above are incomplete and the host must decide at run time.",
+          "type": "boolean"
+        },
+        "native": {
+          "description": "Native programs needed. Always empty in v0.3 (native tools are refused).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "read": {
+          "description": "Paths read, as written in the source (literal paths only).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "write": {
+          "description": "Paths written or created, as written in the source (literal only).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "read",
+        "write",
+        "dynamic",
+        "native"
+      ],
+      "type": "object"
+    },
+    "PAndOr": {
+      "properties": {
+        "first": {
+          "$ref": "#/$defs/PPipeline"
+        },
+        "rest": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "#/$defs/AndOrOp"
+              },
+              {
+                "$ref": "#/$defs/PPipeline"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "first",
+        "rest"
+      ],
+      "type": "object"
+    },
+    "PPart": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "lit",
+              "type": "string"
+            },
+            "quoted": {
+              "type": "boolean"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "text",
+            "quoted"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "var",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "quoted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "quoted"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Glob pattern text in fnmatch syntax (`*`, `?`, `[...]`), always unquoted.",
+          "properties": {
+            "kind": {
+              "const": "glob",
+              "type": "string"
+            },
+            "pattern": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "pattern"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "`$(...)`: run `body` with stdout captured, then substitute the output\nwith trailing newlines removed.",
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/PAndOr"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "capture",
+              "type": "string"
+            },
+            "quoted": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "body",
+            "quoted"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PPipeline": {
+      "properties": {
+        "negated": {
+          "type": "boolean"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/PStage"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "negated",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "PRedirect": {
+      "properties": {
+        "fd": {
+          "description": "Resolved fd: the explicit one, or 0 for `<`/`<&`/heredoc, 1 otherwise.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "op": {
+          "$ref": "#/$defs/RedirectOp"
+        },
+        "target": {
+          "$ref": "#/$defs/PRedirectTarget"
+        }
+      },
+      "required": [
+        "fd",
+        "op",
+        "target"
+      ],
+      "type": "object"
+    },
+    "PRedirectTarget": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "word",
+              "type": "string"
+            },
+            "word": {
+              "$ref": "#/$defs/PWord"
+            }
+          },
+          "required": [
+            "kind",
+            "word"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "fd": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "fd",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "fd"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Heredoc body; a quoted delimiter gives a single quoted literal.",
+          "properties": {
+            "body": {
+              "$ref": "#/$defs/PWord"
+            },
+            "kind": {
+              "const": "heredoc",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "body"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PStage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Call",
+          "properties": {
+            "kind": {
+              "const": "call",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/PAndOr"
+              },
+              "type": "array"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/PWord"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "for",
+              "type": "string"
+            },
+            "var": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "var",
+            "items",
+            "body"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "body": {
+              "items": {
+                "$ref": "#/$defs/PAndOr"
+              },
+              "type": "array"
+            },
+            "condition": {
+              "items": {
+                "$ref": "#/$defs/PAndOr"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "while",
+              "type": "string"
+            },
+            "until": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "until",
+            "condition",
+            "body"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PWord": {
+      "description": "A word after the check stage: quoting is resolved into per-part flags,\nwhich is what expansion needs (field splitting and globbing apply only to\nunquoted parts).",
+      "properties": {
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/PPart"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "parts"
+      ],
+      "type": "object"
+    },
+    "Plan": {
+      "properties": {
+        "body": {
+          "items": {
+            "$ref": "#/$defs/PAndOr"
+          },
+          "type": "array"
+        },
+        "grants": {
+          "$ref": "#/$defs/Grants",
+          "description": "What the plan needs, as far as static analysis can tell."
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_sha256": {
+          "description": "Hex sha256 of the exact source text the plan was made from.",
+          "type": "string"
+        },
+        "warnings": {
+          "description": "Findings with `severity: warn`. Refuse findings never appear in a plan.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "source_sha256",
+        "body",
+        "grants",
+        "warnings"
+      ],
+      "type": "object"
+    },
+    "RedirectOp": {
+      "oneOf": [
+        {
+          "const": "read",
+          "description": "`<`",
+          "type": "string"
+        },
+        {
+          "const": "write",
+          "description": "`>`",
+          "type": "string"
+        },
+        {
+          "const": "append",
+          "description": "`>>`",
+          "type": "string"
+        },
+        {
+          "const": "dup_out",
+          "description": "`>&`",
+          "type": "string"
+        },
+        {
+          "const": "dup_in",
+          "description": "`<&`",
+          "type": "string"
+        },
+        {
+          "const": "heredoc",
+          "description": "`<<` and `<<-`",
+          "type": "string"
+        }
+      ]
+    },
+    "Refusal": {
+      "properties": {
+        "findings": {
+          "description": "At least one finding has `severity: refuse`.",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "source_sha256",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "Related": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/Span"
+        }
+      },
+      "required": [
+        "span",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "refuse",
+        "warn"
+      ],
+      "type": "string"
+    },
+    "Span": {
+      "description": "Byte range `[start, end)` in the source text.",
+      "properties": {
+        "end": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "Tool": {
+      "oneOf": [
+        {
+          "description": "A command implemented by kapsel (REQ-KS-025), including the special\nbuilt-ins `cd`, `export`, `exit`, `true`, `false`, `:`, `test`, `[`.",
+          "properties": {
+            "kind": {
+              "const": "builtin",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A plan or a refusal. `kapsel check --json` adds one top-level `diagnostics` field (kapsel.diag.v0), which this schema permits. The `schema` field of a plan or refusal is \"kapsel.plan.v0\".",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Plan",
+      "properties": {
+        "outcome": {
+          "const": "plan",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "type": "object"
+    },
+    {
+      "$ref": "#/$defs/Refusal",
+      "properties": {
+        "outcome": {
+          "const": "refused",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "kapsel.plan.v0: the outcome of `kapsel check`"
+}

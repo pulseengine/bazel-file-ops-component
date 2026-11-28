@@ -1,0 +1,11 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: py
+        shell: python
+        run: |
+          import os
+          print(os.getcwd())

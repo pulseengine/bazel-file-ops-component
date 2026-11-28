@@ -25,7 +25,7 @@ artifacts:
   - id: FEAT-KS-010
     type: feature
     title: "kapsel check: analyze a command without running it"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "Analyze any command and get a plan or a refusal with reasons, without running it."
     fields:
@@ -48,18 +48,24 @@ artifacts:
       - type: satisfies
         target: REQ-KS-014
 
+      - type: satisfies
+        target: REQ-KS-060
+      - type: satisfies
+        target: REQ-KS-061
+      - type: satisfies
+        target: REQ-KS-062
   - id: FEAT-KS-011
     type: feature
     title: "Workflow scanner report (Phase 0)"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "A report of what kapsel would refuse or need in every workflow, produced offline."
     fields:
       phase: phase-1
       acceptance-criteria:
         - "One report artifact per run, a section per repository, with ${{ }} opaque"
-        - "Finds the `|| echo` in ci.yml's Integration Testing step on the pre-fix revision"
-        - "Runs advisory beside the current CI for at least one release before any gate uses it"
+        - "On the pre-#143 ci.yml it reports KS-R011 at every `|| echo` in a run: block inside the v0.3.0 subset (License Check, Performance Monitoring); the Integration Testing block is refused first for `if` and `&>` (KS-R000), and its `|| echo` lines are found once REQ-KS-027 brings `if` in (narrowed 2026-11-28)"
+        - "Runs in CI as an advisory step that uploads its report and never fails on refusals; no gate uses it in v0.3.0, and promotion to a gate waits at least one release"
     links:
       - type: satisfies
         target: REQ-KS-015
@@ -70,7 +76,7 @@ artifacts:
     type: feature
     title: "Bazel's file_ops toolchain runs on kapsel (Phase 1)"
     status: approved
-    release: v0.3.0
+    release: v0.4.0
     description: "rules_wasm_component's file operations run on kapsel instead of a separate Go wrapper."
     fields:
       phase: phase-1
@@ -84,15 +90,15 @@ artifacts:
   - id: FEAT-KS-020
     type: feature
     title: "kapsel run: compile a checked command to WASM and run it"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "Run a checked command as a compiled, cached WASM module under granted directories."
     fields:
       phase: phase-2
       acceptance-criteria:
         - "The same command twice compiles to a byte-identical module, and the second run hits the cache"
-        - "Missing or invalid ZWINGER_GRANTS exits 78 and preopens nothing"
-        - "Every corpus script gives the same output and exit code on wasmtime and kiln"
+        - "An invalid --rw or --ro grant exits 78 and runs nothing"
+        - "Every corpus script gives the same stdout, exit status and files as dash on Linux"
     links:
       - type: satisfies
         target: REQ-KS-020
@@ -101,16 +107,11 @@ artifacts:
       - type: satisfies
         target: REQ-KS-022
       - type: satisfies
-        target: REQ-KS-023
-      - type: satisfies
-        target: REQ-KS-024
-      - type: satisfies
-        target: REQ-KS-026
-
+        target: REQ-KS-019
   - id: FEAT-KS-021
     type: feature
     title: "Built-in commands, first batch"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "The most-used commands run inside kapsel without leaving the WASM sandbox."
     fields:
@@ -121,6 +122,30 @@ artifacts:
     links:
       - type: satisfies
         target: REQ-KS-025
+
+  - id: FEAT-KS-022
+    type: feature
+    title: "Edit files and structured data without an interpreter"
+    status: verified
+    release: v0.3.0
+    description: >
+      Built-ins for what python, perl, node and awk were measured to do in agent shell calls:
+      `edit` (literal, regex and multi-line replace in a file, splice by line range), `json`
+      (get, set, del, merge), `yaml` and `toml` (get and set that keep comments), `field`,
+      `lines`, `base64` and `sha256sum`. KS-R009 names the covering built-in when it refuses an
+      interpreter.
+    fields:
+      phase: phase-2
+      acceptance-criteria:
+        - "An edit that matches nothing, or not exactly the count -c names, exits 1 and leaves the file byte for byte as it was"
+        - "Every write is a temporary file in the same directory renamed over FILE, checked against the write grant, and refused through a symlink"
+        - "A yaml or toml set or del changes the edited node only: the rest of a commented file is byte-exact (goldens in kapsel-host/tests/builtins2.rs)"
+        - "kapsel check lists each writer's FILE as read and written, and each get form's FILE as read"
+        - "KS-R009 on python, python3, perl, node, ruby, awk, jq and yq names the built-in for the common use"
+        - "The scripts in testdata/kapsel/builtins2/ give their recorded stdout and files"
+    links:
+      - type: satisfies
+        target: REQ-KS-063
 
   - id: FEAT-KS-030
     type: feature
@@ -191,3 +216,23 @@ artifacts:
         target: REQ-KS-040
       - type: satisfies
         target: REQ-KS-041
+
+  - id: FEAT-KS-023
+    type: feature
+    title: "kapsel run under zwinger's grants, on wasmtime and on kiln"
+    status: approved
+    release: v0.4.0
+    description: "Split from FEAT-KS-020 (2026-11-28): the grant handover from zwinger and the second runtime belong to v0.4.0."
+    fields:
+      phase: phase-2
+      acceptance-criteria:
+        - "Missing or invalid ZWINGER_GRANTS exits 78 and preopens nothing"
+        - "Every corpus script gives the same output and exit code on wasmtime and kiln"
+        - "Built-ins run as composed components behind the command WIT"
+    links:
+      - type: satisfies
+        target: REQ-KS-023
+      - type: satisfies
+        target: REQ-KS-024
+      - type: satisfies
+        target: REQ-KS-026

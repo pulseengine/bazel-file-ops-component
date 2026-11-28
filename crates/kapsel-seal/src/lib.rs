@@ -116,6 +116,19 @@ pub fn seal(
     module: Vec<u8>,
     key: &SigningKey,
 ) -> Result<Vec<u8>, SealError> {
+    seal_as(plan, source, module, key, COMPILER_VERSION, WIT_VERSION)
+}
+
+/// [`seal`] with the attested tool version and `wit` parameter given (tests
+/// seal a module as another compiler would).
+pub(crate) fn seal_as(
+    plan: &Plan,
+    source: &str,
+    module: Vec<u8>,
+    key: &SigningKey,
+    tool_version: &str,
+    wit: &str,
+) -> Result<Vec<u8>, SealError> {
     if hex_sha256(source.as_bytes()) != plan.source_sha256 {
         return Err(SealError::SourceMismatch);
     }
@@ -123,16 +136,13 @@ pub fn seal(
     let norm = normalized_json(plan);
     debug_assert_eq!(hex_sha256(&norm), plan.normalized_sha256());
 
-    let attestation = TransformationAttestationBuilder::new(
-        TransformationType::Custom,
-        TOOL_NAME,
-        COMPILER_VERSION,
-    )
-    .add_parameter("wit", serde_json::Value::String(WIT_VERSION.into()))
-    .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
-    .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
-    .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
-    .map_err(SealError::Key)?;
+    let attestation =
+        TransformationAttestationBuilder::new(TransformationType::Custom, TOOL_NAME, tool_version)
+            .add_parameter("wit", serde_json::Value::String(wit.into()))
+            .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
+            .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
+            .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
+            .map_err(SealError::Key)?;
 
     let embedded = embed_transformation_attestation(parsed, &attestation)
         .map_err(|e| SealError::Malformed(e.to_string()))?;
@@ -175,6 +185,23 @@ pub fn verify(
             "tool is {}, not {TOOL_NAME}",
             att.tool.name
         )));
+    }
+    // A module from another compiler or for another interface is not this
+    // build's, even when it is signed by a trusted key.
+    if att.tool.version != COMPILER_VERSION {
+        return Err(SealError::Attestation(format!(
+            "tool version is {}, not {COMPILER_VERSION}",
+            att.tool.version
+        )));
+    }
+    match att.tool.parameters.get("wit") {
+        Some(serde_json::Value::String(w)) if w == WIT_VERSION => {}
+        other => {
+            return Err(SealError::Attestation(format!(
+                "wit parameter is {}, not {WIT_VERSION}",
+                other.map_or_else(|| "missing".to_string(), |v| v.to_string())
+            )));
+        }
     }
     let attested = att
         .inputs
@@ -230,13 +257,31 @@ pub fn compile_sealed_with(
     key: &SigningKey,
     compiler: impl FnOnce(&Plan) -> Result<Vec<u8>, SealError>,
 ) -> Result<(Vec<u8>, CacheOutcome), SealError> {
-    let trust = key.trusted();
-    let reason = match cache.get(plan, &trust) {
+    compile_sealed_trusting(plan, source, cache, key, &key.trusted(), compiler)
+}
+
+/// [`compile_sealed_with`] with the trust set a module is checked against
+/// given by the caller instead of derived from `key`. Exists so a test can
+/// sign with a key the verifier does not trust; production callers use
+/// [`compile_sealed`].
+#[doc(hidden)]
+pub fn compile_sealed_trusting(
+    plan: &Plan,
+    source: &str,
+    cache: &Cache,
+    key: &SigningKey,
+    trust: &TrustedKeys,
+    compiler: impl FnOnce(&Plan) -> Result<Vec<u8>, SealError>,
+) -> Result<(Vec<u8>, CacheOutcome), SealError> {
+    let reason = match cache.get(plan, trust) {
         Lookup::Hit(m) => return Ok((m, CacheOutcome::Hit)),
         Lookup::Miss(r) => r,
     };
     let module = compiler(&plan.normalized())?;
     let sealed = seal(plan, source, module, key)?;
+    // A fresh module is verified exactly as a cached one is, so no module
+    // reaches the host without a signature and attestation that check out.
+    verify(&sealed, &plan.normalized_sha256(), trust)?;
     cache.put(plan, &sealed)?;
     Ok((sealed, CacheOutcome::Miss(reason)))
 }

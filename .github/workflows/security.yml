@@ -10,6 +10,12 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# A new push to a pull request cancels its older run; main, schedules and
+# manual runs are never cancelled (fleet hosted-runner queue, 2026-11-28).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Security vulnerability scanning
   security-scan:

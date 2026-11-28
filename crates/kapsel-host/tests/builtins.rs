@@ -568,7 +568,7 @@ fn sed_cases() {
         "",
         2,
         "",
-        "sed: missing: No such file or directory\n",
+        "sed: can't read missing: No such file or directory\n",
     );
 }
 
@@ -576,11 +576,57 @@ fn sed_cases() {
 fn sed_unsupported_command_names_it() {
     let mut t = T::new();
     let (st, _, err) = t.run_in(&["sed", "y/a/b/"], "a\n");
-    assert_eq!(st, 2);
+    assert_eq!(st, 1);
     assert!(err.contains("unsupported command 'y'"), "{err}");
     let (st, _, err) = t.run_in(&["sed", "-E", "s/a(/b/"], "a\n");
-    assert_eq!(st, 2);
+    assert_eq!(st, 1);
     assert!(err.contains("invalid regex"), "{err}");
+}
+
+/// GNU sed's exit codes (manual, "Exit status"): 1 for an invalid command,
+/// syntax, regex or option; 2 when an input file cannot be opened, after
+/// the files that can be are processed. A grant refusal is kapsel's own 1.
+#[test]
+fn sed_exit_codes_follow_gnu() {
+    let mut t = T::new();
+    t.write("f.txt", "a\n");
+    // BSD's `sed -i ""`: GNU takes "" as the script and `s/a/b/` as a file.
+    t.check(
+        &["sed", "-i", "", "s/a/b/", "f.txt"],
+        "",
+        2,
+        "",
+        "sed: can't read s/a/b/: No such file or directory\n",
+    );
+    assert_eq!(t.read("f.txt"), "a\n");
+    t.check(
+        &["sed", "s/a/b/", "gone", "f.txt"],
+        "",
+        2,
+        "b\n",
+        "sed: can't read gone: No such file or directory\n",
+    );
+    t.check(
+        &["sed"],
+        "",
+        1,
+        "",
+        "sed: no script specified; usage: sed [-n] [-E] [-i[SUFFIX]] [-e SCRIPT] SCRIPT [FILE...]\n",
+    );
+    t.check(
+        &["sed", "s/a"],
+        "a\n",
+        1,
+        "",
+        "sed: -e expression: unterminated expression (missing closing '/')\n",
+    );
+    let (st, _, _) = t.run(&["sed", "-i", "s/a/b/"]);
+    assert_eq!(st, 1);
+    let (st, _, err) = t.run(&["sed", "s/a/b/", "/etc/hosts"]);
+    assert_eq!(
+        (st, err.as_str()),
+        (1, "kapsel: /etc/hosts: outside the session's grants\n")
+    );
 }
 
 #[test]
@@ -928,7 +974,9 @@ fn unknown_flags_are_errors_listing_the_supported_set() {
     ];
     for (cmd, flag) in cases {
         let (st, out, err) = t.run(&[cmd, flag, "f"]);
-        assert_eq!(st, 2, "{cmd} {flag}: {err}");
+        // GNU sed: 1 for an invalid option (EXIT_BAD_USAGE); 2 is a missing input.
+        let want = if *cmd == "sed" { 1 } else { 2 };
+        assert_eq!(st, want, "{cmd} {flag}: {err}");
         assert_eq!(out, "", "{cmd} {flag}");
         assert!(
             err.starts_with(&format!("{cmd}: unknown flag {flag}; ")),

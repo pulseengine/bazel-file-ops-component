@@ -7,6 +7,8 @@
 //! out of `front_end` (parse + check). There is no other call to
 //! `Session::run_component` in this crate.
 
+mod editor;
+
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
@@ -23,7 +25,7 @@ usage: kapsel [GLOBAL FLAGS] -c COMMAND
        kapsel [GLOBAL FLAGS]                       (interactive)
        kapsel [GLOBAL FLAGS] check [--json] (-c COMMAND | FILE)
        kapsel [GLOBAL FLAGS] compile (-c COMMAND | FILE) -o OUT.wasm
-       kapsel explain RULE-ID                      (e.g. KS-R001)
+       kapsel explain ID                           (a rule, e.g. KS-R001, or a run error, e.g. run:grants)
 
 global flags:
   --rw DIR     grant read and write access to DIR (the current directory is always granted)
@@ -45,6 +47,8 @@ struct Opts {
     rw: Vec<String>,
     ro: Vec<String>,
     key: Option<PathBuf>,
+    grants_from_plan: bool,
+    drop_grants: Vec<String>,
     json: bool,
     out: Option<PathBuf>,
     cmd: Option<String>,
@@ -63,6 +67,8 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
         rw: vec![],
         ro: vec![],
         key: None,
+        grants_from_plan: false,
+        drop_grants: vec![],
         json: false,
         out: None,
         cmd: None,
@@ -92,6 +98,8 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
             "--rw" => o.rw.push(value(&mut i, "--rw")?),
             "--ro" => o.ro.push(value(&mut i, "--ro")?),
             "--key" => o.key = Some(PathBuf::from(value(&mut i, "--key")?)),
+            "--grants-from-plan" => o.grants_from_plan = true,
+            "--drop-grant" => o.drop_grants.push(value(&mut i, "--drop-grant")?),
             "-o" => o.out = Some(PathBuf::from(value(&mut i, "-o")?)),
             "--json" => o.json = true,
             "check" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => {
@@ -127,8 +135,27 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
         }
         return Ok(o);
     }
+    // Test-only flags (REQ-KS-013): they replace the session's grants, so
+    // they refuse to start unless the test harness asks for them.
+    if (o.grants_from_plan || !o.drop_grants.is_empty())
+        && std::env::var("KAPSEL_TESTING").as_deref() != Ok("1")
+    {
+        eprintln!(
+            "kapsel: --grants-from-plan and --drop-grant are for kapsel's own tests and need \
+             KAPSEL_TESTING=1"
+        );
+        return Err(exit::USAGE);
+    }
     if o.json && o.sub != Sub::Check {
         return Err(usage_error("--json belongs to `check`"));
+    }
+    if o.grants_from_plan && (o.sub != Sub::Run || (o.cmd.is_none() && o.file.is_none())) {
+        return Err(usage_error(
+            "--grants-from-plan runs -c COMMAND or a FILE, not `check`, `compile` or the prompt",
+        ));
+    }
+    if !o.drop_grants.is_empty() && !o.grants_from_plan {
+        return Err(usage_error("--drop-grant needs --grants-from-plan"));
     }
     if o.out.is_some() && o.sub != Sub::Compile {
         return Err(usage_error("-o belongs to `compile`"));
@@ -196,6 +223,71 @@ fn report(name: &str, text: &str, outcome: CheckOutcome, json: bool) -> Result<P
     match outcome {
         CheckOutcome::Plan(p) => Ok(p),
         CheckOutcome::Refused(_) => Err(exit::REFUSED),
+    }
+}
+
+/// Renders the last run's errors (REQ-KS-060) on stderr, after the lines the
+/// built-ins printed: each at the command that failed, found by its site id
+/// in `plan.commands()` (the same pre-order walk the compiler numbers). The
+/// plan's spans are shifted by `offset` into `text` (the history text in an
+/// interactive session). `written` are the paths the script writes, for a
+/// not-found error's "did you mean". Identical errors of one command (a loop
+/// body failing every time) render once.
+fn report_run_errors(
+    session: &Session,
+    plan: &Plan,
+    src: Source<'_>,
+    offset: u32,
+    written: &[String],
+) {
+    let commands = plan.commands();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = String::new();
+    for e in session.run_errors() {
+        if !seen.insert((e.site, e.class, e.message.clone())) {
+            continue;
+        }
+        let span = e
+            .site
+            .and_then(|i| commands.get(i as usize))
+            .map(|c| kapsel_plan::Span::new(c.span.start + offset, c.span.end + offset));
+        out.push_str(&kapsel_diag::render_run_error(
+            src,
+            &run_diag(e, span, written),
+            render_opts(),
+        ));
+        out.push_str("\n\n");
+    }
+    if !out.is_empty() {
+        let _ = std::io::stdout().flush();
+        eprint!("{out}");
+    }
+}
+
+/// The diagnostic for one run error: id `run:<class>`, and for a missing path
+/// a near miss among `written`.
+fn run_diag(
+    e: &kapsel_host::RunError,
+    span: Option<kapsel_plan::Span>,
+    written: &[String],
+) -> kapsel_diag::RunDiag {
+    let mut help = e.help.clone();
+    if e.class == kapsel_host::ErrorClass::NotFound
+        && let Some(op) = &e.operand
+    {
+        let best = written
+            .iter()
+            .filter_map(|w| kapsel_analysis::distance::near_miss(op, w).map(|d| (d, w)))
+            .min();
+        if let Some((_, w)) = best {
+            help = format!("`{op}` does not exist; did you mean `{w}`, which the script writes?");
+        }
+    }
+    kapsel_diag::RunDiag {
+        id: format!("run:{}", e.class.as_str()),
+        message: e.message.clone(),
+        span,
+        help,
     }
 }
 
@@ -283,6 +375,14 @@ impl Analysis {
         result
     }
 
+    /// The history text and the offset of the last line in it: where a run
+    /// error of that line renders (REQ-KS-060), as its warnings do.
+    fn last_line(&self) -> (String, u32) {
+        let hist = kapsel_db::history(&self.db, self.session);
+        let off = hist.offsets.last().copied().unwrap_or(0);
+        (hist.text.clone(), off)
+    }
+
     /// Records the exit status of the line that just ran.
     fn ran(&mut self, status: i32) {
         if let Some(s) = self.statuses.last_mut() {
@@ -328,17 +428,35 @@ impl Ctx {
     }
 }
 
-/// parse -> check -> compile -> run. Returns the exit status.
-fn run_source(session: &mut Session, ctx: &Ctx, name: &str, source: &str) -> i32 {
+/// parse -> check -> compile -> run. Returns the exit status. The session is
+/// made after the check, from the plan (`--grants-from-plan` needs it).
+fn run_source(
+    ctx: &Ctx,
+    name: &str,
+    source: &str,
+    make_session: impl FnOnce(&Plan) -> Result<Session, i32>,
+) -> i32 {
     let plan = match front_end(name, source, false) {
         Ok(p) => p,
+        Err(code) => return code,
+    };
+    let mut session = match make_session(&plan) {
+        Ok(s) => s,
         Err(code) => return code,
     };
     let bytes = match ctx.compile(&plan, source) {
         Ok(b) => b,
         Err(code) => return code,
     };
-    match session.run_component(&bytes) {
+    let result = session.run_component(&bytes);
+    report_run_errors(
+        &session,
+        &plan,
+        Source::new(name, source),
+        0,
+        &plan.grants.write,
+    );
+    match result {
         Ok(st) => (st & 0xff) as i32,
         Err(e) => {
             eprintln!("kapsel: internal: {e}");
@@ -383,6 +501,10 @@ fn explain_rule(id: &str) -> i32 {
         None => {
             eprintln!("kapsel: unknown rule id '{id}'");
             eprintln!("known rule ids: {}", kapsel_diag::RULE_IDS.join(" "));
+            eprintln!(
+                "known run error ids: {}",
+                kapsel_diag::RUN_ERROR_IDS.join(" ")
+            );
             exit::USAGE
         }
     }
@@ -399,14 +521,34 @@ fn read_source(o: &Opts) -> Result<String, i32> {
     }
 }
 
-fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
+fn interactive(session: &mut Session, ctx: &Ctx, grants: Vec<PathBuf>) -> i32 {
     let stdin = std::io::stdin();
     let mut last = 0;
     let mut analysis = Analysis::new();
+    // A line editor only on a terminal; every other input keeps the plain reader below.
+    let mut ed = editor::Editor::new();
+    if let Some(e) = ed.as_mut() {
+        e.set_grants(grants);
+    }
+    // Paths the session's lines write, for a not-found error's "did you mean".
+    let mut written: Vec<String> = Vec::new();
     loop {
         let mut buf = String::new();
         let mut prompt = "kapsel$ ";
         loop {
+            if let Some(e) = ed.as_mut() {
+                e.set_cwd(session.cwd());
+                match e.read() {
+                    editor::Read::Line(l) => buf = l,
+                    editor::Read::Interrupted => continue,
+                    editor::Read::Eof => return last,
+                    editor::Read::Unavailable => {
+                        ed = None;
+                        continue;
+                    }
+                }
+                break;
+            }
             eprint!("{prompt}");
             let _ = std::io::stderr().flush();
             let mut line = String::new();
@@ -438,13 +580,19 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
             Err(_) => {}
             Ok(plan) => match ctx.compile(&plan, line) {
                 Err(_) => {}
-                Ok(bytes) => match session.run_component(&bytes) {
-                    Ok(st) => {
-                        last = (st & 0xff) as i32;
-                        analysis.ran(last);
+                Ok(bytes) => {
+                    let result = session.run_component(&bytes);
+                    written.extend(plan.grants.write.iter().cloned());
+                    let (text, off) = analysis.last_line();
+                    report_run_errors(session, &plan, Source::new("history", &text), off, &written);
+                    match result {
+                        Ok(st) => {
+                            last = (st & 0xff) as i32;
+                            analysis.ran(last);
+                        }
+                        Err(e) => eprintln!("kapsel: internal: {e}"),
                     }
-                    Err(e) => eprintln!("kapsel: internal: {e}"),
-                },
+                }
             },
         }
         if let Some(n) = session.exit_requested() {
@@ -503,14 +651,19 @@ fn real_main() -> i32 {
         Sub::Run => {}
     }
 
-    // Grants: the current directory read-write, plus the flags.
+    // Grants: the current directory read-write, plus the flags. With
+    // --grants-from-plan the current directory is not granted; the plan's
+    // paths are added once the check has produced it.
     let mut grants = GrantSet::default();
-    match std::env::current_dir() {
-        Ok(d) => grants.read_write.push(d),
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
         Err(e) => {
             eprintln!("kapsel: current directory: {e}");
             return exit::GRANTS;
         }
+    };
+    if !o.grants_from_plan {
+        grants.read_write.push(cwd.clone());
     }
     for d in &o.rw {
         match check_grant("--rw", d) {
@@ -524,12 +677,11 @@ fn real_main() -> i32 {
             Err(c) => return c,
         }
     }
-    let mut session = match Session::new(grants) {
-        Ok(s) => s,
-        Err(e) => {
+    let new_session = |grants: GrantSet| {
+        Session::new(grants).map_err(|e| {
             eprintln!("kapsel: {e}");
-            return exit::GRANTS;
-        }
+            exit::GRANTS
+        })
     };
 
     if o.cmd.is_some() || o.file.is_some() {
@@ -537,9 +689,89 @@ fn real_main() -> i32 {
             Ok(s) => s,
             Err(c) => return c,
         };
-        return run_source(&mut session, &ctx, &input_name(&o), &source);
+        return run_source(&ctx, &input_name(&o), &source, |plan| {
+            if o.grants_from_plan {
+                plan_grants(plan, &cwd, &o.drop_grants, &mut grants)?;
+            }
+            new_session(grants)
+        });
     }
-    interactive(&mut session, &ctx)
+    // The directories the session may read: completion offers names only there.
+    let readable: Vec<PathBuf> = grants
+        .read_write
+        .iter()
+        .chain(&grants.read_only)
+        .chain(&grants.paths_write)
+        .chain(&grants.paths_read)
+        .cloned()
+        .collect();
+    match new_session(grants) {
+        Ok(mut session) => interactive(&mut session, &ctx, readable),
+        Err(c) => c,
+    }
+}
+
+/// `--grants-from-plan`: the plan's read and write paths, made absolute
+/// against `cwd`, as exact-path grants, less every `--drop-grant` path.
+/// Refused (exit 78) when the plan's grants are dynamic: then the plan does
+/// not know every path, and there is nothing exact to grant.
+fn plan_grants(
+    plan: &Plan,
+    cwd: &std::path::Path,
+    drop: &[String],
+    grants: &mut GrantSet,
+) -> Result<(), i32> {
+    if plan.grants.dynamic {
+        eprintln!("kapsel: --grants-from-plan: the plan's grants are dynamic");
+        return Err(exit::GRANTS);
+    }
+    for d in drop {
+        let known = plan.grants.read.contains(d) || plan.grants.write.contains(d);
+        if !known {
+            eprintln!("kapsel: --drop-grant {d}: not a grant of the plan");
+            return Err(exit::GRANTS);
+        }
+    }
+    // A plan grant is a path under the current directory: an absolute path,
+    // or one whose `..` climbs out of it, would widen the grants.
+    for p in plan.grants.read.iter().chain(&plan.grants.write) {
+        if inside_cwd(p).is_none() {
+            eprintln!(
+                "kapsel: --grants-from-plan: the plan grant {p} is absolute or outside the \
+                 current directory"
+            );
+            return Err(exit::GRANTS);
+        }
+    }
+    let abs = |p: &String| cwd.join(inside_cwd(p).unwrap_or_default());
+    let keep = |p: &&String| !drop.contains(p);
+    grants
+        .paths_read
+        .extend(plan.grants.read.iter().filter(keep).map(abs));
+    grants
+        .paths_write
+        .extend(plan.grants.write.iter().filter(keep).map(abs));
+    Ok(())
+}
+
+/// A relative path with its `.` and `..` resolved without leaving the
+/// current directory, or None when it is absolute or a `..` climbs out.
+fn inside_cwd(p: &str) -> Option<PathBuf> {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in std::path::Path::new(p).components() {
+        match c {
+            Component::Normal(n) => out.push(n),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    Some(out)
 }
 
 fn main() {

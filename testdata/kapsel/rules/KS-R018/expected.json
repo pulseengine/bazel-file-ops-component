@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R018",
+    "severity": "warn",
+    "message": "`exit 65` exits with 65, the code kapsel uses for its own refusal: a caller cannot tell from the status alone whether the script or kapsel failed",
+    "span": {
+      "start": 24,
+      "end": 31
+    },
+    "excerpt": "exit 65",
+    "help": "pick a status kapsel does not use, e.g. `exit 1` instead of `exit 65`; kapsel's own failures also print `kapsel:` (usage, grants, internal) or an `error[KS-…]` diagnostic (refused) on stderr, and `kapsel check --json` tells a refusal from a plan before anything runs",
+    "notes": [
+      "kapsel exits 64 (usage), 65 (refused), 70 (internal) and 78 (grants) for its own failures; a script that exits with one of them looks like kapsel failed (REQ-KS-014)"
+    ]
+  }
+]

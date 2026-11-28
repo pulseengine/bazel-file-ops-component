@@ -17,8 +17,11 @@ use wasmtime::{Engine, Store};
 
 mod builtins;
 mod grants;
+mod runerr;
 mod shell;
 
+pub use builtins::xflags_for;
+pub use runerr::{ErrorClass, RunError, help_for, regex_position};
 pub use shell::SharedBuf;
 use shell::{ROp, Shell, Sink, WPart, WRedirect, WWord};
 
@@ -37,6 +40,12 @@ use bindings::kapsel::shell::host as wit;
 pub struct GrantSet {
     pub read_write: Vec<PathBuf>,
     pub read_only: Vec<PathBuf>,
+    /// Exact absolute paths (and everything under them) that may be read,
+    /// whether or not they exist yet: a plan's read grants, for
+    /// `kapsel --grants-from-plan` (testing REQ-KS-013).
+    pub paths_read: Vec<PathBuf>,
+    /// Exact absolute paths (and everything under them) that may be written.
+    pub paths_write: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -113,6 +122,11 @@ impl wit::Host for HostState {
         self.shell
             .call(&argv, &assigns, &reds, stdin, stdout)
             .map_err(trap)
+    }
+
+    fn site(&mut self, id: u32) -> wasmtime::Result<()> {
+        self.shell.site = Some(id);
+        Ok(())
     }
 
     fn set_var(&mut self, name: String, value: wit::Word) -> wasmtime::Result<()> {
@@ -218,6 +232,14 @@ impl Session {
             .expect("session shell")
             .exported
             .contains(name)
+    }
+
+    /// The run errors of the last run (REQ-KS-060), in the order they
+    /// happened: each failed call's structured errors, with the `site` id of
+    /// its command. Cleared when the next run starts. The stderr lines were
+    /// printed as they happened; these are for the CLI to render with spans.
+    pub fn run_errors(&self) -> &[RunError] {
+        &self.shell.as_ref().expect("session shell").run_errors
     }
 
     /// The last command's status (`$?`).

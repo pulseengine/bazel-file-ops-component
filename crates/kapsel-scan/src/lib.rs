@@ -13,6 +13,7 @@
 //! to the one text form; see `tests/equivalence.rs` for the classified table.
 
 pub mod expr;
+pub mod runs;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -24,7 +25,10 @@ use crate::expr::{
     Template, V, eval, hosted_label, matrix_keys, parse, selects_non_hosted, template,
 };
 
-pub const RULES: &[&str] = &["fork-guard"];
+pub const RULES: &[&str] = &["fork-guard", "run-blocks"];
+
+/// Rules run when none is named: `run-blocks` is advisory (Phase 0) and opt-in.
+pub const DEFAULT_RULES: &[&str] = &["fork-guard"];
 
 /// One self-hosted `runs-on` found in a workflow.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +92,7 @@ impl Report {
 }
 
 /// Workflow files the script globbed: `*.y*ml` in `.github/workflows`.
-fn workflow_files(root: &Path) -> Vec<PathBuf> {
+pub(crate) fn workflow_files(root: &Path) -> Vec<PathBuf> {
     let dir = root.join(".github").join("workflows");
     let mut v: Vec<PathBuf> = std::fs::read_dir(&dir)
         .map(|rd| {

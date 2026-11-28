@@ -236,6 +236,46 @@ fn whitespace_only_change_hits_and_argv_change_misses() {
 }
 
 #[test]
+fn a_fresh_module_returned_on_a_miss_verifies() {
+    // The miss path verifies before returning; this pins the contract that
+    // whatever reaches the host on a miss passes the same check a cache hit does.
+    let key = SigningKey::generate();
+    let cache = Cache::new(tmp("cache-miss-verify"));
+    let p = plan("echo hi", &["echo", "hi"], Grants::default(), 0);
+    let (m, o) = run(&p, "echo hi", &cache, &key);
+    assert_eq!(o, CacheOutcome::Miss(MissReason::Absent));
+    let att = verify(&m, &p.normalized_sha256(), &key.trusted()).unwrap();
+    assert!(
+        att.inputs
+            .iter()
+            .any(|i| i.artifact.hash == p.normalized_sha256())
+    );
+}
+
+#[test]
+fn a_miss_whose_fresh_module_does_not_verify_is_refused_and_not_cached() {
+    // REQ-KS-021: the miss path calls `verify`. The module is signed by a key
+    // the trust set lacks, so only that call can stop it.
+    let key = SigningKey::generate();
+    let other = SigningKey::generate();
+    let cache = Cache::new(tmp("miss-untrusted"));
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+
+    // Control: with the signing key trusted the same call succeeds and caches.
+    let ok = compile_sealed_trusting(&p, SRC, &cache, &key, &key.trusted(), stand_in);
+    assert!(matches!(ok, Ok((_, CacheOutcome::Miss(_)))), "{ok:?}");
+    let file = cache.dir().join(format!("{}.wasm", Cache::key(&p)));
+    assert!(file.exists());
+    std::fs::remove_file(&file).unwrap();
+
+    for trust in [TrustedKeys::empty(), other.trusted()] {
+        let r = compile_sealed_trusting(&p, SRC, &cache, &key, &trust, stand_in);
+        assert!(matches!(r, Err(SealError::BadSignature)), "{r:?}");
+        assert!(!file.exists(), "an unverified module must not be cached");
+    }
+}
+
+#[test]
 fn tampered_cache_file_is_rejected_and_removed() {
     let key = SigningKey::generate();
     let cache = Cache::new(tmp("tamper"));
@@ -348,5 +388,41 @@ fn grants_change_the_key_but_never_enter_a_module() {
             !m.windows(path.len()).any(|w| w == path.as_bytes()),
             "{path} appears in the module"
         );
+    }
+}
+
+/// Second review, non-blocking 1: the cache key covers the interface text,
+/// so a module built against another WIT is never served.
+#[test]
+fn cache_key_changes_with_the_interface_text() {
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+    let one = "package kapsel:shell@0.1.0;\ninterface host { site: func(); }\n";
+    let two = "package kapsel:shell@0.1.0;\ninterface host { }\n";
+    assert_ne!(Cache::key_for(&p, one), Cache::key_for(&p, two));
+    assert_eq!(Cache::key_for(&p, one), Cache::key_for(&p, one));
+    assert_eq!(
+        Cache::key(&p),
+        Cache::key_for(&p, kapsel_compile::SHELL_WIT)
+    );
+}
+
+/// Second review, non-blocking 2: `verify` refuses a module sealed by a
+/// trusted key for another compiler version or another WIT version.
+#[test]
+fn verify_refuses_another_compiler_or_wit_version() {
+    let key = SigningKey::generate();
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+    let module = stand_in(&p).unwrap();
+    let ok = seal_as(&p, SRC, module.clone(), &key, COMPILER_VERSION, WIT_VERSION).unwrap();
+    assert!(verify(&ok, &p.normalized_sha256(), &key.trusted()).is_ok());
+    for (version, wit, what) in [
+        ("0.0.1-other", WIT_VERSION, "tool version"),
+        (COMPILER_VERSION, "kapsel:shell@9.9.9", "wit parameter"),
+    ] {
+        let m = seal_as(&p, SRC, module.clone(), &key, version, wit).unwrap();
+        match verify(&m, &p.normalized_sha256(), &key.trusted()) {
+            Err(SealError::Attestation(msg)) => assert!(msg.contains(what), "{msg}"),
+            other => panic!("{version} {wit}: {other:?}"),
+        }
     }
 }

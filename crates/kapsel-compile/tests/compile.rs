@@ -256,6 +256,44 @@ fn p_capture_assign_redirect() -> Plan {
     call.assignments = vec![("X".into(), cap(seq(vec![c("echo v")])))];
     plan(seq(vec![PStage::Call(call)]))
 }
+/// `X=1 Y=$(echo v) > $(echo out); echo $X$Y`: assignments and a redirect
+/// but no command name (KC-R23). Captures run in expansion order
+/// (redirections, then assignments); the assignments persist.
+fn p_assign_redirect() -> Plan {
+    plan(seq(vec![
+        PStage::Call(Call {
+            tool: None,
+            argv: vec![],
+            assignments: vec![
+                ("X".into(), lit("1")),
+                ("Y".into(), cap(seq(vec![c("echo v")]))),
+            ],
+            redirects: vec![PRedirect {
+                fd: 1,
+                op: RedirectOp::Write,
+                target: PRedirectTarget::Word {
+                    word: cap(seq(vec![c("echo out")])),
+                },
+            }],
+            span: Span::new(0, 30),
+        }),
+        PStage::Call(callw(vec![
+            lit("echo"),
+            PWord {
+                parts: vec![
+                    PPart::Var {
+                        name: "X".into(),
+                        quoted: false,
+                    },
+                    PPart::Var {
+                        name: "Y".into(),
+                        quoted: false,
+                    },
+                ],
+            },
+        ])),
+    ]))
+}
 /// `X=$(false); echo $?`: the assignment's status is the substitution's.
 fn p_assign_capture() -> Plan {
     plan(seq(vec![
@@ -292,6 +330,7 @@ fn all_plans() -> Vec<(&'static str, Plan)> {
         ("sub_exit", p_sub_exit()),
         ("stage_exit", p_stage_exit()),
         ("assign_capture", p_assign_capture()),
+        ("assign_redirect", p_assign_redirect()),
         ("empty", plan(vec![])),
     ]
 }
@@ -320,6 +359,10 @@ struct Mock {
     bufs: BTreeMap<u32, String>,
     /// What reached the session's stdout (handle 0).
     out: String,
+    /// The last `site` id, consumed by the next call.
+    site: Option<u32>,
+    /// (site id, argv[0] as written) per call, in call order.
+    sites: Vec<(Option<u32>, String)>,
 }
 
 impl Mock {
@@ -389,6 +432,8 @@ impl wit::Host for Mock {
             ));
         }
         self.log.push(line);
+        let site = self.site.take();
+        self.sites.push((site, words[0].clone()));
         let args: Vec<String> = argv.iter().map(|w| self.expand(w)).collect();
         let modelled = match args[0].as_str() {
             "echo" => {
@@ -445,6 +490,10 @@ impl wit::Host for Mock {
         self.log.push("scope-pop".into());
         self.state = self.saved.pop().expect("scope-pop without scope-push");
     }
+
+    fn site(&mut self, id: u32) {
+        self.site = Some(id);
+    }
 }
 
 fn engine() -> &'static wasmtime::Engine {
@@ -464,6 +513,16 @@ fn run(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32) {
 
 /// [`run`], also returning the session stdout.
 fn run_out(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32, String) {
+    let (mut mock, status) = run_mock(p, script);
+    (
+        std::mem::take(&mut mock.log),
+        status,
+        std::mem::take(&mut mock.out),
+    )
+}
+
+/// Compiles and runs a plan under the mock; returns the mock and the status.
+fn run_mock(p: &Plan, script: &[(&str, &[u32])]) -> (Mock, u32) {
     let bytes = compile(p).unwrap_or_else(|e| panic!("compile: {e}"));
     let component = wasmtime::component::Component::new(engine(), &bytes).unwrap();
     let mut linker = wasmtime::component::Linker::<Mock>::new(engine());
@@ -477,17 +536,13 @@ fn run_out(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32, String) {
     let mut store = wasmtime::Store::new(engine(), mock);
     let inst = bindings::Plan::instantiate(&mut store, &component, &linker).unwrap();
     let status = inst.call_run(&mut store).unwrap();
-    let mock = store.data_mut();
+    let mock = store.into_data();
     assert!(
         mock.saved.is_empty(),
         "{} scopes left open",
         mock.saved.len()
     );
-    (
-        std::mem::take(&mut mock.log),
-        status,
-        std::mem::take(&mut mock.out),
-    )
+    (mock, status)
 }
 
 fn check(p: &Plan, script: &[(&str, &[u32])], want_log: &[&str], want_status: u32) {
@@ -1083,7 +1138,7 @@ fn known_md_counts_are_pinned() {
     // Pinned: a change in either direction must update this test, KNOWN.md
     // and the tables in lib.rs together.
     assert_eq!(KNOWN_WRONG.len(), 0);
-    assert_eq!(DECLINED.len(), 8);
+    assert_eq!(DECLINED.len(), 7);
     assert_eq!(header("Known-wrong count:"), KNOWN_WRONG.len());
     assert_eq!(header("Declined count:"), DECLINED.len());
     assert_eq!(count("### KW-"), KNOWN_WRONG.len());
@@ -1166,18 +1221,79 @@ fn kd5_no_tool_no_assignments() {
     assert_kc001(&raw_call(false, vec![], vec![], vec![]), "call", SPAN);
 }
 
+/// A redirect with no tool and no assignments stays KD-5: the check stage
+/// lowers a redirect-only `> f` to the `:` built-in, so this plan is malformed.
 #[test]
-fn kd6_redirect_only_command() {
+fn kd5_redirect_without_tool_or_assignments() {
     let r = PRedirect {
         fd: 1,
         op: RedirectOp::Write,
         target: PRedirectTarget::Word { word: lit("f") },
     };
-    assert_kc001(
-        &raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]),
-        "call",
-        SPAN,
+    assert_kc001(&raw_call(false, vec![], vec![], vec![r]), "call", SPAN);
+}
+
+/// KC-R23 (was KD-6): `X=1 > f` compiles; the assignment persists and `:`
+/// performs the redirect, with no assignments of its own.
+#[test]
+fn assign_with_redirect_persists_then_calls_colon() {
+    let r = PRedirect {
+        fd: 1,
+        op: RedirectOp::Write,
+        target: PRedirectTarget::Word { word: lit("f") },
+    };
+    let p = raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]);
+    assert!(compile_report(&p).unwrap().rules_fired.contains(&"KC-R23"));
+    check(
+        &p,
+        &[],
+        &["set-var X=1", "call : <0 >0 1>[f]0", "set-status 0"],
+        0,
     );
+}
+
+#[test]
+fn assign_redirect_order_and_persistence() {
+    let (log, status, out) = run_out(&p_assign_redirect(), &[]);
+    assert_eq!(
+        log,
+        [
+            "pipe -> 1",
+            "scope-push",
+            "call echo out <0 >1",
+            "set-status 0",
+            "scope-pop",
+            "pipe -> 2",
+            "scope-push",
+            "call echo v <0 >2",
+            "set-status 0",
+            "scope-pop",
+            "set-var X=1",
+            "set-var Y=<cap2>",
+            "call : <0 >0 1>[<cap1>]0",
+            "set-status 0",
+            "call echo $X$Y <0 >0",
+            "set-status 0",
+        ]
+    );
+    assert_eq!(out, "1v\n");
+    assert_eq!(status, 0);
+}
+
+/// A failed redirect (`X=1 > /`): the status is `:`'s non-zero status and
+/// the assignment still holds.
+#[test]
+fn assign_redirect_failure_keeps_the_variable() {
+    let (_, status, out) = run_out(&p_assign_redirect(), &[(":", &[2])]);
+    assert_eq!(out, "1v\n");
+    // The plan's status is the last command's (echo); `:`'s 2 is `$?` before it.
+    assert_eq!(status, 0);
+    let p = plan(seq(vec![
+        p_assign_redirect().body[0].first.stages[0].clone(),
+        PStage::Call(callw(vec![lit("echo"), var("?"), var("X")])),
+    ]));
+    let (_, _, out) = run_out(&p, &[(":", &[2])]);
+    assert_eq!(out, "2 1\n");
 }
 
 #[test]
@@ -1381,6 +1497,8 @@ const RULE_TESTS: &[(&str, &str)] = &[
     ("KC-R19", "pipe3"),
     ("KC-R20", "sub_exit"),
     ("KC-R21", "exit"),
+    ("KC-R22", "single"),
+    ("KC-R23", "assign_redirect"),
 ];
 
 #[test]
@@ -1570,4 +1688,55 @@ fn grants_are_never_compiled_in() {
         compile(&no_grants).unwrap(),
         "grants changed the module"
     );
+}
+
+// ---- call sites (REQ-KS-060) --------------------------------------------------
+
+/// Every `call` is preceded by `site(id)`, and `id` indexes the command in
+/// `Plan::commands()` (the pre-order walk the CLI uses to find the span):
+/// the called argv[0] is that command's argv[0]. Covers captures (a command
+/// numbered before the bodies in its words), loops and pipelines.
+#[test]
+fn every_call_names_its_command_by_pre_order_index() {
+    let mut checked = 0;
+    for (name, p) in all_plans() {
+        let commands = p.commands();
+        // Loops stop after two bodies.
+        let script: &[(&str, &[u32])] = match name {
+            "while" => &[("test", &[0, 0, 1])],
+            "until" => &[("test", &[1, 1, 0])],
+            _ => &[],
+        };
+        let (mock, _) = run_mock(&p, script);
+        for (site, argv0) in &mock.sites {
+            let id = site.unwrap_or_else(|| panic!("{name}: call {argv0} has no site"));
+            let c = commands
+                .get(id as usize)
+                .unwrap_or_else(|| panic!("{name}: site {id} out of range"));
+            // `X=1 > f` has no argv; its call is `:` (KC-R23).
+            let want = match c.argv.first() {
+                Some(w) => w.as_literal().unwrap_or_default(),
+                None => ":".to_string(),
+            };
+            assert!(
+                argv0.trim_matches('"') == want,
+                "{name}: site {id} names `{want}`, the call is `{argv0}`"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 30, "only {checked} calls checked");
+}
+
+/// The same plan gives the same ids whatever its spans: the normalized plan
+/// compiles to the same bytes as the original.
+#[test]
+fn site_ids_do_not_depend_on_spans() {
+    for (name, p) in all_plans() {
+        assert_eq!(
+            compile(&p).unwrap(),
+            compile(&p.normalized()).unwrap(),
+            "{name}"
+        );
+    }
 }

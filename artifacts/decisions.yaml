@@ -30,7 +30,7 @@ artifacts:
   - id: DD-KS-002
     type: design-decision
     title: "Own POSIX-subset parser in Rust, on rowan"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How commands are parsed: a lossless tree over a closed grammar."
     fields:
@@ -55,7 +55,7 @@ artifacts:
   - id: DD-KS-003
     type: design-decision
     title: "A check stage returns a plan; only plans execute"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "Analysis and execution are separate acts, joined only by the plan."
     fields:
@@ -79,7 +79,7 @@ artifacts:
   - id: DD-KS-004
     type: design-decision
     title: "Harmful constructs: a named list, each refuse or warn, each with a planted test"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How harmful constructs are listed, judged and tested."
     fields:
@@ -102,14 +102,17 @@ artifacts:
   - id: DD-KS-005
     type: design-decision
     title: "Compile plans to WASM and cache the module"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "A checked plan becomes a reproducible, signed, cached WASM module."
     fields:
       decision: >
-        The plan is the compiler's input. The output is a component that imports `command` and
-        native-exec. The module is reproducible, cached by plan plus interface versions, and
-        signed. Grants are never compiled in.
+        The plan is the compiler's input. In v0.3.0 the output is a component of world
+        `kapsel:shell/plan` that imports only `kapsel:shell/host@0.1.0`; built-ins as composed
+        `command` components and native-exec replace host calls in v0.4.0 and v0.5.0 (narrowed
+        2026-11-28, as REQ-KS-020 was). The module is reproducible, cached by the normalized plan
+        plus compiler version, interface version and interface text, signed with sigil, and
+        verified before it runs, fresh or cached. Grants are never compiled in.
       rationale: >
         Verb: turn a reviewed instruction into a sealed unit that runs the same way every time.
         Borrowed from pharmaceutical batch records: a validated batch is made by a fixed master
@@ -230,8 +233,8 @@ artifacts:
   - id: DD-KS-011
     type: design-decision
     title: "Bazel uses kapsel's JSON-config mode"
-    status: approved
-    release: v0.3.0
+    status: implemented
+    release: v0.4.0
     description: "The contract Bazel builds bind to."
     fields:
       decision: >
@@ -249,7 +252,7 @@ artifacts:
   - id: DD-KS-012
     type: design-decision
     title: "Rust for the shell and its tools"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "The implementation language and the hand-over from TinyGo."
     fields:
@@ -265,6 +268,8 @@ artifacts:
       - type: satisfies
         target: REQ-KS-041
 
+      - type: satisfies
+        target: REQ-KS-064
   - id: DD-KS-013
     type: design-decision
     title: "File modes 0750/0640 and a blocking gosec with a reviewed threshold"
@@ -285,14 +290,15 @@ artifacts:
   - id: DD-KS-014
     type: design-decision
     title: "The workflow scanner reads YAML with rivet-yaml and treats expressions as opaque"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How Phase 0 reads workflows and reports."
     fields:
       decision: >
         rivet-yaml, pinned by rivet git tag with a lockfile, gives positions for each run:
-        block; ${{ ... }} is replaced by an opaque token before checking; one report per run, and
-        an issue only for a repository with refusals.
+        block; ${{ ... }} is replaced by an opaque token before checking; one report per run, with a
+        section per repository. Phase 0 (v0.3.0) only reports and never fails a run on refusals;
+        filing an issue for a repository with refusals is a later phase (narrowed 2026-11-28).
       rationale: >
         Verb: measure a gap before enforcing a rule. Borrowed from epidemiology's surveillance
         before intervention: count cases with a fixed case definition first, then intervene, and
@@ -365,7 +371,7 @@ artifacts:
   - id: DD-KS-018
     type: design-decision
     title: "rowan and salsa, as in spar and rivet"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How kapsel holds source and derived facts: a lossless rowan tree under an incremental salsa database."
     fields:
@@ -390,7 +396,7 @@ artifacts:
   - id: DD-KS-019
     type: design-decision
     title: "The compiler follows synth: decline loudly, validate every compile, pin fixtures"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How kapsel-compile earns trust in its output."
     fields:
@@ -399,7 +405,7 @@ artifacts:
         reason (KC codes), never silent wrong code; lowering is a table of named rules, each with
         a test; every compile runs a translation validator that decodes the component and checks
         its call skeleton against the plan; frozen fixtures pin the output bytes; known-wrong
-        shapes are pinned by exact count, and a count that moves either way is red. Owner, 2026-11-28: ordeal (certificate-checked QF_BV) proves each lowering rule's status arithmetic and the data-layout bounds and alignment, with committed certificates re-checked in CI, as synth does for its rule table.
+        shapes are pinned by exact count, and a count that moves either way is red. Owner, 2026-11-28: ordeal (certificate-checked QF_BV) proves each lowering rule's status arithmetic on one fixture plan per rule, bounded to 3 executions per host call site, and the data-layout bounds and alignment over symbolic sizes. Only the SMT-LIB queries are committed; every test run re-solves them and re-checks the certificates, CI keeps them as an artifact, and each release attaches them as a cosign-signed bundle.
       rationale: >
         Verb: hand over a sealed artifact whose contents match its order. Borrowed from synth's
         honesty rule and per-compilation validators, which measured the cost of skipping them
@@ -409,3 +415,47 @@ artifacts:
     links:
       - type: satisfies
         target: REQ-KS-020
+
+  - id: DD-KS-020
+    type: design-decision
+    title: "Edits change the named place only, are checked before they land, and land whole"
+    status: verified
+    release: v0.3.0
+    description: "How edit, json, yaml and toml change a file (REQ-KS-063, FEAT-KS-022)."
+    fields:
+      decision: >
+        An edit names its place (a pattern with an expected count, a line range, or a path) and
+        changes that place and nothing else. JSON is read by kapsel's own lossless reader, which
+        keeps every value's byte range and every number's text (1.10, 1e400 and integers past
+        u64 are never sent through a float); set and del splice that range, a new key copies its
+        siblings' separator and indentation, and only merge rewrites the layout. YAML is spliced into rivet-yaml's lossless rowan CST (the same
+        rivet tag as kapsel-scan): rivet-yaml has no edit API, but every node carries
+        its byte range, so set and del replace or remove that range and the text around it is
+        untouched; flow collections, anchors and aliases are refused rather than rewritten. TOML
+        goes through toml_edit, and a replaced value keeps the old value's comments. Before the
+        file is replaced, YAML and TOML results are parsed back and compared with the intended
+        document; a mismatch, a pattern that matches nothing, or a count other than -c N exits 1
+        with the file untouched. The new content is written to a temporary file in the same
+        directory and renamed over FILE, after the write grant check and the symlink refusal
+        that every writer passes.
+      rationale: >
+        Verb: amend a record in place without retyping it. Borrowed from the notary's
+        interlineation rule: a change to an executed instrument is written at the exact place,
+        initialled, and the rest of the page stays as signed, so nobody has to re-read the whole
+        document to trust it; here the bytes outside the edited node are the signed page. Second
+        field, the laboratory notebook's single-strike correction: a correction that cannot be
+        made legibly in place is not forced, a new entry is written instead, and every correction
+        is countersigned; here an edit that cannot be spliced cleanly is refused with a pointer
+        to `edit --lines`, and each spliced result is read back before it is kept.
+      alternatives: >
+        Re-serialize the whole document (serde_yaml, archived in 2024, and every Value-based
+        emitter drop comments and reorder or restyle the rest of the file); a separate
+        comment-preserving YAML crate (a second YAML parser beside rivet-yaml, with its own
+        reading of the same file); sed -i style line edits only (no structure, and a silent
+        no-op on no match, which is the failure this decision exists to stop).
+      source-ref: "kapsel#140, owner 2026-11-27: no python needed for basic stuff, e.g. yaml or json"
+    links:
+      - type: satisfies
+        target: REQ-KS-063
+      - type: refines
+        target: FEAT-KS-022

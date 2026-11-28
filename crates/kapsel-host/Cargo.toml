@@ -8,8 +8,19 @@ repository.workspace = true
 
 [dependencies]
 kapsel-plan.workspace = true
+# Diagnostics: built-in error lines escape control characters as the
+# rendered diagnostics do (`kapsel_diag::escape_controls`).
+kapsel-diag = { path = "../kapsel-diag" }
 wasmtime = { version = "51", default-features = false, features = ["runtime", "cranelift", "component-model", "std"] }
 regex = "1"
+# REQ-KS-063: decodes and encodes JSON strings for `json`, whose reader is
+# kapsel's own lossless one (builtins/jsonedit.rs).
+serde_json.workspace = true
+# DD-KS-020: lossless YAML CST, pinned by the same rivet tag as kapsel-scan
+# (DD-KS-014); `yaml set` and `yaml del` splice its node ranges.
+rivet-yaml = { git = "https://github.com/pulseengine/rivet", tag = "v0.43.3" }
+toml_edit = "0.25"
+sha2.workspace = true
 
 [dev-dependencies]
 wat = "1"

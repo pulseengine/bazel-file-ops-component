@@ -30,7 +30,7 @@ use kapsel_plan::{CheckOutcome, Finding, Severity};
 use serde::Serialize;
 
 mod explain;
-pub use explain::{RULE_IDS, explain};
+pub use explain::{RULE_IDS, RUN_ERROR_IDS, explain};
 
 /// The text a finding's spans index into, and the name shown after `-->`.
 #[derive(Debug, Clone, Copy)]
@@ -58,6 +58,83 @@ fn renderer(opts: Options) -> Renderer {
         Renderer::styled()
     } else {
         Renderer::plain()
+    }
+}
+
+/// How a control character is shown: `\x1b` for C0 controls and DEL,
+/// `\u{9b}` for C1 controls. Newline and tab stay (they lay out the
+/// excerpt); everything else that a terminal would act on is made visible,
+/// so a file name or script holding ESC cannot drive the terminal.
+fn escape_char(c: char, out: &mut String) {
+    match c {
+        '\n' | '\t' => out.push(c),
+        c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+            out.push_str(&format!("\\x{:02x}", c as u32));
+        }
+        c if c.is_control() => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
+        c => out.push(c),
+    }
+}
+
+/// `s` with its control characters escaped (see [`escape_char`]).
+pub fn escape_controls(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        escape_char(c, &mut out);
+    }
+    out
+}
+
+/// A source with its control characters escaped, and where each original
+/// byte offset lands in the escaped text (for the spans).
+struct Escaped {
+    name: String,
+    text: String,
+    map: Vec<u32>,
+}
+
+impl Escaped {
+    fn new(src: Source<'_>) -> Self {
+        let mut text = String::with_capacity(src.text.len());
+        let mut map = vec![0u32; src.text.len() + 1];
+        for (i, c) in src.text.char_indices() {
+            for k in 0..c.len_utf8() {
+                map[i + k] = text.len() as u32;
+            }
+            escape_char(c, &mut text);
+        }
+        map[src.text.len()] = text.len() as u32;
+        Self {
+            name: escape_controls(src.name),
+            text,
+            map,
+        }
+    }
+
+    fn source(&self) -> Source<'_> {
+        Source::new(&self.name, &self.text)
+    }
+
+    fn span(&self, s: Span) -> Span {
+        let at = |o: u32| self.map[(o as usize).min(self.map.len() - 1)];
+        let start = at(s.start);
+        Span::new(start, at(s.end).max(start))
+    }
+
+    /// The finding as it is shown: spans moved into the escaped text, and
+    /// every text field escaped.
+    fn finding(&self, f: &Finding) -> Finding {
+        let mut f = f.clone();
+        f.span = self.span(f.span);
+        f.message = escape_controls(&f.message);
+        f.excerpt = escape_controls(&f.excerpt);
+        f.notes = f.notes.iter().map(|n| escape_controls(n)).collect();
+        f.help = f.help.as_deref().map(escape_controls);
+        for r in &mut f.related {
+            r.span = self.span(r.span);
+            r.label = escape_controls(&r.label);
+        }
+        f
     }
 }
 
@@ -127,7 +204,9 @@ fn finding_group<'a>(src: Source<'a>, f: &'a Finding) -> Group<'a> {
 
 /// Renders one finding.
 pub fn render_finding(src: Source<'_>, f: &Finding, opts: Options) -> String {
-    renderer(opts).render(&[finding_group(src, f)])
+    let es = Escaped::new(src);
+    let f = es.finding(f);
+    renderer(opts).render(&[finding_group(es.source(), &f)])
 }
 
 /// Turns a parse error into the finding the check stage reports for it
@@ -179,10 +258,12 @@ pub fn render_report(src: Source<'_>, findings: &[Finding], opts: Options) -> St
     }
     let mut sorted: Vec<&Finding> = findings.iter().collect();
     sorted.sort_by_key(|f| (f.span.start, f.span.end, f.rule.clone()));
+    let es = Escaped::new(src);
+    let shown: Vec<Finding> = sorted.iter().map(|f| es.finding(f)).collect();
     let r = renderer(opts);
     let mut out = String::new();
-    for f in &sorted {
-        out.push_str(&r.render(&[finding_group(src, f)]));
+    for f in &shown {
+        out.push_str(&r.render(&[finding_group(es.source(), f)]));
         out.push_str("\n\n");
     }
     let errors = findings
@@ -213,6 +294,44 @@ pub fn render_outcome(src: Source<'_>, outcome: &CheckOutcome, opts: Options) ->
         CheckOutcome::Refused(r) => render_report(src, &r.findings, opts),
         CheckOutcome::Plan(p) => render_report(src, &p.warnings, opts),
     }
+}
+
+/// A run error (REQ-KS-060): a built-in or a grant check that failed while
+/// the plan ran, located at the command that ran it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunDiag {
+    /// One of [`RUN_ERROR_IDS`], e.g. `run:grants`.
+    pub id: String,
+    /// The line the built-in printed, e.g. `cat: a.txt: No such file or directory`.
+    pub message: String,
+    /// The failing command in the source, when the site is known.
+    pub span: Option<Span>,
+    pub help: String,
+}
+
+/// Renders one run error, rustc-style: `error[run:…]: message`, the source
+/// line with the failing command underlined, then `= help: …`. Without a
+/// span (an unknown site) it renders the title and the help only.
+pub fn render_run_error(src: Source<'_>, d: &RunDiag, opts: Options) -> String {
+    let r = renderer(opts);
+    let es = Escaped::new(src);
+    let src = es.source();
+    let (message, help) = (escape_controls(&d.message), escape_controls(&d.help));
+    let mut group = Group::with_title(
+        Level::ERROR
+            .primary_title(message.as_str())
+            .id(d.id.as_str()),
+    );
+    if let Some(span) = d.span {
+        group = group.element(
+            Snippet::source(src.text)
+                .path(src.name)
+                .fold(true)
+                .annotation(AnnotationKind::Primary.span(clamp(src.text, es.span(span)))),
+        );
+    }
+    group = group.element(Level::HELP.message(help.as_str()));
+    r.render(&[group])
 }
 
 /// Schema id of [`render_json`]'s output.
@@ -328,6 +447,55 @@ mod tests {
         assert_eq!(clamp(t, Span::new(2, 3)), 1..3);
         assert_eq!(clamp(t, Span::new(9, 12)), 6..6);
         assert_eq!(clamp(t, Span::new(4, 2)), 4..4);
+    }
+
+    /// Second review, non-blocking 3: ESC in a file name, a run error's
+    /// message and a parse error's excerpt is shown as `\x1b`, never raw.
+    #[test]
+    fn control_characters_are_escaped_in_run_errors() {
+        let text = "cat \"$(printf '\\033[2J')\"\n";
+        let d = RunDiag {
+            id: "run:not-found".into(),
+            message: "cat: \u{1b}[2J: No such file or directory".into(),
+            span: Some(Span::new(0, 25)),
+            help: "check the name \u{9b}31m".into(),
+        };
+        let out = render_run_error(
+            Source::new("evil\u{1b}]0;x\u{7}.sh", text),
+            &d,
+            Options::default(),
+        );
+        assert!(
+            !out.contains('\u{1b}') && !out.contains('\u{7}') && !out.contains('\u{9b}'),
+            "{out:?}"
+        );
+        assert!(out.contains("cat: \\x1b[2J: No such file"), "{out}");
+        assert!(out.contains("evil\\x1b]0;x\\x07.sh"), "{out}");
+        assert!(out.contains("\\u{9b}31m"), "{out}");
+    }
+
+    #[test]
+    fn control_characters_are_escaped_in_parse_error_excerpts() {
+        // A parse error whose span covers an ESC in the source.
+        let text = "echo \u{1b}[31m red (x)\n";
+        let start = text.find('(').unwrap() as u32;
+        let e = ParseError {
+            construct: "subshell".into(),
+            message: "subshells are refused near \u{1b}[31m".into(),
+            span: Span::new(5, start + 3),
+            expected: vec!["a word".into()],
+            help: None,
+        };
+        let out = render_parse_error(Source::new("a\u{1b}b.sh", text), &e, Options::default());
+        assert!(!out.contains('\u{1b}'), "{out:?}");
+        assert!(out.contains("echo \\x1b[31m red (x)"), "{out}");
+        assert!(out.contains("found `\\x1b[31m red (x)`"), "{out}");
+        assert!(out.contains("a\\x1bb.sh"), "{out}");
+        // The underline still starts under the escaped character.
+        let f = parse_error_finding(Source::new("s", text), &e);
+        let es = Escaped::new(Source::new("s", text));
+        assert_eq!(es.span(f.span).start, 5);
+        assert_eq!(es.finding(&f).excerpt, "\\x1b[31m red (x)");
     }
 
     #[test]

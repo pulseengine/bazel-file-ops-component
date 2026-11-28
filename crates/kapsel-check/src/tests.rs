@@ -167,6 +167,12 @@ const CASES: &[(&str, Severity, &str, &str)] = &[
     ),
     ("KS-R016", Severity::Warn, "ls m | head", "ls m"),
     ("KS-R017", Severity::Warn, "cat \"$D/x\"", "cat x"),
+    (
+        "KS-R018",
+        Severity::Warn,
+        "cat a || exit 65",
+        "cat a || exit 1",
+    ),
 ];
 
 #[test]
@@ -189,12 +195,8 @@ fn every_rule_catches_its_planted_case_and_passes_its_control() {
 
 #[test]
 fn every_rule_id_has_a_case() {
-    for id in [
-        "R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010",
-        "R011", "R012", "R013", "R014", "R015", "R016", "R017",
-    ] {
-        let full = format!("KS-{id}");
-        assert!(CASES.iter().any(|c| c.0 == full), "no case for {full}");
+    for full in RULES {
+        assert!(CASES.iter().any(|c| c.0 == *full), "no case for {full}");
     }
 }
 
@@ -256,11 +258,6 @@ fn or_true_always_refuses_everywhere() {
         "false || true > /dev/null",
         "false || true | cat",
     ] {
-        // `|| true | cat` is a two-stage pipeline: not the idiom.
-        if src == "false || true | cat" {
-            assert!(!rules(src).contains(&"KS-R001".to_string()));
-            continue;
-        }
         assert!(
             has(src, "KS-R001", Severity::Refuse),
             "{src:?}: {:?}",
@@ -279,6 +276,337 @@ fn r001_span_covers_operator_and_command() {
         panic!()
     };
     assert_eq!(r.findings[0].excerpt, "|| :");
+}
+
+/// B1 (pre-release review of v0.3.0): every right-hand side of `||` whose
+/// status is always 0 is KS-R001, not only a lone `true` / `:`.
+#[test]
+fn r001_refuses_every_rhs_that_cannot_fail() {
+    for (src, construct) in [
+        // A pipeline with `true` or `:` as any stage.
+        ("grep -q x missing.txt || true | cat", "true"),
+        ("false || : | cat", ":"),
+        ("false || cat a | true", "true"),
+        ("false || echo x | : | cat", ":"),
+        ("false || true x y", "true"),
+        // Negation of something that always fails.
+        ("false || ! false", "! false"),
+        ("false || ! [ -z x ]", "! [ -z x ]"),
+        ("false || ! test", "! test"),
+        // exit 0, and statuses that are 0 modulo 256.
+        ("false || exit 0", "exit 0"),
+        ("false || exit 00", "exit 00"),
+        ("false || exit 256", "exit 256"),
+        // Constant-true tests.
+        ("false || test 1", "test 1"),
+        ("false || [ 1 ]", "[ 1 ]"),
+        ("false || [ -n x ]", "[ -n x ]"),
+        ("false || [ -n \"x\" ]", "[ -n \"x\" ]"),
+        ("false || test -z ''", "test -z ''"),
+        ("false || [ a = a ]", "[ a = a ]"),
+        ("false || [ 1 -eq 1 ]", "[ 1 -eq 1 ]"),
+        ("false || [ ! -z x ]", "[ ! -z x ]"),
+        // true / : / exit 0 reached through a loop.
+        (
+            "false || for i in a; do echo $i; true; done",
+            "for i in a; do echo $i; true; done",
+        ),
+        (
+            "false || for i in a; do echo hi; exit; done",
+            "for i in a; do echo hi; exit; done",
+        ),
+        (
+            "false || while false; do cat a; done",
+            "while false; do cat a; done",
+        ),
+        (
+            "false || until true; do cat a; done",
+            "until true; do cat a; done",
+        ),
+        (
+            "false || for i in a; do exit 0; false; done",
+            "for i in a; do exit 0; false; done",
+        ),
+        // In a capture and as a middle step.
+        ("x=$(false || true | cat)", "true | cat"),
+        ("false || exit 0 && echo x", "exit 0"),
+    ] {
+        let out = run(src);
+        let r001: Vec<&Finding> = findings(&out)
+            .into_iter()
+            .filter(|f| f.rule == "KS-R001")
+            .collect();
+        assert!(
+            matches!(out, CheckOutcome::Refused(_)) && !r001.is_empty(),
+            "{src:?} must be refused with KS-R001: {:?}",
+            findings(&out)
+        );
+        let f = r001[0];
+        assert_eq!(f.severity, Severity::Refuse);
+        assert!(
+            f.excerpt.starts_with("||") && f.excerpt.contains(construct),
+            "{src:?}: the span covers `|| {construct}`, got {:?}",
+            f.excerpt
+        );
+        assert!(
+            f.message.contains(construct),
+            "{src:?}: the message names `{construct}`: {}",
+            f.message
+        );
+        assert!(f.help.as_deref().is_some_and(|h| h.contains("exit 1")));
+        assert!(!f.notes.is_empty());
+    }
+}
+
+/// The controls of B1: right-hand sides that can fail stay out of KS-R001.
+#[test]
+fn r001_leaves_rhs_that_can_fail_alone() {
+    for src in [
+        "grep -n foo missing.txt || echo none",
+        "false || exit 1",
+        "false || exit",
+        "false || false",
+        "false || exit 3",
+        "false || test -n \"$X\"",
+        "false || [ -e a ]",
+        "false || [ x = y ]",
+        "false || ! cat a",
+        "false || cat a | grep x",
+        "false || for i in a; do cat $i; done",
+        "false || while cat a; do echo x; done",
+        "false || for i in a; do exit; done",
+        "false || exit $N",
+        "true | cat",
+        "true && echo ok",
+        "cat a && true",
+    ] {
+        assert!(
+            !rules(src).contains(&"KS-R001".to_string()),
+            "{src:?}: {:?}",
+            rules(src)
+        );
+    }
+    // `|| echo none` is KS-R011's warning, not a refusal.
+    let out = run("grep -n foo missing.txt || echo none");
+    assert!(matches!(out, CheckOutcome::Plan(_)));
+    assert!(has(
+        "grep -n foo missing.txt || echo none",
+        "KS-R011",
+        Severity::Warn
+    ));
+}
+
+#[test]
+fn const_test_follows_the_host_grammar() {
+    // The statuses come from `kapsel_plan::sem::eval_test`, the host's own code.
+    let t = crate::status::const_test;
+    assert_eq!(t(&[]), Some(1));
+    assert_eq!(t(&["1"]), Some(0));
+    assert_eq!(t(&[""]), Some(1));
+    assert_eq!(t(&["-n", "x"]), Some(0));
+    assert_eq!(t(&["-n", ""]), Some(1));
+    assert_eq!(t(&["-z", ""]), Some(0));
+    assert_eq!(t(&["!", "x"]), Some(1));
+    assert_eq!(t(&["a", "=", "a"]), Some(0));
+    assert_eq!(t(&["a", "!=", "a"]), Some(1));
+    assert_eq!(t(&["2", "-gt", "1"]), Some(0));
+    assert_eq!(t(&["x", "-gt", "1"]), Some(2));
+    assert_eq!(t(&["!", "-n", "x"]), Some(1));
+    assert_eq!(t(&["!", "a", "=", "b"]), Some(0));
+    assert_eq!(t(&["-e", "a"]), None);
+    assert_eq!(t(&["-f", "a", "b", "c", "d"]), Some(2));
+    assert_eq!(t(&["x", "-o", "y"]), Some(0));
+    assert_eq!(t(&["x", "-a", "y"]), Some(0));
+    assert_eq!(t(&["(", "x", ")"]), Some(0));
+    assert_eq!(t(&["a", "<", "b"]), Some(0));
+}
+
+/// KS-R018: a script's own `exit 64|65|70|78` (modulo 256) collides with
+/// kapsel's own failure codes (REQ-KS-014).
+#[test]
+fn r018_warns_on_exit_codes_kapsel_uses() {
+    for (src, code) in [
+        ("exit 64", "64"),
+        ("exit 65", "65"),
+        ("false || exit 70", "70"),
+        ("exit 78", "78"),
+        ("exit 321", "65"),
+        // The operand is read as the host reads it (kapsel_plan::sem::exit_status).
+        ("exit +65", "65"),
+        ("exit -191", "65"),
+        ("exit \" 78\"", "78"),
+    ] {
+        let out = run(src);
+        let f = findings(&out)
+            .into_iter()
+            .find(|f| f.rule == "KS-R018")
+            .unwrap_or_else(|| panic!("{src:?}: no KS-R018: {:?}", findings(&out)));
+        assert_eq!(f.severity, Severity::Warn);
+        assert!(matches!(out, CheckOutcome::Plan(_)), "{src:?} is a warning");
+        assert!(f.message.contains(code), "{src:?}: {}", f.message);
+        let help = f.help.as_deref().unwrap();
+        assert!(
+            help.contains("kapsel:") && help.contains("check --json"),
+            "{help}"
+        );
+    }
+    for ok in [
+        "exit 0", "exit 1", "exit 2", "exit 63", "exit 66", "exit $X", "exit",
+    ] {
+        assert!(!rules(ok).contains(&"KS-R018".to_string()), "{ok:?}");
+    }
+}
+
+/// Every help text's code examples, run through kapsel's own parser and check
+/// stage: a help line must not suggest syntax kapsel refuses (the v0.3.0
+/// review found `{ ...; }` brace groups, KS-R000, in KS-R001's and KS-R011's
+/// help). Backticked fragments that quote the construct being diagnosed are
+/// listed per rule in QUOTED; every other fragment is a suggestion. A
+/// fragment that starts with an operator, an option or a quote gets a `cmd`
+/// before it, one that ends with an operator gets `cmd` after it.
+/// `cmd` stands for the user's command, so its KS-R009 is expected.
+#[test]
+fn help_examples_pass_kapsel_s_own_check() {
+    const QUOTED: &[(&str, &[&str])] = &[
+        (R000, &["&&", "||", ";", "$(...)", "for", "while", "until"]),
+        (R001, &["|| true"]),
+        (R002, &["2>/dev/null"]),
+        (R004, &["eval"]),
+        (R005, &["set", "||", "&&"]),
+        // The command line for the outer shell, not a line inside kapsel.
+        (R006, &["kapsel install.sh"]),
+        (R007, &["nohup"]),
+        (R008, &["kill", "pkill"]),
+        (R010, &["$CMD"]),
+        (R011, &["|| echo"]),
+        (
+            R018,
+            &["exit 65", "kapsel:", "error[KS-…]", "kapsel check --json"],
+        ),
+    ];
+    let sample = |rule: &str| match rule {
+        R001 => "true",
+        R004 => "eval",
+        R007 => "nohup",
+        R008 => "pkill",
+        R009 => "make",
+        R011 => "echo",
+        R016 => "missing.txt",
+        R017 => "DIR",
+        R018 => "exit 65",
+        _ => "",
+    };
+    let mut helps: Vec<(&str, String)> =
+        RULES.iter().map(|r| (*r, help_for(r, sample(r)))).collect();
+    helps.push((R000, R000_HELP.to_string()));
+    for name in ["perl", "awk", "jq", "yq", "python3", "node"] {
+        helps.push((R009, covering_builtin(name).unwrap().to_string()));
+    }
+    let ops = ["||", "&&", "|", ";"];
+    let mut checked = 0;
+    for (rule, help) in &helps {
+        let quoted = QUOTED
+            .iter()
+            .find(|(r, _)| r == rule)
+            .map_or(&[][..], |(_, q)| q);
+        for (i, frag) in help.split('`').enumerate() {
+            if i % 2 == 0 || quoted.contains(&frag) {
+                continue;
+            }
+            let mut src = frag.to_string();
+            if ops.iter().any(|o| src.starts_with(o))
+                || src.starts_with(['-', '>', '<', '\'', '"', '.', '/', '2'])
+            {
+                src = format!("cmd {src}");
+            }
+            if ops.iter().any(|o| src.ends_with(o)) {
+                src = format!("{src} cmd");
+            }
+            let out = run(&src);
+            let bad: Vec<&Finding> = findings(&out)
+                .into_iter()
+                .filter(|f| f.severity == Severity::Refuse)
+                .filter(|f| !(f.rule == R009 && f.excerpt == "cmd"))
+                .collect();
+            assert!(
+                bad.is_empty(),
+                "{rule}'s help suggests `{frag}`, which kapsel refuses (checked as {src:?}): {bad:?}"
+            );
+            // A help line must not suggest what its own rule reports.
+            assert!(
+                findings(&out)
+                    .iter()
+                    .all(|f| f.rule != *rule || f.excerpt == "cmd"),
+                "{rule}'s help suggests `{frag}`, which {rule} itself reports"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 30, "only {checked} help fragments checked");
+}
+
+/// REQ-KS-013: built-ins that read the current directory without naming it
+/// grant `.`; a bare `cd` goes to $HOME, which the plan cannot name. Found by
+/// kapsel-cli's grants_from_plan test (`ls` in corpus 012 was denied).
+#[test]
+fn implicit_current_directory_reads_are_granted() {
+    for src in [
+        "ls",
+        "ls -1",
+        "ls -a",
+        "grep -r foo",
+        "grep -rn foo",
+        "grep -R x",
+    ] {
+        let p = plan(src);
+        assert_eq!(p.grants.read, vec!["."], "{src:?}");
+        assert!(!p.grants.dynamic, "{src:?}");
+    }
+    for src in ["ls d", "grep -r foo d", "grep foo"] {
+        assert!(!plan(src).grants.read.contains(&".".to_string()), "{src:?}");
+    }
+    assert!(plan("cd").grants.dynamic);
+    assert!(!plan("cd d").grants.dynamic);
+    // `.` always exists: no KS-R016 for `ls | head`.
+    assert!(!rules("ls | head -n 1").contains(&"KS-R016".to_string()));
+    assert!(rules("ls d | head -n 1").contains(&"KS-R016".to_string()));
+}
+
+/// Second review, non-blocking 5: `-` is standard input, not a path, so
+/// KS-R016 names `nofile` and never `-`.
+#[test]
+fn r016_does_not_name_stdin() {
+    let src = "echo a | cat - nofile | wc -l";
+    let out = run(src);
+    let r016: Vec<&Finding> = findings(&out)
+        .into_iter()
+        .filter(|f| f.rule == "KS-R016")
+        .collect();
+    assert_eq!(r016.len(), 1, "{r016:?}");
+    assert_eq!(r016[0].excerpt, "nofile");
+    assert!(
+        r016[0].message.contains("`cat nofile`"),
+        "{}",
+        r016[0].message
+    );
+    assert!(
+        !r016
+            .iter()
+            .any(|f| f.excerpt == "-" || f.message.contains("`cat -`")),
+        "{r016:?}"
+    );
+    assert!(!rules("echo a | cat - | wc -l").contains(&"KS-R016".to_string()));
+}
+
+#[test]
+fn the_help_example_check_can_fail() {
+    // The pre-review KS-R011 help: a brace group, refused with KS-R000.
+    let src = "cmd || { echo 'cmd failed' >&2; exit 1; }";
+    assert!(
+        rules(src).contains(&"KS-R000".to_string()),
+        "{:?}",
+        rules(src)
+    );
 }
 
 #[test]
@@ -583,7 +911,8 @@ const GRANTS: &[(&str, &[&str], &[&str], bool)] = &[
     ("uniq -c f", &["f"], &[], false),
     ("cut -d , -f 1 f", &["f"], &[], false),
     ("ls d1 d2", &["d1", "d2"], &[], false),
-    ("ls", &[], &[], false),
+    // `ls` lists the current directory (it was &[] before the v0.3.0 review).
+    ("ls", &["."], &[], false),
     ("grep foo a b", &["a", "b"], &[], false),
     ("grep -n foo a", &["a"], &[], false),
     ("grep -e foo -e bar a", &["a"], &[], false),
@@ -623,7 +952,89 @@ const GRANTS: &[(&str, &[&str], &[&str], bool)] = &[
     ("for f in a b; do cat $f; done", &[], &[], true),
     ("x=$(cat a)", &["a"], &[], false),
     ("echo $(cat a > b)", &["a"], &["b"], false),
+    // REQ-KS-063: writers list FILE as read and written; get forms read it.
+    ("edit f -s a b", &["f"], &["f"], false),
+    ("edit -e 'x(.)' '$1' f -c 2", &["f"], &["f"], false),
+    ("edit f -s -x -y", &["f"], &["f"], false),
+    ("edit f --lines 1:2 --with g", &["f", "g"], &["f"], false),
+    ("edit f --lines 1:2 --with-text g", &["f"], &["f"], false),
+    ("edit \"$F\" -s a b", &[], &[], true),
+    ("json get .a f", &["f"], &[], false),
+    ("json get -r .a", &[], &[], false),
+    ("json set .a 1 f", &["f"], &["f"], false),
+    ("json set .n -1 f", &["f"], &["f"], false),
+    ("json set --str .a x f", &["f"], &["f"], false),
+    ("json del .a f", &["f"], &["f"], false),
+    ("json merge f o", &["f", "o"], &["f"], false),
+    ("json $SUB .a f", &[], &[], true),
+    ("yaml get .a f", &["f"], &[], false),
+    ("yaml set .a b f", &["f"], &["f"], false),
+    ("yaml del .a f", &["f"], &["f"], false),
+    ("toml get .a f", &["f"], &[], false),
+    ("toml set .a 1 f", &["f"], &["f"], false),
+    ("field 2 f", &["f"], &[], false),
+    ("field -1 -d , f g", &["f", "g"], &[], false),
+    ("lines 2:3 f", &["f"], &[], false),
+    ("lines '/a/,/b/' f", &["f"], &[], false),
+    ("base64 -d f", &["f"], &[], false),
+    ("sha256sum a b", &["a", "b"], &[], false),
+    ("sha256sum -c sums", &["sums"], &[], true),
 ];
+
+#[test]
+fn r009_names_the_builtin_that_covers_an_interpreter() {
+    for (src, want) in [
+        (
+            "perl -pi -e s/a/b/ f",
+            "perl -pi -e: use `edit FILE -e RE REPL`",
+        ),
+        ("python3 -c 'print(1)'", "`edit FILE -s OLD NEW`"),
+        ("python x.py", "`json get PATH FILE`"),
+        ("python3.12 x.py", "`json get PATH FILE`"),
+        ("node x.js", "`edit FILE -e RE REPL`"),
+        ("ruby -e x", "`yaml get`"),
+        ("awk '{print $2}' f", "awk '{print $N}': use `field N FILE`"),
+        ("awk 'NR>=2 && NR<=4' f", "use `lines A:B FILE`"),
+        ("jq -r .a f.json", "jq: use `json get PATH FILE`"),
+        ("yq .a f.yaml", "yq: use `yaml get PATH FILE`"),
+    ] {
+        let CheckOutcome::Refused(r) = run(src) else {
+            panic!("{src} not refused")
+        };
+        let f = r.findings.iter().find(|f| f.rule == "KS-R009").unwrap();
+        let h = f.help.as_deref().unwrap_or("");
+        assert!(h.contains(want), "{src}: {h}");
+        assert!(h.contains("REQ-KS-030"), "{src}: {h}");
+        assert!(!h.contains("did you mean"), "{src}: {h}");
+    }
+    // Other programs keep the generic help.
+    let CheckOutcome::Refused(r) = run("make all") else {
+        panic!()
+    };
+    let h = r.findings[0].help.as_deref().unwrap_or("");
+    assert!(h.starts_with("use one of the built-ins ("), "{h}");
+    assert!(
+        h.contains("edit, json, yaml, toml, field, lines, base64, sha256sum"),
+        "{h}"
+    );
+}
+
+#[test]
+fn req_ks_063_builtins_are_accepted() {
+    for src in [
+        "edit f -s a b",
+        "json get .a f",
+        "yaml set .a 1 f",
+        "toml get .a f",
+        "field 1 f",
+        "lines 1:2 f",
+        "base64 f",
+        "sha256sum f",
+    ] {
+        let p = plan(src);
+        assert!(p.warnings.is_empty(), "{src}: {:?}", p.warnings);
+    }
+}
 
 #[test]
 fn grants_table() {
@@ -658,11 +1069,8 @@ fn pack_dir() -> std::path::PathBuf {
 #[test]
 fn plant_pack_files_agree_with_rules() {
     let mut seen = 0;
-    for id in [
-        "R000", "R001", "R002", "R003", "R004", "R005", "R006", "R007", "R008", "R009", "R010",
-        "R011", "R012", "R013", "R014", "R015", "R016", "R017",
-    ] {
-        let rule = format!("KS-{id}");
+    for id in RULES {
+        let rule = id.to_string();
         let dir = pack_dir().join(&rule);
         let planted = std::fs::read_to_string(dir.join("planted.sh"))
             .unwrap_or_else(|e| panic!("{rule} planted: {e}"));
@@ -673,7 +1081,7 @@ fn plant_pack_files_agree_with_rules() {
             f.iter().any(|(r, _)| r == &rule),
             "{rule} planted.sh not caught: {f:?}"
         );
-        let sev = if rule == "KS-R002" || ("KS-R011"..="KS-R017").contains(&rule.as_str()) {
+        let sev = if rule == "KS-R002" || ("KS-R011"..="KS-R018").contains(&rule.as_str()) {
             Severity::Warn
         } else {
             Severity::Refuse
@@ -690,7 +1098,7 @@ fn plant_pack_files_agree_with_rules() {
         );
         seen += 1;
     }
-    assert_eq!(seen, 18);
+    assert_eq!(seen, RULES.len());
 }
 
 fn findings_of(src: &str) -> Vec<(String, Severity)> {
@@ -698,6 +1106,139 @@ fn findings_of(src: &str) -> Vec<(String, Severity)> {
         .iter()
         .map(|f| (f.rule.clone(), f.severity))
         .collect()
+}
+
+/// BL-1 (second review of v0.3.0): right-hand sides of `||` that exited 0
+/// through the real binary and got a plan. Each is now KS-R001.
+pub(crate) const REVIEW2_BYPASSES: &[&str] = &[
+    "for i in; do false; done",
+    "X=1",
+    "X=1 Y=2",
+    "export X=1",
+    "export X",
+    "exit -256",
+    "exit +0",
+    "exit -0",
+    "exit \" 0\"",
+    "test x -o y",
+    "test x -a y",
+    "test '(' x ')'",
+    "test a '<' b",
+    "test \"x$(false)\"",
+    "test x\"$(false)\"",
+    "for i in a; do X=1; exit; done",
+    "for i in a; do export Y=1; done",
+];
+
+#[test]
+fn r001_refuses_the_second_review_bypasses() {
+    for rhs in REVIEW2_BYPASSES {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            has(&src, "KS-R001", Severity::Refuse),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
+}
+
+/// Classes the generated search (kapsel-cli tests/r001_search.rs) found
+/// after the review's list was fixed: each exited 0 everywhere with a plan.
+#[test]
+fn r001_refuses_what_the_search_found() {
+    for rhs in [
+        // An `exit 0` reached for certain, also through a loop condition.
+        "while exit 0; do cat a; done",
+        "! while exit -256; do cat a; done",
+        "until exit 0; do cat a; done",
+        "test x && ! exit 0",
+        // The status of an assignment is the last substitution's.
+        "X=\"$(true)\" Y=1",
+        "X=$(false) Y=$(true)",
+        // `$(false)` prints nothing: no items, no word.
+        "for i in $(false); do cat a; done",
+        "test = $(false)",
+        "test -n \"-$V\" $(false)",
+        // Negation of what always fails.
+        "! export 1bad",
+        "! X=$(false)",
+        "! for i in \"\"; do cat a; [ ')' 1 1 ]; done",
+        "! for i in \"$V\"; do test -eq '<' || ! X=1; done",
+        "! cat a | while exit 1; do :; done",
+        "! cat a | exit -e",
+        // Every form the expansion can take gives the same answer.
+        "! [ \"!$V\" '<' ]",
+        "! [ \"-$V\" -z \"-$V\" ]",
+        "! [ +65 x\"$V\" ]",
+        "test '' != x\"$V\"",
+        // `export` of a valid name with a quoted value.
+        "export X=\"$V\"",
+        "export X=\"x$(false)\"",
+    ] {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            has(&src, "KS-R001", Severity::Refuse),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
+}
+
+/// A test with many expansions that may be operators: the number of forms
+/// to try (about 15 per word, 40 words) overflows usize. The check must cap
+/// it with a checked product, not panic or wrap, and return quickly.
+#[test]
+fn r001_test_fold_caps_the_forms_without_overflow() {
+    let words = vec!["\"-$V\""; 40].join(" ");
+    let src = format!("cat missing.txt || test {words}");
+    let start = std::time::Instant::now();
+    let r = rules(&src);
+    assert!(!r.contains(&"KS-R001".to_string()), "{r:?}");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// The controls of BL-1: these can fail, so they stay out of KS-R001.
+#[test]
+fn r001_leaves_failable_assignments_exports_and_tests_alone() {
+    for rhs in [
+        "X=$(false)",
+        "X=\"$(false)\"",
+        "X=1 Y=$(false)",
+        "export 1bad",
+        "export X=$(cat a)",
+        "export X=$V",
+        "export X 1bad",
+        "test \"$X\"",
+        "test x$Y",
+        "test \"$(false)x\" = y",
+        "test \"x$Y\" = xy",
+        "test \"-$Y\" x",
+        "[ \"x$Y\"",
+        "test -e a -a x",
+        "exit x",
+        "exit 1 2",
+        "for i in a; do X=$(false); exit; done",
+        "for i in $L; do export Y=1; false; done",
+        // An `exit` that may run can end the loop with any status.
+        "for i in a; do cat a || exit 1; true; done",
+        "while cat a || exit 3; do :; done",
+        // A `true` stage counts only at the top of the right-hand side.
+        "for i in a; do : | [ ')' 1 1 ]; done",
+        // A bare `exit` in a later iteration sees the body's status.
+        "for i in $V; do ! [ '' ] | exit; done",
+        "for i in $V; do :; done | test -e a",
+    ] {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            !rules(&src).contains(&"KS-R001".to_string()),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
 }
 
 mod quality;

@@ -575,7 +575,7 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
         match t {
             Ok(t) => alts.push(format!("(?:{t})")),
             Err(e) => {
-                ctx.msg(&format!("invalid regex '{pat}': {e}"));
+                ctx.regex_fail(pat, &format!("invalid regex '{pat}': {e}"), None);
                 return 2;
             }
         }
@@ -594,7 +594,21 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
             } else {
                 pats.join("\\n")
             };
-            ctx.msg(&format!("invalid regex '{shown}': {e}"));
+            // The first pattern that fails on its own, with the full error
+            // (it marks the position).
+            let full = pats.iter().find_map(|p| {
+                let t = if fixed {
+                    regex::escape(p)
+                } else {
+                    regex_conv::translate_regex(p, ere).ok()?
+                };
+                super::regex_error(&t)
+            });
+            ctx.regex_fail(
+                &shown,
+                &format!("invalid regex '{shown}': {e}"),
+                full.as_deref(),
+            );
             return 2;
         }
     };

@@ -1,0 +1,11 @@
+fn new() {
+    println!("new");
+}
+
+fn keep() {}
+# Notes
+intro
+<!-- BEGIN generated -->
+fresh
+<!-- END generated -->
+outro

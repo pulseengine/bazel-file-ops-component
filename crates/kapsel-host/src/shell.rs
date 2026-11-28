@@ -8,7 +8,18 @@ use std::rc::Rc;
 
 use crate::HostError;
 use crate::builtins;
-use crate::grants::{self, Grants};
+use crate::grants::{self, GrantErr, Grants};
+use crate::runerr::{ErrorClass, RunError, help_for};
+
+/// A failed redirect: the class, the path concerned and the stderr line.
+type RedirErr = (ErrorClass, Option<String>, String);
+
+fn grant_class(w: GrantErr) -> ErrorClass {
+    match w {
+        GrantErr::Outside => ErrorClass::Grants,
+        GrantErr::Symlink | GrantErr::Loop => ErrorClass::Symlink,
+    }
+}
 
 pub type R<T> = Result<T, HostError>;
 
@@ -122,6 +133,12 @@ pub struct Shell {
     lists: Vec<Vec<String>>,
     scopes: Vec<Scope>,
     pub exit_request: Option<i32>,
+    /// The command named by the last WIT `site` call (REQ-KS-060).
+    pub site: Option<u32>,
+    /// Errors the running call recorded; kept only if it fails.
+    pub pending_errors: Vec<RunError>,
+    /// The run errors of the current (or last) run, in order.
+    pub run_errors: Vec<RunError>,
 }
 
 impl Shell {
@@ -139,6 +156,9 @@ impl Shell {
             lists: Vec::new(),
             scopes: Vec::new(),
             exit_request: None,
+            site: None,
+            pending_errors: Vec::new(),
+            run_errors: Vec::new(),
         }
     }
 
@@ -148,6 +168,9 @@ impl Shell {
         self.lists.clear();
         self.scopes.clear();
         self.exit_request = None;
+        self.site = None;
+        self.pending_errors.clear();
+        self.run_errors.clear();
     }
 
     /// Drops the per-run tables once a run is over.
@@ -458,12 +481,24 @@ impl Shell {
             Sink(self.pipe(stdout)?)
         };
         let mut err = self.stderr.clone();
+        self.pending_errors.clear();
 
         // Redirects, in order.
         let mut redirect_failed = false;
         for r in redirects {
-            if let Err(msg) = self.apply_redirect(r, &mut stdin_r, &mut out, &mut err) {
-                let _ = writeln!(err, "{msg}");
+            if let Err((class, operand, msg)) =
+                self.apply_redirect(r, &mut stdin_r, &mut out, &mut err)
+            {
+                err_line(&mut err, &msg);
+                let help = help_for(class, &args[0], operand.as_deref(), None);
+                self.pending_errors.push(RunError {
+                    site: self.site,
+                    builtin: args[0].clone(),
+                    class,
+                    message: msg,
+                    operand,
+                    help,
+                });
                 redirect_failed = true;
                 break;
             }
@@ -490,6 +525,11 @@ impl Shell {
         };
         let _ = out.flush();
         let _ = err.flush();
+        // A run error counts only when the call failed (REQ-KS-060).
+        let pending = std::mem::take(&mut self.pending_errors);
+        if status != 0 && status < 256 {
+            self.run_errors.extend(pending);
+        }
         if status >= 256 {
             self.exit_request = Some(status - 256);
         }
@@ -502,65 +542,95 @@ impl Shell {
         stdin: &mut Box<dyn Read>,
         out: &mut Sink,
         err: &mut Sink,
-    ) -> Result<(), String> {
+    ) -> Result<(), RedirErr> {
+        let other = |class: ErrorClass, m: String| (class, None, m);
         match r.op {
             ROp::Heredoc => {
-                let body = self.expand_nosplit(&r.target).map_err(|e| e.0)?;
+                let body = self
+                    .expand_nosplit(&r.target)
+                    .map_err(|e| other(ErrorClass::Failed, e.0))?;
                 *stdin = Box::new(Cursor::new(body.into_bytes()));
             }
             ROp::DupOut => match (r.fd, r.target_fd) {
                 (1, 2) => *out = err.clone(),
                 (2, 1) => *err = out.clone(),
                 (a, b) if a == b => {}
-                (a, b) => return Err(format!("kapsel: {a}>&{b}: unsupported file descriptor")),
+                (a, b) => {
+                    return Err(other(
+                        ErrorClass::Usage,
+                        format!("kapsel: {a}>&{b}: unsupported file descriptor"),
+                    ));
+                }
             },
             ROp::DupIn => {
                 if r.fd != r.target_fd {
-                    return Err(format!(
-                        "kapsel: {}<&{}: unsupported file descriptor",
-                        r.fd, r.target_fd
+                    return Err(other(
+                        ErrorClass::Usage,
+                        format!(
+                            "kapsel: {}<&{}: unsupported file descriptor",
+                            r.fd, r.target_fd
+                        ),
                     ));
                 }
             }
             ROp::Read | ROp::Write | ROp::Append => {
-                let fields = self.expand_fields(&r.target).map_err(|e| e.0)?;
+                let fields = self
+                    .expand_fields(&r.target)
+                    .map_err(|e| other(ErrorClass::Failed, e.0))?;
                 if fields.len() != 1 {
                     let text = self.expand_nosplit(&r.target).unwrap_or_default();
-                    return Err(format!("kapsel: {text}: ambiguous redirect"));
+                    return Err(other(
+                        ErrorClass::Failed,
+                        format!("kapsel: {text}: ambiguous redirect"),
+                    ));
                 }
                 let path = &fields[0];
                 if r.op == ROp::Read {
                     if r.fd != 0 {
-                        return Err(format!(
-                            "kapsel: {}<{path}: unsupported file descriptor",
-                            r.fd
+                        return Err(other(
+                            ErrorClass::Usage,
+                            format!("kapsel: {}<{path}: unsupported file descriptor", r.fd),
                         ));
                     }
                     if path == "/dev/null" {
                         *stdin = Box::new(io::empty());
                         return Ok(());
                     }
-                    let resolved = self
-                        .grants
-                        .check_read(&self.cwd, path)
-                        .map_err(|w| format!("kapsel: {path}: {}", w.reason()))?;
-                    let f = std::fs::File::open(&resolved)
-                        .map_err(|e| format!("kapsel: {path}: {}", errstr(&e)))?;
+                    let resolved = self.grants.check_read(&self.cwd, path).map_err(|w| {
+                        (
+                            grant_class(w),
+                            Some(path.clone()),
+                            format!("kapsel: {path}: {}", w.reason()),
+                        )
+                    })?;
+                    let f = std::fs::File::open(&resolved).map_err(|e| {
+                        (
+                            ErrorClass::of_io(&e),
+                            Some(path.clone()),
+                            format!("kapsel: {path}: {}", errstr(&e)),
+                        )
+                    })?;
                     *stdin = Box::new(f);
                 } else {
                     if r.fd != 1 && r.fd != 2 {
-                        return Err(format!(
-                            "kapsel: {}>{path}: unsupported file descriptor",
-                            r.fd
+                        return Err(other(
+                            ErrorClass::Usage,
+                            format!("kapsel: {}>{path}: unsupported file descriptor", r.fd),
                         ));
                     }
                     let sink = if path == "/dev/null" {
                         Sink::null()
                     } else {
-                        let resolved = self
-                            .grants
-                            .check_write(&self.cwd, path, true)
-                            .map_err(|w| format!("kapsel: {path}: {}", w.reason()))?;
+                        let resolved =
+                            self.grants
+                                .check_write(&self.cwd, path, true)
+                                .map_err(|w| {
+                                    (
+                                        grant_class(w),
+                                        Some(path.clone()),
+                                        format!("kapsel: {path}: {}", w.reason()),
+                                    )
+                                })?;
                         let mut oo = std::fs::OpenOptions::new();
                         oo.create(true).write(true);
                         if r.op == ROp::Append {
@@ -568,9 +638,13 @@ impl Shell {
                         } else {
                             oo.truncate(true);
                         }
-                        let f = oo
-                            .open(&resolved)
-                            .map_err(|e| format!("kapsel: {path}: {}", errstr(&e)))?;
+                        let f = oo.open(&resolved).map_err(|e| {
+                            (
+                                ErrorClass::of_io(&e),
+                                Some(path.clone()),
+                                format!("kapsel: {path}: {}", errstr(&e)),
+                            )
+                        })?;
                         Sink::new(f)
                     };
                     if r.fd == 1 {
@@ -583,6 +657,16 @@ impl Shell {
         }
         Ok(())
     }
+}
+
+/// Writes one diagnostic line (`name: operand: reason`, a grant refusal, a
+/// failed redirect) to a built-in's stderr, with control characters escaped
+/// as the rendered diagnostics escape them ([`kapsel_diag::escape_controls`]),
+/// so an operand or path holding ESC cannot drive the terminal. Every
+/// diagnostic line the host writes goes through here; data a built-in writes
+/// (to stdout, or to stderr by redirection) never does.
+pub fn err_line(err: &mut impl Write, line: &str) {
+    let _ = writeln!(err, "{}", kapsel_diag::escape_controls(line));
 }
 
 /// `strerror`-style text for an io error, as GNU tools print it.

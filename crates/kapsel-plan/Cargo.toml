@@ -11,3 +11,12 @@ kapsel-ast.workspace = true
 serde.workspace = true
 sha2.workspace = true
 serde_json.workspace = true
+schemars = { version = "1", optional = true }
+
+[features]
+# JsonSchema for the plan types: the source of schemas/kapsel.plan.v0.json (REQ-KS-013).
+schema = ["dep:schemars", "kapsel-ast/schema"]
+
+[dev-dependencies]
+kapsel-plan = { path = ".", features = ["schema"] }
+schemars = "1"

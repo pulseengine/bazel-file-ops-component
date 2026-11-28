@@ -11,10 +11,13 @@ use serde::{Deserialize, Serialize};
 
 pub use kapsel_ast::{AndOrOp, RedirectOp, Span};
 
+pub mod sem;
+
 pub const PLAN_SCHEMA: &str = "kapsel.plan.v0";
 
 /// What `kapsel check` produces: a plan, or a refusal. Never both.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "outcome")]
 pub enum CheckOutcome {
     Plan(Plan),
@@ -22,6 +25,7 @@ pub enum CheckOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Refusal {
     pub schema: String,
     pub source_sha256: String,
@@ -30,6 +34,7 @@ pub struct Refusal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Plan {
     pub schema: String,
     /// Hex sha256 of the exact source text the plan was made from.
@@ -43,6 +48,7 @@ pub struct Plan {
 
 /// A rule hit. Rule ids are stable, e.g. `KS-R001` (`|| true`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Finding {
     pub rule: String,
     pub severity: Severity,
@@ -62,12 +68,14 @@ pub struct Finding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Related {
     pub span: Span,
     pub label: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Refuse,
@@ -75,6 +83,7 @@ pub enum Severity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Grants {
     /// Paths read, as written in the source (literal paths only).
     pub read: Vec<String>,
@@ -88,18 +97,21 @@ pub struct Grants {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PAndOr {
     pub first: PPipeline,
     pub rest: Vec<(AndOrOp, PPipeline)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PPipeline {
     pub negated: bool,
     pub stages: Vec<PStage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PStage {
     Call(Call),
@@ -116,6 +128,7 @@ pub enum PStage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Call {
     /// `None` for an assignment-only command (`X=1`): the compiler emits
     /// `set-var` for each assignment and no call.
@@ -128,6 +141,7 @@ pub struct Call {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind", content = "name")]
 pub enum Tool {
     /// A command implemented by kapsel (REQ-KS-025), including the special
@@ -136,6 +150,7 @@ pub enum Tool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PRedirect {
     /// Resolved fd: the explicit one, or 0 for `<`/`<&`/heredoc, 1 otherwise.
     pub fd: u32,
@@ -144,6 +159,7 @@ pub struct PRedirect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PRedirectTarget {
     Word {
@@ -162,11 +178,13 @@ pub enum PRedirectTarget {
 /// which is what expansion needs (field splitting and globbing apply only to
 /// unquoted parts).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PWord {
     pub parts: Vec<PPart>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PPart {
     Lit {
@@ -230,13 +248,83 @@ pub mod exit {
 
 /// The built-in command names (REQ-KS-025 plus the special built-ins). The
 /// check stage accepts exactly these; the host implements exactly these.
+#[rustfmt::skip]
 pub const BUILTINS: &[&str] = &[
     // special
     ":", "true", "false", "cd", "export", "exit", "test", "[", "pwd",
     // first batch, measured (REQ-KS-025)
     "cat", "echo", "printf", "head", "tail", "wc", "ls", "mkdir", "cp", "mv", "rm", "grep", "sed",
     "sort", "uniq", "cut", "tr", "tee", "date", "seq", "sleep",
+    // file edits and structured data without an interpreter (REQ-KS-063)
+    "edit", "json", "yaml", "toml", "field", "lines", "base64", "sha256sum",
 ];
+
+impl Plan {
+    /// Every command node of the plan in the pre-order walk that numbers the
+    /// WIT `site` ids (REQ-KS-060): and-or lists in order, pipeline stages in
+    /// order, a command before the `$(...)` bodies in its words (command
+    /// words, then redirections, then assignments), a `for`'s item words
+    /// before its body, a `while`/`until` condition before its body.
+    /// Assignment-only commands are included. The compiled component passes
+    /// index `i` to `site` before running `commands()[i]`; the same walk over
+    /// the normalized plan gives the same indices.
+    pub fn commands(&self) -> Vec<&Call> {
+        let mut out = Vec::new();
+        walk_list(&self.body, &mut out);
+        out
+    }
+}
+
+fn walk_list<'a>(list: &'a [PAndOr], out: &mut Vec<&'a Call>) {
+    for ao in list {
+        walk_pipeline(&ao.first, out);
+        for (_, p) in &ao.rest {
+            walk_pipeline(p, out);
+        }
+    }
+}
+
+fn walk_pipeline<'a>(p: &'a PPipeline, out: &mut Vec<&'a Call>) {
+    for s in &p.stages {
+        match s {
+            PStage::Call(c) => {
+                out.push(c);
+                let redirect_words = c.redirects.iter().filter_map(|r| match &r.target {
+                    PRedirectTarget::Word { word } | PRedirectTarget::Heredoc { body: word } => {
+                        Some(word)
+                    }
+                    PRedirectTarget::Fd { .. } => None,
+                });
+                let words = c
+                    .argv
+                    .iter()
+                    .chain(redirect_words)
+                    .chain(c.assignments.iter().map(|(_, w)| w));
+                for w in words {
+                    walk_word(w, out);
+                }
+            }
+            PStage::For { items, body, .. } => {
+                items.iter().for_each(|w| walk_word(w, out));
+                walk_list(body, out);
+            }
+            PStage::While {
+                condition, body, ..
+            } => {
+                walk_list(condition, out);
+                walk_list(body, out);
+            }
+        }
+    }
+}
+
+fn walk_word<'a>(w: &'a PWord, out: &mut Vec<&'a Call>) {
+    for p in &w.parts {
+        if let PPart::Capture { body, .. } = p {
+            walk_list(body, out);
+        }
+    }
+}
 
 /// Normalization for caching and attestation (REQ-KS-021).
 ///

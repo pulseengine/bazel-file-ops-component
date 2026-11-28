@@ -20,6 +20,7 @@ impl T {
         let grants = GrantSet {
             read_write: vec![root.clone()],
             read_only: vec![],
+            ..Default::default()
         };
         let s = Session::with_env(
             grants,

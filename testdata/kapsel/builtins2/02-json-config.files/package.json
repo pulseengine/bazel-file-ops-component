@@ -1,0 +1,13 @@
+{
+  "name": "demo",
+  "version": "1.1.0",
+  "scripts": {
+    "test": "jest --ci",
+    "build": "tsc"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "private": true
+}

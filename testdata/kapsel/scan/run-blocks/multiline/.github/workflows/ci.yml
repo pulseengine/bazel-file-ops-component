@@ -1,0 +1,12 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: three lines
+        run: |
+          echo one
+
+          echo two || true
+          echo three

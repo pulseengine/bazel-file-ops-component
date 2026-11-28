@@ -107,3 +107,17 @@ dependencies, each a file spec with a source and an optional destination.
 `security-operations` interfaces. The shipped component is built as a
 `wasi:cli/command` (`crates/kapsel-fileops`) and does not export them. They are a
 design record, not a callable API.
+
+## Release assets
+
+Moved here from the README front page when it was rewritten for v0.3.0.
+
+| Asset | What it is |
+|---|---|
+| `file_ops_component.wasm` (+ `.sha256`) | The JSON-config component. v0.1.0 to v0.2.2 were TinyGo; from v0.3.0 it is built from Rust (`crates/kapsel-fileops`) and runs the released v0.2.2 component's equivalence corpus on every pull request and before every release. It imports WASI 0.2.12, so it needs wasmtime 46.0.0 or later. |
+| `file_ops_component_aot.wasm` (+ `.sha256`) | The same component with precompiled code embedded for Linux, macOS and Windows targets and Pulley, published since v0.2.0. From v0.3.0 the code is compiled by wasmtime 50.0.3 and loads only in that version; CI runs the linux-x64 code and the equivalence test on the embedded component. |
+| `kapsel-compile-proofs.tar.gz` (+ `.sha256`, `.sigstore.json`) | From v0.3.0: the ordeal certificates for the compiler's proofs, cosign-signed; see `crates/kapsel-compile/proofs/README.md`. |
+| OCI artifacts | `ghcr.io/pulseengine/kapsel:<tag>` and `:<tag>-aot`, cosign-signed with SLSA provenance. The pre-rename path `ghcr.io/pulseengine/bazel-file-ops-component` receives the same signed artifacts through v0.3.x and stops at v0.4.0; its manifests carry an `org.opencontainers.image.description` annotation naming the new path. |
+| `file-ops-tinygo-*.tar.gz` | v0.1.0 to v0.2.2 only: Bazel build output and a TinyGo cache, not a CLI binary. Not published from v0.3.0. |
+
+The interfaces in `wit/file-operations.wit` are declared only: the shipped component is a `wasi:cli` command and does not export them. Bazel's rules_wasm_component pins v0.2.0 and runs its own Go wrapper today; switching its toolchain to this component's JSON mode with `workspace_dir: "."` is planned for after v0.3.0 (rules_wasm_component#775, kapsel#140).

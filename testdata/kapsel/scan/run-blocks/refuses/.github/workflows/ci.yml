@@ -1,0 +1,11 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: ignore failure
+        run: |
+          echo before
+          rm -f cache.tmp || true
+          echo after

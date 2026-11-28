@@ -217,6 +217,49 @@ fn interactive_continuation_prompt_and_refused_line() {
     assert_eq!(o.status.code(), Some(0));
 }
 
+/// REQ-KS-019: a refused line leaves `$X`, the working directory and `$?` as
+/// they were. The refused line assigns, changes directory and would set a
+/// status, so any of the three leaking shows in the lines that follow.
+#[test]
+fn interactive_refused_line_leaves_variables_cwd_and_status_unchanged() {
+    let e = Env::new();
+    std::fs::create_dir(e.path().join("sub")).unwrap();
+    let probe = "echo \"$X\"\npwd\n";
+    let before = "X=1\nfalse\n";
+    let refused = "X=2; cd sub; false || true\n";
+    // Same session without the refused line: the baseline.
+    let base = e
+        .cmd()
+        .write_stdin(format!("{before}echo \"$?\"\n{probe}"))
+        .output()
+        .unwrap();
+    assert_eq!(base.status.code(), Some(0), "{}", err(&base));
+    let want = out(&base);
+    assert_eq!(want.lines().next(), Some("1"), "baseline: {want}");
+    assert_eq!(want.lines().nth(1), Some("1"), "baseline: {want}");
+    assert!(!want.lines().nth(2).unwrap().ends_with("/sub"), "{want}");
+    // $? is read right after the refused line, then the probe.
+    let o = e
+        .cmd()
+        .write_stdin(format!("{before}{refused}echo \"$?\"\n{probe}"))
+        .output()
+        .unwrap();
+    assert!(
+        err(&o).contains("error[KS-R001]"),
+        "not refused: {}",
+        err(&o)
+    );
+    assert_eq!(out(&o), want, "the refused line changed the session");
+    assert_eq!(o.status.code(), Some(0));
+    // Refused as the very last line: the session's status is the one before.
+    let o = e
+        .cmd()
+        .write_stdin(format!("{before}{refused}"))
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1), "{}", err(&o));
+}
+
 #[test]
 fn interactive_eof_exits_with_the_last_status_and_exit_ends_the_session() {
     let e = Env::new();
@@ -462,4 +505,34 @@ fn unknown_command_is_refused_not_run() {
     let o = e.cmd().args(["-c", "frobnicate --now"]).output().unwrap();
     assert_eq!(o.status.code(), Some(65));
     assert!(err(&o).contains("KS-R009"), "{}", err(&o));
+}
+
+/// B1 of the v0.3.0 review: through the binary, `|| true | cat` printed
+/// `status=0`. Every right-hand side of `||` that cannot fail is refused
+/// before anything runs.
+#[test]
+fn or_rhs_that_cannot_fail_is_refused_through_the_binary() {
+    for src in [
+        "grep -q x missing.txt || true | cat; echo \"status=$?\"",
+        "grep -q x missing.txt || ! false; echo \"status=$?\"",
+        "grep -q x missing.txt || exit 0",
+        "grep -q x missing.txt || test 1; echo \"status=$?\"",
+        "grep -q x missing.txt || [ -n x ]; echo \"status=$?\"",
+    ] {
+        let e = Env::new();
+        let o = e.cmd().args(["-c", src]).output().unwrap();
+        assert_eq!(o.status.code(), Some(65), "{src}: {}", err(&o));
+        assert_eq!(out(&o), "", "{src}: nothing runs");
+        assert!(err(&o).contains("error[KS-R001]"), "{src}: {}", err(&o));
+    }
+    // The controls run, and the failure shows in the status.
+    for (src, code) in [
+        ("grep -q x missing.txt || exit 1", 1),
+        ("grep -q x missing.txt || false", 1),
+        ("grep -q x missing.txt || exit", 2),
+    ] {
+        let e = Env::new();
+        let o = e.cmd().args(["-c", src]).output().unwrap();
+        assert_eq!(o.status.code(), Some(code), "{src}: {}", err(&o));
+    }
 }
