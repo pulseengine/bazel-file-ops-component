@@ -1,6 +1,7 @@
 //! echo printf pwd cd export exit test [
 
 use super::{Ctx, Spec, getopt};
+use kapsel_plan::sem::{TestArg, TestOutcome, eval_test, exit_status, valid_name};
 
 /// Interprets backslash escapes as `echo -e` / `printf` do. Returns false if
 /// `\c` stopped the output.
@@ -591,12 +592,6 @@ pub fn cd(ctx: &mut Ctx, a: &[String]) -> i32 {
     0
 }
 
-fn valid_name(n: &str) -> bool {
-    let mut c = n.chars();
-    matches!(c.next(), Some(x) if x.is_ascii_alphabetic() || x == '_')
-        && c.all(|x| x.is_ascii_alphanumeric() || x == '_')
-}
-
 pub fn export(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "p",
@@ -651,9 +646,10 @@ pub fn exit(ctx: &mut Ctx, a: &[String]) -> i32 {
     }
     match a.first() {
         None => 256 + ctx.sh.status,
-        Some(s) => match s.trim().parse::<i64>() {
-            Ok(n) => 256 + (n.rem_euclid(256)) as i32,
-            Err(_) => {
+        // The operand's meaning is shared with the check stage (KS-R001, KS-R018).
+        Some(s) => match exit_status(s) {
+            Some(n) => 256 + n as i32,
+            None => {
                 ctx.msg(&format!("{s}: numeric argument required"));
                 256 + 2
             }
@@ -663,193 +659,45 @@ pub fn exit(ctx: &mut Ctx, a: &[String]) -> i32 {
 
 // ---- test ---------------------------------------------------------------
 
-struct TestParser<'a, 'b> {
-    ctx: &'a mut Ctx<'b>,
-    t: Vec<String>,
-    pos: usize,
-}
-
-const UNARY: &[&str] = &[
-    "-e", "-f", "-d", "-r", "-w", "-x", "-s", "-z", "-n", "-L", "-h",
-];
-const BINARY: &[&str] = &[
-    "=", "==", "!=", "<", ">", "-eq", "-ne", "-lt", "-le", "-gt", "-ge",
-];
-
-impl TestParser<'_, '_> {
-    fn peek(&self, k: usize) -> Option<&str> {
-        self.t.get(self.pos + k).map(|s| s.as_str())
-    }
-    fn or(&mut self) -> Result<bool, String> {
-        let mut v = self.and()?;
-        while self.peek(0) == Some("-o") {
-            self.pos += 1;
-            let r = self.and()?;
-            v = v || r;
-        }
-        Ok(v)
-    }
-    fn and(&mut self) -> Result<bool, String> {
-        let mut v = self.not()?;
-        while self.peek(0) == Some("-a") {
-            self.pos += 1;
-            let r = self.not()?;
-            v = v && r;
-        }
-        Ok(v)
-    }
-    fn not(&mut self) -> Result<bool, String> {
-        if self.peek(0) == Some("!") && self.t.len() - self.pos > 1 {
-            self.pos += 1;
-            return Ok(!self.not()?);
-        }
-        self.primary()
-    }
-    fn primary(&mut self) -> Result<bool, String> {
-        let Some(tok) = self.peek(0).map(|s| s.to_string()) else {
-            return Err("missing argument".into());
-        };
-        if tok == "(" && self.t.len() - self.pos > 1 {
-            self.pos += 1;
-            let v = self.or()?;
-            if self.peek(0) != Some(")") {
-                return Err("expected ')'".into());
-            }
-            self.pos += 1;
-            return Ok(v);
-        }
-        let rem = self.t.len() - self.pos;
-        if rem >= 3
-            && self
-                .peek(1)
-                .is_some_and(|o| o.starts_with('-') || BINARY.contains(&o))
-        {
-            let op = self.peek(1).unwrap().to_string();
-            if BINARY.contains(&op.as_str()) {
-                let rhs = self.t[self.pos + 2].clone();
-                self.pos += 3;
-                return self.binary(&tok, &op, &rhs);
-            }
-            if !matches!(op.as_str(), "-a" | "-o") {
-                return Err(format!(
-                    "unsupported operator '{op}'; supported: {}",
-                    supported_ops()
-                ));
-            }
-        }
-        if rem >= 2
-            && tok.starts_with('-')
-            && tok.len() == 2
-            && !matches!(tok.as_str(), "-a" | "-o")
-        {
-            if UNARY.contains(&tok.as_str()) {
-                let arg = self.t[self.pos + 1].clone();
-                self.pos += 2;
-                return Ok(self.unary(&tok, &arg));
-            }
-            return Err(format!(
-                "unsupported operator '{tok}'; supported: {}",
-                supported_ops()
-            ));
-        }
-        self.pos += 1;
-        Ok(!tok.is_empty())
-    }
-    fn unary(&mut self, op: &str, arg: &str) -> bool {
-        match op {
-            "-z" => return arg.is_empty(),
-            "-n" => return !arg.is_empty(),
-            _ => {}
-        }
-        let Some(p) = self.ctx.rpath(arg) else {
-            return false;
-        };
-        let md = if op == "-L" || op == "-h" {
-            std::fs::symlink_metadata(&p)
-        } else {
-            std::fs::metadata(&p)
-        };
-        let Ok(md) = md else { return false };
-        use std::os::unix::fs::PermissionsExt;
-        let mode = md.permissions().mode();
-        match op {
-            "-e" => true,
-            "-f" => md.is_file(),
-            "-d" => md.is_dir(),
-            "-s" => md.len() > 0,
-            "-L" | "-h" => md.file_type().is_symlink(),
-            "-r" => mode & 0o444 != 0,
-            "-w" => mode & 0o222 != 0,
-            "-x" => mode & 0o111 != 0,
-            _ => false,
-        }
-    }
-    fn binary(&mut self, l: &str, op: &str, r: &str) -> Result<bool, String> {
-        match op {
-            "=" | "==" => Ok(l == r),
-            "!=" => Ok(l != r),
-            "<" => Ok(l < r),
-            ">" => Ok(l > r),
-            _ => {
-                let a: i64 = l
-                    .trim()
-                    .parse()
-                    .map_err(|_| format!("{l}: integer expression expected"))?;
-                let b: i64 = r
-                    .trim()
-                    .parse()
-                    .map_err(|_| format!("{r}: integer expression expected"))?;
-                Ok(match op {
-                    "-eq" => a == b,
-                    "-ne" => a != b,
-                    "-lt" => a < b,
-                    "-le" => a <= b,
-                    "-gt" => a > b,
-                    _ => a >= b,
-                })
-            }
-        }
+/// A file operator of `test` on a path, through the session's grants (a path
+/// outside them is reported and tests false).
+fn file_test(ctx: &mut Ctx, op: &str, arg: &str) -> bool {
+    let Some(p) = ctx.rpath(arg) else {
+        return false;
+    };
+    let md = if op == "-L" || op == "-h" {
+        std::fs::symlink_metadata(&p)
+    } else {
+        std::fs::metadata(&p)
+    };
+    let Ok(md) = md else { return false };
+    use std::os::unix::fs::PermissionsExt;
+    let mode = md.permissions().mode();
+    match op {
+        "-e" => true,
+        "-f" => md.is_file(),
+        "-d" => md.is_dir(),
+        "-s" => md.len() > 0,
+        "-L" | "-h" => md.file_type().is_symlink(),
+        "-r" => mode & 0o444 != 0,
+        "-w" => mode & 0o222 != 0,
+        "-x" => mode & 0o111 != 0,
+        _ => false,
     }
 }
 
-fn supported_ops() -> String {
-    format!("{} {} ! -a -o ( )", UNARY.join(" "), BINARY.join(" "))
-}
-
+/// `test` and `[`: the grammar is `kapsel_plan::sem::eval_test`, the same code
+/// the check stage folds constant tests with (KS-R001).
 pub fn test(ctx: &mut Ctx, a: &[String], bracket: bool) -> i32 {
-    let mut t = a.to_vec();
-    if bracket {
-        if t.last().map(|s| s.as_str()) != Some("]") {
-            ctx.msg("missing ']'");
-            return 2;
-        }
-        t.pop();
-    }
-    if t.is_empty() {
-        return 1;
-    }
-    let mut p = TestParser { ctx, t, pos: 0 };
-    let r = p.or();
-    let done = p.pos >= p.t.len();
-    let leftover = p.t.get(p.pos).cloned();
-    match r {
-        Ok(v) if done => {
-            if v {
-                0
-            } else {
-                1
-            }
-        }
-        Ok(_) => {
-            ctx.msg(&format!(
-                "{}: unexpected argument",
-                leftover.unwrap_or_default()
-            ));
-            2
-        }
-        Err(e) => {
+    let args: Vec<TestArg> = a.iter().map(|s| TestArg::Known(s)).collect();
+    match eval_test(&args, bracket, &mut |op, p| Some(file_test(ctx, op, p))) {
+        TestOutcome::True => 0,
+        TestOutcome::False => 1,
+        TestOutcome::Error(e) => {
             ctx.msg(&e);
             2
         }
+        // Not reached: every argument is known and every file test answers.
+        TestOutcome::Unknown => 2,
     }
 }

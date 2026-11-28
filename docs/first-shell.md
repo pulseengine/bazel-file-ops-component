@@ -111,7 +111,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 
 | Id | Severity | Construct |
 |---|---|---|
-| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is always 0: a pipeline with a `true` or `:` stage, `! false`, `exit 0`, a constant-true `test`/`[`, a loop whose body always ends with status 0 |
+| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is 0 by the definition of what it runs, judged with the host's own `test` and `exit` code (`kapsel_plan::sem`): a pipeline with a `true` or `:` stage; an `exit` that certainly runs with status 0 (`exit 0`, `exit -256`, `exit " 0"`, a bare `exit` after status 0 or `echo`/`printf`, also in a loop); `!` of what always fails (`false`, a false or malformed test, `export 1bad`, `X=$(false)`); a `test`/`[` that is true whatever its expansions are (`test x -o y`, `test "x$(cmd)"`); assignments with no `$(...)` or whose last `$(...)` always ends with 0; `export` of valid literal names with quoted values; a `for` loop with no items; a loop whose body never runs or always ends in one of these. Not refused: anything whose status the run decides (`X=$(cmd)`, `test -n "$X"`, `[ $X = y ]`, `[ -e f ]`), and `pwd`, `cd .`, `seq 0`, `echo` (0 in practice, but they can fail; `\|\| echo` is KS-R011) |
 | KS-R002 | warn | `2>/dev/null` on a command whose failure is not otherwise handled |
 | KS-R003 | refuse | `rm -r`/`-rf` whose path is `/`, `~`, `.`, `..`, empty, or begins with an unquoted or possibly-empty expansion (`rm -rf $X/`) |
 | KS-R004 | refuse | code from strings: `eval`, `sh -c`, `bash -c`, `source`, `.` |

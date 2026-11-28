@@ -99,17 +99,47 @@ is destroyed, and nothing records that it happened.
     false || true
     rm stale.lock || :
 
-Any right-hand side of `||` whose status is always 0 does the same, and is
-refused the same way; the message names the construct:
+These right-hand sides of `||` have status 0 by the definition of the
+commands in them, and are refused the same way; the message names the
+construct:
 
     grep -q x f || true | cat     # a pipeline with `true` or `:` as a stage
-    grep -q x f || ! false        # `!` of something that always fails
-    grep -q x f || exit 0         # also `exit 256`, and a bare `exit` after `echo`
-    grep -q x f || test 1         # a test of constants: `[ 1 ]`, `[ -n x ]`
-    grep -q x f || for i in a; do :; done   # a loop whose body ends in status 0
+    grep -q x f || ! false        # `!` of what always fails: `false`, a test
+                                  # that is false or malformed (`! [ -z x ]`),
+                                  # `export 1bad`, `X=$(false)`
+    grep -q x f || exit 0         # an `exit` that certainly runs with status 0
+                                  # as `exit` reads it: `exit 256`, `exit -0`,
+                                  # `exit +0`, `exit \" 0\"`; a bare `exit` after a
+                                  # command with status 0 or after `echo` /
+                                  # `printf`; also in a loop (`while exit 0`)
+    grep -q x f || test 1         # a test that is true whatever its expansions
+                                  # are: `[ -n x ]`, `test x -o y`,
+                                  # `test a '<' b`, `test \"x$(cmd)\"` (a quoted
+                                  # expansion next to literal text is one
+                                  # non-empty word), `test = $(false)` (a
+                                  # command that prints nothing expands to
+                                  # nothing)
+    grep -q x f || X=1            # assignments with no `$(...)`, or whose last
+                                  # `$(...)` always ends with 0 (`X=$(true)`)
+    grep -q x f || export X=1     # `export` of valid literal names, values
+                                  # quoted (`export X=\"$V\"`)
+    grep -q x f || for i in; do false; done   # a `for` loop with no items
+    grep -q x f || for i in a; do :; done     # a loop whose body always ends
+                                  # in one of these, or never runs
+                                  # (`while false`, `until true`)
 
-`cmd || exit 1`, `cmd || false` and `cmd || echo none` (KS-R011, a warning)
-are not KS-R001: their status can be non-zero.
+The `test` and `exit` rules are the host's own code (one implementation
+for the check and the run), so a spelling the run treats as 0 is refused.
+
+Not KS-R001, because the status can be non-zero: `cmd || exit 1`,
+`cmd || false`, `cmd || X=$(cmd2)` (the status of the substitution),
+`cmd || export 1bad`, `cmd || export X=$V` (an unquoted value can split
+into a name that is not valid), `cmd || test -n \"$X\"` (an expansion with
+no literal text can be empty), `cmd || [ $X = y ]` (an unquoted expansion
+can split into any number of words; KS-R013 warns), `cmd || [ -e f ]` (the
+run decides), a loop with an `exit` that may run with another status, and
+`cmd || echo none` (KS-R011, a warning). `pwd`, `cd .` and `seq 0` are 0
+in practice but can fail, so they are not refused either.
 
 What to do instead:
 - Drop the `|| true` and let the command fail.
