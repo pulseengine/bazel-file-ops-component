@@ -11,7 +11,9 @@
 //!   Blind spots: a program started by absolute path (`/bin/sh`), a spawn from
 //!   code that sets its own PATH, and any network access. On Linux, when
 //!   `strace` is installed, a third test counts `execve`, `fork`, `clone`
-//!   without CLONE_THREAD and AF_INET sockets at the OS level;
+//!   without CLONE_THREAD and AF_INET sockets at the OS level. With
+//!   `KAPSEL_REQUIRE_STRACE=1` (set in CI) a missing or non-tracing strace,
+//!   or a non-Linux host, fails instead of skipping;
 //! * the same results come out with HOME and KAPSEL_HOME unset.
 
 #![cfg(unix)]
@@ -278,6 +280,38 @@ fn syscall_of_strips_both_pid_prefixes() {
     assert_eq!(syscall_of("1234"), "1234");
 }
 
+/// True when `KAPSEL_REQUIRE_STRACE=1`: CI installs strace and sets it, so a
+/// skipped trace there is a failure, not a silent pass.
+fn strace_required() -> bool {
+    std::env::var("KAPSEL_REQUIRE_STRACE").as_deref() == Ok("1")
+}
+
+/// Skips the strace test with a message, or fails it when strace is required.
+fn skip_or_fail(why: &str) {
+    assert!(
+        !strace_required(),
+        "KAPSEL_REQUIRE_STRACE=1 but the OS-level trace cannot run: {why}"
+    );
+    eprintln!("strace test skipped: {why}");
+}
+
+#[test]
+fn strace_requirement_is_read_from_the_environment() {
+    // The switch the CI step sets must be the one this file reads.
+    let ci =
+        std::fs::read_to_string(common::repo_root().join(".github/workflows/rust.yml")).unwrap();
+    assert!(
+        ci.contains("KAPSEL_REQUIRE_STRACE: \"1\""),
+        "rust.yml's test step must set KAPSEL_REQUIRE_STRACE"
+    );
+}
+
+#[cfg(not(target_os = "linux"))]
+#[test]
+fn check_under_strace_starts_no_process_and_opens_no_socket() {
+    skip_or_fail("strace exists only on Linux");
+}
+
 /// OS-level count of process starts and network sockets, where `strace` exists.
 #[cfg(target_os = "linux")]
 #[test]
@@ -287,7 +321,7 @@ fn check_under_strace_starts_no_process_and_opens_no_socket() {
         .map(|d| d.join("strace"))
         .find(|p| p.is_file());
     let Some(strace) = strace else {
-        eprintln!("strace not installed: the OS-level spawn count is skipped");
+        skip_or_fail("strace is not installed");
         return;
     };
     let rig = Rig::new();
@@ -318,10 +352,10 @@ fn check_under_strace_starts_no_process_and_opens_no_socket() {
             .unwrap();
         let text = std::fs::read_to_string(&log).unwrap_or_default();
         if !text.lines().any(|l| l.contains("execve(")) {
-            eprintln!(
+            skip_or_fail(&format!(
                 "strace could not trace here (no execve line): {}",
                 String::from_utf8_lossy(&out.stderr)
-            );
+            ));
             return;
         }
         traced += 1;
@@ -349,6 +383,11 @@ fn check_under_strace_starts_no_process_and_opens_no_socket() {
             script.display()
         );
     }
+    println!(
+        "strace: traced {traced} of {} `kapsel check` inputs, each with exactly one execve, no fork, no process clone, no AF_INET socket",
+        inputs.len()
+    );
+    assert_eq!(traced, inputs.len());
     assert!(traced > 40);
     assert!(snapshot(rig.scratch.path()).len() == 1);
 }
