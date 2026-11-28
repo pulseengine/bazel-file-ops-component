@@ -22,7 +22,8 @@ use wasmparser::{
     WasmFeatures,
 };
 
-use crate::lower::{ASSIGN_SIZE, IMPORTS, PART_SIZE, REDIRECT_SIZE, WORD_SIZE, redirect_op_index};
+use crate::layout::{ASSIGN_SIZE, PART_SIZE, REDIRECT_SIZE, WORD_SIZE};
+use crate::lower::{IMPORTS, redirect_op_index};
 use crate::{CompileError, HOST_INTERFACE, code};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -256,6 +256,19 @@ fn p_capture_assign_redirect() -> Plan {
     call.assignments = vec![("X".into(), cap(seq(vec![c("echo v")])))];
     plan(seq(vec![PStage::Call(call)]))
 }
+/// `X=$(false); echo $?`: the assignment's status is the substitution's.
+fn p_assign_capture() -> Plan {
+    plan(seq(vec![
+        PStage::Call(Call {
+            tool: None,
+            argv: vec![],
+            assignments: vec![("X".into(), cap(seq(vec![c("false")])))],
+            redirects: vec![],
+            span: Span::new(0, 12),
+        }),
+        PStage::Call(callw(vec![lit("echo"), var("?")])),
+    ]))
+}
 
 fn all_plans() -> Vec<(&'static str, Plan)> {
     vec![
@@ -278,6 +291,7 @@ fn all_plans() -> Vec<(&'static str, Plan)> {
         ("sub_assign", p_sub_assign()),
         ("sub_exit", p_sub_exit()),
         ("stage_exit", p_stage_exit()),
+        ("assign_capture", p_assign_capture()),
         ("empty", plan(vec![])),
     ]
 }
@@ -1215,6 +1229,25 @@ fn kc002_wrong_schema() {
     p.schema = "kapsel.plan.v9".into();
     let e = declined(&p);
     assert_eq!(e.code, code::SCHEMA);
+}
+
+#[test]
+fn kc003_list_too_long() {
+    let limit = kapsel_compile::layout::MAX_LIST as usize;
+    let at_limit = (0..limit).map(|_| lit("x"));
+    let ok = callw(
+        std::iter::once(lit("echo"))
+            .chain(at_limit.clone().skip(1))
+            .collect(),
+    );
+    assert!(
+        compile(&plan(seq(vec![PStage::Call(ok)]))).is_ok(),
+        "a list of exactly the limit compiles"
+    );
+    let long = callw(std::iter::once(lit("echo")).chain(at_limit).collect());
+    let e = declined(&plan(seq(vec![PStage::Call(long)])));
+    assert_eq!(e.code, code::LIMIT, "{e}");
+    assert!(e.message.contains("65537"), "{e}");
 }
 
 #[test]

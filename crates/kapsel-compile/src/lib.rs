@@ -45,9 +45,11 @@
 
 use kapsel_plan::{PLAN_SCHEMA, Plan, Span};
 
+pub mod layout;
 mod lower;
 mod validate;
 
+pub use layout::DATA_BASE;
 pub use validate::validate;
 
 /// The WIT the compiled component targets, embedded so host and compiler use
@@ -57,16 +59,14 @@ pub const SHELL_WIT: &str = include_str!("../../../wit/kapsel-shell.wit");
 /// The interface every compiled plan imports, and the only one.
 pub const HOST_INTERFACE: &str = "kapsel:shell/host@0.1.0";
 
-/// Address where the compile-time data segment starts.
-pub const DATA_BASE: u32 = 16;
-
 /// Decline and failure codes. Each is `KC-nnn reason`.
 pub mod code {
     /// A plan node that no rule in [`crate::RULES`] lowers.
     pub const UNSUPPORTED: &str = "KC-001 unsupported-construct";
     /// The plan's `schema` is not the one this compiler reads.
     pub const SCHEMA: &str = "KC-002 plan-schema";
-    /// The plan exceeds a WebAssembly limit (locals, memory).
+    /// The plan exceeds a limit: locals, memory, or a list longer than
+    /// [`crate::layout::MAX_LIST`] elements.
     pub const LIMIT: &str = "KC-003 limit-exceeded";
     /// The translation validator found the component does not match the plan.
     pub const VALIDATOR: &str = "KC-900 validator-mismatch";

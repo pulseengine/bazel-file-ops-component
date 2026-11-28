@@ -18,3 +18,5 @@ wasmparser = "=0.263.0"
 wasmtime = { version = "=50.0.3", default-features = false, features = ["runtime", "cranelift", "component-model", "std", "anyhow"] }
 serde_json.workspace = true
 sha2.workspace = true
+# Certificate-checked QF_BV solver for tests/proofs.rs; in-process so cargo test needs no varve.
+ordeal = { version = "=0.38.1", features = ["cert-bundle"] }

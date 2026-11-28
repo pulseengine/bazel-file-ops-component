@@ -1,0 +1,26 @@
+; kapsel-compile layout obligation: `part` fields (stride 16, align 4)
+; fields: discriminant@0:1/1, str.ptr@4:4/4, str.len@8:4/4, quoted@12:1/1, captured.pipe@4:4/4, captured.quoted@8:1/1
+; for every element start aligned to 4 with start + 16 <= list end <= 2^32 (layout-stride-16)
+; arithmetic at 34 bits: every input is below 2^32 and every intermediate below 2^33 (elem + offset + size), so nothing wraps
+(set-logic QF_BV)
+(declare-const elem (_ BitVec 34))
+(declare-const list_end (_ BitVec 34))
+(assert (and
+  (= (bvand elem (_ bv3 34)) (_ bv0 34))
+  (bvule elem (_ bv4294967296 34))
+  (bvule list_end (_ bv4294967296 34))
+  (bvule (bvadd elem (_ bv16 34)) list_end)
+  (not (and
+  (= (bvand (bvadd elem (_ bv0 34)) (_ bv0 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv0 34)) (_ bv1 34)) list_end)
+  (= (bvand (bvadd elem (_ bv4 34)) (_ bv3 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv4 34)) (_ bv4 34)) list_end)
+  (= (bvand (bvadd elem (_ bv8 34)) (_ bv3 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv8 34)) (_ bv4 34)) list_end)
+  (= (bvand (bvadd elem (_ bv12 34)) (_ bv0 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv12 34)) (_ bv1 34)) list_end)
+  (= (bvand (bvadd elem (_ bv4 34)) (_ bv3 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv4 34)) (_ bv4 34)) list_end)
+  (= (bvand (bvadd elem (_ bv8 34)) (_ bv0 34)) (_ bv0 34))
+  (bvule (bvadd (bvadd elem (_ bv8 34)) (_ bv1 34)) list_end)))))
+(check-sat)

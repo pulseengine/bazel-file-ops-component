@@ -1239,6 +1239,7 @@ name = "kapsel-compile"
 version = "0.3.0-dev"
 dependencies = [
  "kapsel-plan",
+ "ordeal",
  "serde_json",
  "sha2 0.10.9",
  "wasm-encoder 0.263.0",
@@ -1556,6 +1557,33 @@ name = "openssl-probe"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
+
+[[package]]
+name = "ordeal"
+version = "0.38.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4535f730300d8bfc2433567eaf0866728c8bd65f50c040d230edb6d45d42c090"
+dependencies = [
+ "ordeal-cert",
+ "ordeal-lrat",
+]
+
+[[package]]
+name = "ordeal-cert"
+version = "0.38.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63ec93e6e3eb727ff200856980d304f5988d0e01e11b388a10e6a03b072b184f"
+dependencies = [
+ "ordeal-lrat",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "ordeal-lrat"
+version = "0.38.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5192ae8a109bdbb314ff3c83ac6ada0ce11ee0e5246e5e1cd9f0f8ba020261f0"
 
 [[package]]
 name = "p256"
