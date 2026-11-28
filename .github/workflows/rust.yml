@@ -72,3 +72,19 @@ jobs:
         name: kapsel-compile-proofs
         path: ${{ runner.temp }}/proofs
         if-no-files-found: error
+
+    # Phase 0 of the workflow scanner (FEAT-KS-011): advisory. Refusals are the
+    # report, not a failure; kapsel-scan exits 0 on them and 1 only on a parser
+    # crash, which fails the step (bash -e), as does an empty report.
+    - name: Workflow scanner report (advisory)
+      run: |
+        mkdir -p "$RUNNER_TEMP/scanner"
+        cargo run --locked -q -p kapsel-scan -- --rule run-blocks --json > "$RUNNER_TEMP/scanner/run-blocks.json"
+        test -s "$RUNNER_TEMP/scanner/run-blocks.json"
+
+    - name: Upload scanner report
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: kapsel-scanner-report
+        path: ${{ runner.temp }}/scanner/run-blocks.json
+        if-no-files-found: error
