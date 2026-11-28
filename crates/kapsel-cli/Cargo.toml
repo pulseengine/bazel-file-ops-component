@@ -18,6 +18,8 @@ kapsel-host.workspace = true
 kapsel-plan.workspace = true
 kapsel-db = { path = "../kapsel-db" }
 kapsel-diag = { path = "../kapsel-diag" }
+reedline = { version = "0.53", default-features = false }
+nu-ansi-term = "0.50"
 salsa.workspace = true
 serde_json.workspace = true
 
