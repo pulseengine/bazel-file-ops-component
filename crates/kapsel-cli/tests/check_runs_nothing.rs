@@ -253,6 +253,31 @@ fn check_creates_changes_and_removes_nothing_and_spawns_nothing() {
     assert!(ok > 50 && refused > 50, "ok {ok}, refused {refused}");
 }
 
+/// The syscall part of one `strace -f` line. strace prefixes the pid either as
+/// `[pid N] ` or, with `-o`, as `N  ` (digits then spaces, as on ubuntu-24.04).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn syscall_of(line: &str) -> &str {
+    let l = line.trim_start();
+    let l = l
+        .strip_prefix('[')
+        .map_or(l, |r| r.split_once("] ").map_or(l, |x| x.1));
+    match l.find(|c: char| !c.is_ascii_digit()) {
+        Some(n) if n > 0 && l[n..].starts_with(' ') => l[n..].trim_start(),
+        _ => l,
+    }
+}
+
+#[test]
+fn syscall_of_strips_both_pid_prefixes() {
+    // Verbatim from the ubuntu-24.04 CI log of rust.yml run 46121479564, which
+    // this parser miscounted as zero execs before it handled the `N  ` prefix.
+    let ci = r#"9624  execve("/home/runner/work/kapsel/kapsel/target/debug/kapsel", ["/home/runner/work/kapsel/kapsel/"..., "check", "/home/runner/work/kapsel/kapsel/"...], 0x7fff8f6d9f00 /* 1 var */) = 0"#;
+    assert!(syscall_of(ci).starts_with("execve("));
+    assert!(syscall_of("[pid 9625] clone3({flags=CLONE_VM}, 88) = 9626").starts_with("clone3("));
+    assert!(syscall_of(r#"execve("/bin/x", [], 0x0) = 0"#).starts_with("execve("));
+    assert_eq!(syscall_of("1234"), "1234");
+}
+
 /// OS-level count of process starts and network sockets, where `strace` exists.
 #[cfg(target_os = "linux")]
 #[test]
@@ -302,10 +327,7 @@ fn check_under_strace_starts_no_process_and_opens_no_socket() {
         traced += 1;
         let mut execs = 0;
         for line in text.lines() {
-            let l = line.trim_start();
-            let l = l
-                .strip_prefix('[')
-                .map_or(l, |r| r.split_once("] ").map_or(l, |x| x.1));
+            let l = syscall_of(line);
             if l.starts_with("execve(") || l.starts_with("execveat(") {
                 execs += 1;
             } else if l.starts_with("fork(") || l.starts_with("vfork(") {

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-22.04  # pinned image
     steps:
       # check out first
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - run: cargo test
   lint:
     runs-on: ubuntu-22.04
