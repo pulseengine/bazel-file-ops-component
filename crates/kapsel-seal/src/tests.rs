@@ -390,3 +390,39 @@ fn grants_change_the_key_but_never_enter_a_module() {
         );
     }
 }
+
+/// Second review, non-blocking 1: the cache key covers the interface text,
+/// so a module built against another WIT is never served.
+#[test]
+fn cache_key_changes_with_the_interface_text() {
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+    let one = "package kapsel:shell@0.1.0;\ninterface host { site: func(); }\n";
+    let two = "package kapsel:shell@0.1.0;\ninterface host { }\n";
+    assert_ne!(Cache::key_for(&p, one), Cache::key_for(&p, two));
+    assert_eq!(Cache::key_for(&p, one), Cache::key_for(&p, one));
+    assert_eq!(
+        Cache::key(&p),
+        Cache::key_for(&p, kapsel_compile::SHELL_WIT)
+    );
+}
+
+/// Second review, non-blocking 2: `verify` refuses a module sealed by a
+/// trusted key for another compiler version or another WIT version.
+#[test]
+fn verify_refuses_another_compiler_or_wit_version() {
+    let key = SigningKey::generate();
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+    let module = stand_in(&p).unwrap();
+    let ok = seal_as(&p, SRC, module.clone(), &key, COMPILER_VERSION, WIT_VERSION).unwrap();
+    assert!(verify(&ok, &p.normalized_sha256(), &key.trusted()).is_ok());
+    for (version, wit, what) in [
+        ("0.0.1-other", WIT_VERSION, "tool version"),
+        (COMPILER_VERSION, "kapsel:shell@9.9.9", "wit parameter"),
+    ] {
+        let m = seal_as(&p, SRC, module.clone(), &key, version, wit).unwrap();
+        match verify(&m, &p.normalized_sha256(), &key.trusted()) {
+            Err(SealError::Attestation(msg)) => assert!(msg.contains(what), "{msg}"),
+            other => panic!("{version} {wit}: {other:?}"),
+        }
+    }
+}

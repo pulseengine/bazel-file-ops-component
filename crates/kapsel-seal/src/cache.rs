@@ -50,6 +50,11 @@ impl Cache {
 
     /// The cache key for a plan: layout-only source changes share it.
     pub fn key(plan: &Plan) -> String {
+        Self::key_for(plan, kapsel_compile::SHELL_WIT)
+    }
+
+    /// The cache key for a plan compiled against the interface text `wit`.
+    pub(crate) fn key_for(plan: &Plan, wit: &str) -> String {
         hex_sha256(
             format!(
                 "{}\0{}\0{}\0{}",
@@ -59,7 +64,7 @@ impl Cache {
                 // The interface text itself, so a change to the compiled
                 // interface within one version (e.g. the `site` import)
                 // never serves a module built against the old one.
-                hex_sha256(kapsel_compile::SHELL_WIT.as_bytes())
+                hex_sha256(wit.as_bytes())
             )
             .as_bytes(),
         )
