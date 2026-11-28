@@ -450,13 +450,20 @@ artifacts:
       typed command shows its plan, grants and any refusal with the rendered diagnostic. Stage 2
       runs the compiled component against files in the browser: the browser's private file system
       (OPFS) for a sample project, or a directory the user picks through the File System Access
-      API. The picked directory is the session's only grant, so the browser's permission prompt
-      plays the role of `--rw DIR`. Each release publishes the page from the same tag; where it is
-      hosted is agreed with pulseengine.eu.
+      API, falling back to OPFS where that API is missing (Firefox, Safari). The picked directory is
+      the session's only grant, so the browser's permission prompt plays the role of `--rw DIR`.
+      Hosting, agreed with pulseengine.eu on 2026-11-28: the page lives at
+      pulseengine.eu/kapsel/playground/. Each kapsel release publishes kapsel-playground-<v>.tar.gz,
+      listed in the cosign-signed checksums; pulseengine.eu pins version and sha256, verifies the
+      signature against kapsel's release-workflow identity on deploy, and each release opens a
+      pin-bump PR there. The tarball carries everything (no CDN or third-party loads), the wasm
+      loads after the first interaction and is served compressed (stage 1 at most 5 MB compressed,
+      stage 2 at most 20 MB, sizes printed in the release notes), and the page says it is work in
+      progress and that nothing leaves the browser.
     fields:
       priority: should
       category: functional
-      verification-criteria: "Fails if the page's plan, refusal or output for a corpus script differs from the native kapsel binary at the same tag, a command reaches a file outside the granted directory, or the published page was built from a different tag than the release."
+      verification-criteria: "Fails if the page's plan, refusal or output for a corpus script differs from the native kapsel binary at the same tag, a command reaches a file outside the granted directory, the page makes a network request after load, it loads anything from a third party, the stage 1 or stage 2 wasm exceeds 5 MB or 20 MB compressed, it fails without the File System Access API, or the published tarball was built from a different tag than the release."
       upstream-ref: "kapsel#140"
 
   # --- v0.5.0: native tools ---

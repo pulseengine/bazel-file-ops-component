@@ -52,10 +52,14 @@ impl Cache {
     pub fn key(plan: &Plan) -> String {
         hex_sha256(
             format!(
-                "{}\0{}\0{}",
+                "{}\0{}\0{}\0{}",
                 plan.normalized_sha256(),
                 COMPILER_VERSION,
-                WIT_VERSION
+                WIT_VERSION,
+                // The interface text itself, so a change to the compiled
+                // interface within one version (e.g. the `site` import)
+                // never serves a module built against the old one.
+                hex_sha256(kapsel_compile::SHELL_WIT.as_bytes())
             )
             .as_bytes(),
         )
