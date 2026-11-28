@@ -50,7 +50,7 @@ jobs:
       run: cargo test --locked -p kapsel-corpus -- --nocapture
 
     - name: Clippy
-      run: cargo clippy --locked --workspace --all-targets
+      run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
     # ordeal re-solves every committed proof query (crates/kapsel-compile/proofs/)
     # and re-checks each certificate; the certificates are the artifact.

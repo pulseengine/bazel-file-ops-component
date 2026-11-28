@@ -4,8 +4,9 @@
 
 /// Every rule id with an explanation, in order.
 pub const RULE_IDS: &[&str] = &[
-    "KS-R000", "KS-R001", "KS-R002", "KS-R003", "KS-R004", "KS-R005", "KS-R006", "KS-R007", "KS-R008", "KS-R009",
-    "KS-R010", "KS-R011", "KS-R012", "KS-R013", "KS-R014", "KS-R015", "KS-R016", "KS-R017", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
+    "KS-R000", "KS-R001", "KS-R002", "KS-R003", "KS-R004", "KS-R005", "KS-R006", "KS-R007",
+    "KS-R008", "KS-R009", "KS-R010", "KS-R011", "KS-R012", "KS-R013", "KS-R014", "KS-R015",
+    "KS-R016", "KS-R017", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
 ];
 
 /// The long-form explanation of `rule_id`, or `None` for an unknown id.
@@ -425,7 +426,10 @@ mod tests {
         for id in RULE_IDS {
             let text = explain(id).unwrap_or_else(|| panic!("{id} missing"));
             assert!(text.starts_with(id), "{id} must start with its id");
-            assert!(text.contains("What to do instead:"), "{id} has no fix section");
+            assert!(
+                text.contains("What to do instead:"),
+                "{id} has no fix section"
+            );
         }
         assert_eq!(explain("ks-s001"), explain("KS-S001"));
         assert_eq!(explain("KS-X999"), None);

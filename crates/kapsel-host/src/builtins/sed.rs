@@ -25,7 +25,13 @@ enum Kind {
     P,
     D,
     Q,
-    S { re: Regex, rep: Vec<RepPart>, global: bool, print: bool, nth: usize },
+    S {
+        re: Regex,
+        rep: Vec<RepPart>,
+        global: bool,
+        print: bool,
+        nth: usize,
+    },
 }
 
 struct Cmd {
@@ -58,7 +64,10 @@ impl P<'_> {
         let mut out = Vec::new();
         loop {
             let Some(c) = self.peek() else {
-                return Err(format!("unterminated expression (missing closing '{}')", delim as char));
+                return Err(format!(
+                    "unterminated expression (missing closing '{}')",
+                    delim as char
+                ));
             };
             self.i += 1;
             if c == delim {
@@ -70,9 +79,6 @@ impl P<'_> {
                 };
                 self.i += 1;
                 if n == delim && is_regex {
-                    out.push(n);
-                } else if n == delim {
-                    out.push(b'\\');
                     out.push(n);
                 } else {
                     out.push(b'\\');
@@ -110,7 +116,8 @@ impl P<'_> {
                     false
                 };
                 let pat = String::from_utf8_lossy(&pat).into_owned();
-                let re = regex_conv::compile(&pat, self.ere, icase).map_err(|e| format!("invalid regex '{pat}': {e}"))?;
+                let re = regex_conv::compile(&pat, self.ere, icase)
+                    .map_err(|e| format!("invalid regex '{pat}': {e}"))?;
                 Ok(Some(Addr::Re(re)))
             }
             _ => Ok(None),
@@ -155,7 +162,11 @@ fn parse_replacement(r: &[u8]) -> Vec<RepPart> {
 }
 
 fn parse_script(script: &[u8], ere: bool) -> Result<Vec<Cmd>, String> {
-    let mut p = P { s: script, i: 0, ere };
+    let mut p = P {
+        s: script,
+        i: 0,
+        ere,
+    };
     let mut cmds = Vec::new();
     loop {
         while matches!(p.peek(), Some(b' ' | b'\t' | b'\n' | b';')) {
@@ -173,9 +184,14 @@ fn parse_script(script: &[u8], ere: bool) -> Result<Vec<Cmd>, String> {
                 p.skip_ws();
                 if p.peek() == Some(b'+') {
                     p.i += 1;
-                    a2 = Some(Addr2::Plus(p.number().ok_or("expected a number after ','+")?));
+                    a2 = Some(Addr2::Plus(
+                        p.number().ok_or("expected a number after ','+")?,
+                    ));
                 } else {
-                    a2 = Some(Addr2::A(p.addr()?.ok_or("unexpected ',': expected an address after it")?));
+                    a2 = Some(Addr2::A(
+                        p.addr()?
+                            .ok_or("unexpected ',': expected an address after it")?,
+                    ));
                 }
             }
         }
@@ -195,7 +211,9 @@ fn parse_script(script: &[u8], ere: bool) -> Result<Vec<Cmd>, String> {
             b'd' => Kind::D,
             b'q' => Kind::Q,
             b's' => {
-                let Some(delim) = p.peek() else { return Err("unterminated 's' command".into()) };
+                let Some(delim) = p.peek() else {
+                    return Err("unterminated 's' command".into());
+                };
                 p.i += 1;
                 let pat = p.delimited(delim, true)?;
                 let rep = p.delimited(delim, false)?;
@@ -215,13 +233,25 @@ fn parse_script(script: &[u8], ere: bool) -> Result<Vec<Cmd>, String> {
                 }
                 let pat = String::from_utf8_lossy(&pat).into_owned();
                 if pat.is_empty() {
-                    return Err("empty regex in 's' (reusing the last regex is not supported)".into());
+                    return Err(
+                        "empty regex in 's' (reusing the last regex is not supported)".into(),
+                    );
                 }
-                let re = regex_conv::compile(&pat, ere, icase).map_err(|e| format!("invalid regex '{pat}': {e}"))?;
-                Kind::S { re, rep: parse_replacement(&rep), global, print, nth: nth.max(1) }
+                let re = regex_conv::compile(&pat, ere, icase)
+                    .map_err(|e| format!("invalid regex '{pat}': {e}"))?;
+                Kind::S {
+                    re,
+                    rep: parse_replacement(&rep),
+                    global,
+                    print,
+                    nth: nth.max(1),
+                }
             }
             other => {
-                return Err(format!("unsupported command '{}'; kapsel's sed supports: {SUPPORTED}", other as char));
+                return Err(format!(
+                    "unsupported command '{}'; kapsel's sed supports: {SUPPORTED}",
+                    other as char
+                ));
             }
         };
         p.skip_ws();
@@ -229,7 +259,14 @@ fn parse_script(script: &[u8], ere: bool) -> Result<Vec<Cmd>, String> {
             None | Some(b';' | b'\n') => {}
             Some(x) => return Err(format!("extra characters after command: '{}'", x as char)),
         }
-        cmds.push(Cmd { a1, a2, neg, kind, active: false, end_line: 0 });
+        cmds.push(Cmd {
+            a1,
+            a2,
+            neg,
+            kind,
+            active: false,
+            end_line: 0,
+        });
     }
     Ok(cmds)
 }
@@ -317,7 +354,10 @@ fn process(cmds: &mut [Cmd], quiet: bool, data: &[u8]) -> Vec<u8> {
     let ls = super::text::lines(data);
     let total = ls.len();
     let ends_nl = data.ends_with(b"\n");
-    let mut out = Output { buf: Vec::new(), pending_nl: false };
+    let mut out = Output {
+        buf: Vec::new(),
+        pending_nl: false,
+    };
     'lines: for (idx, l) in ls.iter().enumerate() {
         let lineno = idx + 1;
         let last = lineno == total;
@@ -336,7 +376,13 @@ fn process(cmds: &mut [Cmd], quiet: bool, data: &[u8]) -> Vec<u8> {
                     }
                     return out.buf;
                 }
-                Kind::S { re, rep, global, print, nth } => {
+                Kind::S {
+                    re,
+                    rep,
+                    global,
+                    print,
+                    nth,
+                } => {
                     let mut res = Vec::new();
                     let mut pos = 0;
                     let mut count = 0;
@@ -384,11 +430,19 @@ fn process(cmds: &mut [Cmd], quiet: bool, data: &[u8]) -> Vec<u8> {
 pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "ne:Eri?",
-        long: &[("quiet", 'n'), ("silent", 'n'), ("expression", 'e'), ("regexp-extended", 'E'), ("in-place", 'i')],
+        long: &[
+            ("quiet", 'n'),
+            ("silent", 'n'),
+            ("expression", 'e'),
+            ("regexp-extended", 'E'),
+            ("in-place", 'i'),
+        ],
         numeric: false,
         supported: "-n -e SCRIPT -E (-r) -i[SUFFIX]",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let mut operands = p.operands.clone();
     let mut script: Vec<String> = p.vals('e').iter().map(|s| s.to_string()).collect();
     if script.is_empty() {
@@ -413,7 +467,11 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
         ctx.msg("no input files (-i needs file operands)");
         return 2;
     }
-    let files = if operands.is_empty() { vec!["-".to_string()] } else { operands };
+    let files = if operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        operands
+    };
     if inplace {
         let suffix = p.val('i').map(|s| s.to_string());
         let mut status = 0;
@@ -456,7 +514,11 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
     let mut data = Vec::new();
     let mut status = 0;
     for f in &files {
-        match if f == "-" { Some(ctx.stdin_all()) } else { ctx.read_input(f) } {
+        match if f == "-" {
+            Some(ctx.stdin_all())
+        } else {
+            ctx.read_input(f)
+        } {
             Some(d) => {
                 if !data.is_empty() && !data.ends_with(b"\n") {
                     data.push(b'\n');

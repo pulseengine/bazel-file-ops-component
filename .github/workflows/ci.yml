@@ -157,15 +157,16 @@ jobs:
       with:
         toolchain: 1.100.0
         targets: wasm32-wasip2
-        components: clippy
+        components: clippy, rustfmt
+
+    - name: Formatting
+      run: cargo fmt --all --check
 
     - name: Clippy (workspace)
-      # Fails on clippy errors. Warnings do not fail yet: `-D warnings` fails
-      # today in kapsel-check (3 findings), outside this change.
-      run: cargo clippy --locked --workspace --all-targets
+      run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
     - name: Clippy (component, wasm32-wasip2)
-      run: cargo clippy --locked -p kapsel-fileops -p kapsel-config --target wasm32-wasip2 --release
+      run: cargo clippy --locked -p kapsel-fileops -p kapsel-config --target wasm32-wasip2 --release -- -D warnings
 
     - name: Every crate takes the workspace license
       run: |

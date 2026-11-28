@@ -16,14 +16,25 @@ pub fn lines(data: &[u8]) -> Vec<&[u8]> {
 pub fn cat(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "nbsE",
-        long: &[("number", 'n'), ("number-nonblank", 'b'), ("squeeze-blank", 's'), ("show-ends", 'E')],
+        long: &[
+            ("number", 'n'),
+            ("number-nonblank", 'b'),
+            ("squeeze-blank", 's'),
+            ("show-ends", 'E'),
+        ],
         numeric: false,
         supported: "-n -b -s -E",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let (n, b, s, e) = (p.has('n'), p.has('b'), p.has('s'), p.has('E'));
     let plain = !(n || b || s || e);
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let mut status = 0;
     let mut num = 0u64;
     let mut prev_blank = false;
@@ -71,15 +82,30 @@ pub fn cat(ctx: &mut Ctx, a: &[String]) -> i32 {
 pub fn wc(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "lwcm",
-        long: &[("lines", 'l'), ("words", 'w'), ("bytes", 'c'), ("chars", 'm')],
+        long: &[
+            ("lines", 'l'),
+            ("words", 'w'),
+            ("bytes", 'c'),
+            ("chars", 'm'),
+        ],
         numeric: false,
         supported: "-l -w -c -m",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let any = p.has('l') || p.has('w') || p.has('c') || p.has('m');
-    let (l, w, c, m) = if any { (p.has('l'), p.has('w'), p.has('c'), p.has('m')) } else { (true, true, true, false) };
+    let (l, w, c, m) = if any {
+        (p.has('l'), p.has('w'), p.has('c'), p.has('m'))
+    } else {
+        (true, true, true, false)
+    };
     let ncols = [l, w, c, m].iter().filter(|x| **x).count();
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let mut rows: Vec<(Vec<u64>, Option<String>)> = Vec::new();
     let mut status = 0;
     let mut total_bytes = 0u64;
@@ -115,7 +141,11 @@ pub fn wc(ctx: &mut Ctx, a: &[String]) -> i32 {
         if c {
             cols.push(data.len() as u64);
         }
-        let name = if p.operands.is_empty() { None } else { Some(f.clone()) };
+        let name = if p.operands.is_empty() {
+            None
+        } else {
+            Some(f.clone())
+        };
         rows.push((cols, name));
     }
     let width = if ncols == 1 && files.len() <= 1 {
@@ -127,7 +157,11 @@ pub fn wc(ctx: &mut Ctx, a: &[String]) -> i32 {
     };
     let mut total = vec![0u64; ncols];
     let emit = |ctx: &mut Ctx, cols: &[u64], name: Option<&str>| {
-        let mut s = cols.iter().map(|v| format!("{v:>width$}")).collect::<Vec<_>>().join(" ");
+        let mut s = cols
+            .iter()
+            .map(|v| format!("{v:>width$}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         if let Some(n) = name {
             s.push(' ');
             s.push_str(n);
@@ -148,7 +182,13 @@ pub fn wc(ctx: &mut Ctx, a: &[String]) -> i32 {
 }
 
 /// Parses a count like `5` or `+5` (tail). Returns (n, plus).
-fn count_arg(ctx: &mut Ctx, v: &str, what: &str, allow_plus: bool, allow_minus: bool) -> Option<(i64, bool, bool)> {
+fn count_arg(
+    ctx: &mut Ctx,
+    v: &str,
+    what: &str,
+    allow_plus: bool,
+    allow_minus: bool,
+) -> Option<(i64, bool, bool)> {
     let (rest, plus, minus) = if let Some(r) = v.strip_prefix('+') {
         (r, true, false)
     } else if let Some(r) = v.strip_prefix('-') {
@@ -171,7 +211,9 @@ fn count_arg(ctx: &mut Ctx, v: &str, what: &str, allow_plus: bool, allow_minus: 
         }
     }
     match digits.parse::<i64>() {
-        Ok(n) if !(plus && !allow_plus) && !(minus && !allow_minus) => Some((n * mult, plus, minus)),
+        Ok(n) if !(plus && !allow_plus) && !(minus && !allow_minus) => {
+            Some((n * mult, plus, minus))
+        }
         _ => {
             ctx.msg(&format!("invalid number of {what}: '{v}'"));
             None
@@ -182,25 +224,43 @@ fn count_arg(ctx: &mut Ctx, v: &str, what: &str, allow_plus: bool, allow_minus: 
 pub fn head(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "n:c:qv",
-        long: &[("lines", 'n'), ("bytes", 'c'), ("quiet", 'q'), ("silent", 'q'), ("verbose", 'v')],
+        long: &[
+            ("lines", 'n'),
+            ("bytes", 'c'),
+            ("quiet", 'q'),
+            ("silent", 'q'),
+            ("verbose", 'v'),
+        ],
         numeric: true,
         supported: "-n N, -N, -c N, -q, -v",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
-    let bytes_mode = p.val('c').is_some() && p.flags.iter().rposition(|(f, _)| *f == 'c') > p.flags.iter().rposition(|(f, _)| *f == 'n');
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
+    let bytes_mode = p.val('c').is_some()
+        && p.flags.iter().rposition(|(f, _)| *f == 'c')
+            > p.flags.iter().rposition(|(f, _)| *f == 'n');
     let (n, minus) = if bytes_mode {
-        let Some((n, _, m)) = count_arg(ctx, p.val('c').unwrap(), "bytes", false, true) else { return 1 };
+        let Some((n, _, m)) = count_arg(ctx, p.val('c').unwrap(), "bytes", false, true) else {
+            return 1;
+        };
         (n, m)
     } else {
         match p.val('n') {
             Some(v) => {
-                let Some((n, _, m)) = count_arg(ctx, v, "lines", false, true) else { return 1 };
+                let Some((n, _, m)) = count_arg(ctx, v, "lines", false, true) else {
+                    return 1;
+                };
                 (n, m)
             }
             None => (10, false),
         }
     };
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let header = (files.len() > 1 && !p.has('q')) || p.has('v');
     let mut status = 0;
     for (idx, f) in files.iter().enumerate() {
@@ -214,7 +274,11 @@ pub fn head(ctx: &mut Ctx, a: &[String]) -> i32 {
             ctx.puts(&h);
         }
         if bytes_mode {
-            let end = if minus { data.len().saturating_sub(n as usize) } else { (n as usize).min(data.len()) };
+            let end = if minus {
+                data.len().saturating_sub(n as usize)
+            } else {
+                (n as usize).min(data.len())
+            };
             ctx.put(&data[..end]);
         } else {
             let mut ends = Vec::new();
@@ -223,8 +287,17 @@ pub fn head(ctx: &mut Ctx, a: &[String]) -> i32 {
                     ends.push(i + 1);
                 }
             }
-            let total_lines = ends.len() + if data.last().is_some_and(|&b| b != b'\n') { 1 } else { 0 };
-            let keep = if minus { total_lines.saturating_sub(n as usize) } else { (n as usize).min(total_lines) };
+            let total_lines = ends.len()
+                + if data.last().is_some_and(|&b| b != b'\n') {
+                    1
+                } else {
+                    0
+                };
+            let keep = if minus {
+                total_lines.saturating_sub(n as usize)
+            } else {
+                (n as usize).min(total_lines)
+            };
             let end = if keep == 0 {
                 0
             } else if keep <= ends.len() {
@@ -241,27 +314,45 @@ pub fn head(ctx: &mut Ctx, a: &[String]) -> i32 {
 pub fn tail(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "n:c:qv",
-        long: &[("lines", 'n'), ("bytes", 'c'), ("quiet", 'q'), ("silent", 'q'), ("verbose", 'v')],
+        long: &[
+            ("lines", 'n'),
+            ("bytes", 'c'),
+            ("quiet", 'q'),
+            ("silent", 'q'),
+            ("verbose", 'v'),
+        ],
         numeric: true,
         supported: "-n N, -n +N, -N, -c N, -q, -v",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
-    let bytes_mode = p.val('c').is_some() && p.flags.iter().rposition(|(f, _)| *f == 'c') > p.flags.iter().rposition(|(f, _)| *f == 'n');
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
+    let bytes_mode = p.val('c').is_some()
+        && p.flags.iter().rposition(|(f, _)| *f == 'c')
+            > p.flags.iter().rposition(|(f, _)| *f == 'n');
     let (n, from_start) = if bytes_mode {
-        let Some((n, plus, _)) = count_arg(ctx, p.val('c').unwrap(), "bytes", true, false) else { return 1 };
+        let Some((n, plus, _)) = count_arg(ctx, p.val('c').unwrap(), "bytes", true, false) else {
+            return 1;
+        };
         (n, plus)
     } else {
         match p.val('n') {
             Some(v) => {
                 // GNU accepts -n -5 as -n 5
                 let v2 = v.strip_prefix('-').unwrap_or(v);
-                let Some((n, plus, _)) = count_arg(ctx, v2, "lines", true, false) else { return 1 };
+                let Some((n, plus, _)) = count_arg(ctx, v2, "lines", true, false) else {
+                    return 1;
+                };
                 (n, plus)
             }
             None => (10, false),
         }
     };
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let header = (files.len() > 1 && !p.has('q')) || p.has('v');
     let mut status = 0;
     for (idx, f) in files.iter().enumerate() {
@@ -275,7 +366,11 @@ pub fn tail(ctx: &mut Ctx, a: &[String]) -> i32 {
             ctx.puts(&h);
         }
         if bytes_mode {
-            let start = if from_start { (n as usize).saturating_sub(1).min(data.len()) } else { data.len().saturating_sub(n as usize) };
+            let start = if from_start {
+                (n as usize).saturating_sub(1).min(data.len())
+            } else {
+                data.len().saturating_sub(n as usize)
+            };
             ctx.put(&data[start..]);
         } else {
             // start offsets of each line
@@ -289,7 +384,11 @@ pub fn tail(ctx: &mut Ctx, a: &[String]) -> i32 {
                 starts.clear();
             }
             let total = starts.len();
-            let first = if from_start { (n as usize).saturating_sub(1) } else { total.saturating_sub(n as usize) };
+            let first = if from_start {
+                (n as usize).saturating_sub(1)
+            } else {
+                total.saturating_sub(n as usize)
+            };
             if first < total {
                 ctx.put(&data[starts[first]..]);
             }
@@ -375,7 +474,10 @@ fn grep_data(ctx: &mut Ctx, o: &GrepOpts, name: Option<&str>, data: &[u8]) -> bo
         s.extend_from_slice(format!("{matched_lines}\n").as_bytes());
         ctx.put(&s);
     } else if binary && matched_lines > 0 {
-        ctx.puts(&format!("grep: {}: binary file matches\n", name.unwrap_or("(standard input)")));
+        ctx.puts(&format!(
+            "grep: {}: binary file matches\n",
+            name.unwrap_or("(standard input)")
+        ));
     } else {
         ctx.put(&buf);
     }
@@ -385,7 +487,10 @@ fn grep_data(ctx: &mut Ctx, o: &GrepOpts, name: Option<&str>, data: &[u8]) -> bo
 fn walk(ctx: &mut Ctx, dir: &str, follow: bool, out: &mut Vec<String>) {
     let Some(r) = ctx.rpath(dir) else { return };
     let mut names: Vec<String> = match std::fs::read_dir(&r) {
-        Ok(rd) => rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).collect(),
+        Ok(rd) => rd
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect(),
         Err(e) => {
             ctx.io_msg(dir, &e);
             return;
@@ -393,14 +498,24 @@ fn walk(ctx: &mut Ctx, dir: &str, follow: bool, out: &mut Vec<String>) {
     };
     names.sort();
     for n in names {
-        let child = if dir == "." && false { n.clone() } else { format!("{}/{}", dir.trim_end_matches('/'), n) };
+        let child = if dir == "." && false {
+            n.clone()
+        } else {
+            format!("{}/{}", dir.trim_end_matches('/'), n)
+        };
         let child = if dir.is_empty() { n.clone() } else { child };
         let p = r.join(&n);
-        let Ok(md) = std::fs::symlink_metadata(&p) else { continue };
+        let Ok(md) = std::fs::symlink_metadata(&p) else {
+            continue;
+        };
         if md.file_type().is_symlink() && !follow {
             continue;
         }
-        let md = if md.file_type().is_symlink() { std::fs::metadata(&p).ok() } else { Some(md) };
+        let md = if md.file_type().is_symlink() {
+            std::fs::metadata(&p).ok()
+        } else {
+            Some(md)
+        };
         match md {
             Some(m) if m.is_dir() => walk(ctx, &child, follow, out),
             Some(m) if m.is_file() => out.push(child),
@@ -436,7 +551,9 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
         numeric: false,
         supported: "-E -F -G -n -i -v -r -R -l -c -o -q -h -H -s -w -x -e PATTERN",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let mut operands = p.operands.clone();
     let mut pats: Vec<String> = p.vals('e').iter().map(|s| s.to_string()).collect();
     if pats.is_empty() {
@@ -472,7 +589,11 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
     let re = match regex_conv::build(&combined, p.has('i')) {
         Ok(r) => r,
         Err(e) => {
-            let shown = if pats.len() == 1 { pats[0].clone() } else { pats.join("\\n") };
+            let shown = if pats.len() == 1 {
+                pats[0].clone()
+            } else {
+                pats.join("\\n")
+            };
             ctx.msg(&format!("invalid regex '{shown}': {e}"));
             return 2;
         }
@@ -520,7 +641,9 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
     let show_names = if p.has('h') {
         false
     } else {
-        p.has('H') || files.len() > 1 || (recursive && (operands.is_empty() || files.iter().any(|f| f.1)))
+        p.has('H')
+            || files.len() > 1
+            || (recursive && (operands.is_empty() || files.iter().any(|f| f.1)))
     };
     let mut any = false;
     for (f, _) in &files {
@@ -536,7 +659,17 @@ pub fn grep(ctx: &mut Ctx, a: &[String]) -> i32 {
             status_err = true;
             continue;
         };
-        let name = if show_names { Some(f.as_str()) } else if o.list { Some(if f == "-" { "(standard input)" } else { f.as_str() }) } else { None };
+        let name = if show_names {
+            Some(f.as_str())
+        } else if o.list {
+            Some(if f == "-" {
+                "(standard input)"
+            } else {
+                f.as_str()
+            })
+        } else {
+            None
+        };
         if grep_data(ctx, &o, name, &data) {
             any = true;
             if o.quiet {

@@ -26,7 +26,11 @@ fn r003_normalizes_paths_and_globs() {
         "rm -rf $X/*",
         "rm -rf -- /*",
     ] {
-        assert!(has(planted, "KS-R003", Severity::Refuse), "{planted:?}: {:?}", rules(planted));
+        assert!(
+            has(planted, "KS-R003", Severity::Refuse),
+            "{planted:?}: {:?}",
+            rules(planted)
+        );
     }
     for control in [
         "rm -rf ./build",
@@ -63,7 +67,12 @@ const GRANTS2: &[(&str, &[&str], &[&str], bool)] = &[
     ("cat --weird f", &["f"], &[], true),
     ("ls -@ d", &["d"], &[], true),
     ("sort -Z in", &["in"], &[], true),
-    ("sed -i \"\" s/a/b/ f", &["s/a/b/", "f"], &["s/a/b/", "f"], true),
+    (
+        "sed -i \"\" s/a/b/ f",
+        &["s/a/b/", "f"],
+        &["s/a/b/", "f"],
+        true,
+    ),
     // cd changes what relative paths mean.
     ("cd sub && cat a", &["sub", "a"], &[], true),
     ("cd . && cat a", &[".", "a"], &[], false),
@@ -111,7 +120,11 @@ fn new_rules_fire_and_stay_quiet() {
         ("cp a \"$D/b\"", "KS-R017"),
     ];
     for (src, rule) in yes {
-        assert!(has(src, rule, Severity::Warn), "{src:?} should warn {rule}: {:?}", rules(src));
+        assert!(
+            has(src, rule, Severity::Warn),
+            "{src:?} should warn {rule}: {:?}",
+            rules(src)
+        );
     }
     let no = [
         ("a && echo hi", "KS-R011"),
@@ -134,14 +147,21 @@ fn new_rules_fire_and_stay_quiet() {
         ("echo $X", "KS-R017"),
     ];
     for (src, rule) in no {
-        assert!(!has_rule(src, rule), "{src:?} should not hit {rule}: {:?}", rules(src));
+        assert!(
+            !has_rule(src, rule),
+            "{src:?} should not hit {rule}: {:?}",
+            rules(src)
+        );
     }
 }
 
 #[test]
 fn r017_does_not_double_report_recursive_rm() {
     let r = rules("rm -rf \"$D/x\"");
-    assert!(r.contains(&"KS-R003".to_string()) && !r.contains(&"KS-R017".to_string()), "{r:?}");
+    assert!(
+        r.contains(&"KS-R003".to_string()) && !r.contains(&"KS-R017".to_string()),
+        "{r:?}"
+    );
     assert!(rules("rm -f \"$D/x\"").contains(&"KS-R017".to_string()));
 }
 
@@ -150,7 +170,8 @@ fn error_corpus_matches_expectations() {
     // Cases the test-only parser cannot read: they need `kapsel_syntax`
     // (003 backquotes, 006 `${name[1]}`). The count is pinned.
     const SKIP: &[&str] = &[];
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/errors/ci");
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/errors/ci");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
@@ -161,7 +182,12 @@ fn error_corpus_matches_expectations() {
     let (mut skipped, mut run_errors, mut tested) = (0, 0, 0);
     for name in &names {
         let src = std::fs::read_to_string(dir.join(name)).unwrap();
-        let expect = src.lines().next().unwrap().strip_prefix("# expect: ").unwrap_or_else(|| panic!("{name}: no expect line"));
+        let expect = src
+            .lines()
+            .next()
+            .unwrap()
+            .strip_prefix("# expect: ")
+            .unwrap_or_else(|| panic!("{name}: no expect line"));
         let mut words = expect.split_whitespace();
         let kind = words.next().unwrap().trim_end_matches(';');
         if SKIP.contains(&name.as_str()) {
@@ -177,14 +203,33 @@ fn error_corpus_matches_expectations() {
         match kind {
             "refuse" => {
                 let rule = words.next().unwrap();
-                assert!(matches!(out, CheckOutcome::Refused(_)), "{name}: should refuse");
-                assert!(findings(&out).iter().any(|f| f.rule == rule && f.severity == Severity::Refuse), "{name}: want refuse {rule}, got {:?}", findings(&out));
+                assert!(
+                    matches!(out, CheckOutcome::Refused(_)),
+                    "{name}: should refuse"
+                );
+                assert!(
+                    findings(&out)
+                        .iter()
+                        .any(|f| f.rule == rule && f.severity == Severity::Refuse),
+                    "{name}: want refuse {rule}, got {:?}",
+                    findings(&out)
+                );
             }
             "warn" => {
                 let rule = words.next().unwrap();
-                assert!(findings(&out).iter().any(|f| f.rule == rule && f.severity == Severity::Warn), "{name}: want warn {rule}, got {:?}", findings(&out));
+                assert!(
+                    findings(&out)
+                        .iter()
+                        .any(|f| f.rule == rule && f.severity == Severity::Warn),
+                    "{name}: want warn {rule}, got {:?}",
+                    findings(&out)
+                );
             }
-            "plan" => assert!(matches!(out, CheckOutcome::Plan(_)), "{name}: should plan, got {:?}", findings(&out)),
+            "plan" => assert!(
+                matches!(out, CheckOutcome::Plan(_)),
+                "{name}: should plan, got {:?}",
+                findings(&out)
+            ),
             other => panic!("{name}: unknown expectation {other}"),
         }
     }
@@ -217,8 +262,18 @@ fn rm_danger_home_forms_on_hand_built_words() {
 #[test]
 fn mixed_option_words_are_options() {
     // rm: an option written with an expansion may be -r.
-    for planted in ["rm -$X /tmp/x", "rm -rf -$X out", "rm \"-\"rf /", "rm -r\"$X\" out", "rm -$(echo r) out"] {
-        assert!(has(planted, "KS-R003", Severity::Refuse), "{planted:?}: {:?}", rules(planted));
+    for planted in [
+        "rm -$X /tmp/x",
+        "rm -rf -$X out",
+        "rm \"-\"rf /",
+        "rm -r\"$X\" out",
+        "rm -$(echo r) out",
+    ] {
+        assert!(
+            has(planted, "KS-R003", Severity::Refuse),
+            "{planted:?}: {:?}",
+            rules(planted)
+        );
     }
     for control in ["rm -f out", "rm -- -$X", "rm \"-f\" out", "rm out/$X"] {
         assert!(!has_rule(control, "KS-R003"), "{control:?}");
@@ -270,7 +325,9 @@ fn grants_round3_table() {
 #[test]
 fn redirect_only_command_is_colon_with_redirects() {
     let p = plan("> f");
-    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else { panic!() };
+    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else {
+        panic!()
+    };
     assert_eq!(c.tool, Some(Tool::Builtin(":".into())));
     assert_eq!(c.argv, [PWord::literal(":")]);
     assert_eq!(c.redirects.len(), 1);
@@ -278,7 +335,9 @@ fn redirect_only_command_is_colon_with_redirects() {
     assert_eq!(p.grants.write, ["f"]);
     // An assignment-only command stays `tool: None`.
     let p = plan("X=1");
-    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else { panic!() };
+    let kapsel_plan::PStage::Call(c) = &p.body[0].first.stages[0] else {
+        panic!()
+    };
     assert_eq!(c.tool, None);
     assert!(c.argv.is_empty());
 }
@@ -286,7 +345,9 @@ fn redirect_only_command_is_colon_with_redirects() {
 #[test]
 fn background_maps_to_r007() {
     let src = "sleep 1 &";
-    let CheckOutcome::Refused(r) = run(src) else { panic!() };
+    let CheckOutcome::Refused(r) = run(src) else {
+        panic!()
+    };
     assert_eq!(r.findings.len(), 1);
     assert_eq!(r.findings[0].rule, "KS-R007");
     assert_eq!(r.findings[0].severity, Severity::Refuse);

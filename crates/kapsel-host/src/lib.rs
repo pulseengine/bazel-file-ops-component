@@ -90,7 +90,10 @@ impl wit::Host for HostState {
         stdout: u32,
     ) -> wasmtime::Result<u32> {
         let argv: Vec<WWord> = argv.iter().map(|w| word(w)).collect();
-        let assigns: Vec<(String, WWord)> = assignments.iter().map(|(n, w)| (n.clone(), word(w))).collect();
+        let assigns: Vec<(String, WWord)> = assignments
+            .iter()
+            .map(|(n, w)| (n.clone(), word(w)))
+            .collect();
         let reds: Vec<WRedirect> = redirects
             .iter()
             .map(|r| WRedirect {
@@ -107,7 +110,9 @@ impl wit::Host for HostState {
                 target_fd: r.target_fd,
             })
             .collect();
-        self.shell.call(&argv, &assigns, &reds, stdin, stdout).map_err(trap)
+        self.shell
+            .call(&argv, &assigns, &reds, stdin, stdout)
+            .map_err(trap)
     }
 
     fn set_var(&mut self, name: String, value: wit::Word) -> wasmtime::Result<()> {
@@ -142,9 +147,14 @@ impl Session {
     /// A session with the process environment as exported variables and the
     /// process working directory. Streams are the process's own.
     pub fn new(grants: GrantSet) -> Result<Self, HostError> {
-        let cwd = std::env::current_dir().map_err(|e| HostError(format!("current directory: {e}")))?;
+        let cwd =
+            std::env::current_dir().map_err(|e| HostError(format!("current directory: {e}")))?;
         let mut s = Self::with_env(grants, cwd, std::env::vars())?;
-        s.set_io(Box::new(std::io::stdin()), std::io::stdout(), std::io::stderr());
+        s.set_io(
+            Box::new(std::io::stdin()),
+            std::io::stdout(),
+            std::io::stderr(),
+        );
         Ok(s)
     }
 
@@ -160,7 +170,8 @@ impl Session {
         env: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self, HostError> {
         let g = grants::Grants::new(&grants)?;
-        let cwd = grants::resolve(&PathBuf::from("/"), &cwd).map_err(|e| HostError(format!("cwd: {}", e.reason())))?;
+        let cwd = grants::resolve(&PathBuf::from("/"), &cwd)
+            .map_err(|e| HostError(format!("cwd: {}", e.reason())))?;
         let mut sh = Shell::new(g, cwd.clone());
         for (k, v) in env {
             sh.exported.insert(k.clone());
@@ -168,11 +179,20 @@ impl Session {
         }
         sh.vars.insert("PWD".into(), cwd.display().to_string());
         let engine = Engine::default();
-        Ok(Self { grants, engine, shell: Some(sh) })
+        Ok(Self {
+            grants,
+            engine,
+            shell: Some(sh),
+        })
     }
 
     /// Replaces the session streams (tests capture output through these).
-    pub fn set_io(&mut self, stdin: Box<dyn Read>, stdout: impl Write + 'static, stderr: impl Write + 'static) {
+    pub fn set_io(
+        &mut self,
+        stdin: Box<dyn Read>,
+        stdout: impl Write + 'static,
+        stderr: impl Write + 'static,
+    ) {
         let sh = self.shell.as_mut().expect("session shell");
         sh.stdin = std::rc::Rc::new(std::cell::RefCell::new(stdin));
         sh.stdout = Sink::new(stdout);
@@ -184,11 +204,20 @@ impl Session {
     }
 
     pub fn var(&self, name: &str) -> Option<String> {
-        self.shell.as_ref().expect("session shell").vars.get(name).cloned()
+        self.shell
+            .as_ref()
+            .expect("session shell")
+            .vars
+            .get(name)
+            .cloned()
     }
 
     pub fn is_exported(&self, name: &str) -> bool {
-        self.shell.as_ref().expect("session shell").exported.contains(name)
+        self.shell
+            .as_ref()
+            .expect("session shell")
+            .exported
+            .contains(name)
     }
 
     /// The last command's status (`$?`).
@@ -204,24 +233,33 @@ impl Session {
         let w: Vec<WWord> = argv.iter().map(|a| shell::lit(a)).collect();
         let st = sh.call(&w, &[], &[], 0, 0).expect("call_direct");
         // what a compiled plan does after each pipeline
-        sh.status = if st >= 256 { (st - 256) as i32 } else { st as i32 };
+        sh.status = if st >= 256 {
+            (st - 256) as i32
+        } else {
+            st as i32
+        };
         st
     }
 
     /// Instantiates a compiled plan component and runs its `run` export.
     /// Returns the plan's exit status.
     pub fn run_component(&mut self, component: &[u8]) -> Result<u32, HostError> {
-        let comp = Component::new(&self.engine, component).map_err(|e| HostError(format!("component: {e:#}")))?;
+        let comp = Component::new(&self.engine, component)
+            .map_err(|e| HostError(format!("component: {e:#}")))?;
         let mut linker: Linker<HostState> = Linker::new(&self.engine);
         wit::add_to_linker::<HostState, HasSelf<HostState>>(&mut linker, |s| s)
             .map_err(|e| HostError(format!("linker: {e:#}")))?;
-        let mut shell = self.shell.take().ok_or_else(|| HostError("session is poisoned by an earlier failure".into()))?;
+        let mut shell = self
+            .shell
+            .take()
+            .ok_or_else(|| HostError("session is poisoned by an earlier failure".into()))?;
         shell.begin_run();
         let mut store = Store::new(&self.engine, HostState { shell });
         let result = (|| {
             let plan = bindings::Plan::instantiate(&mut store, &comp, &linker)
                 .map_err(|e| HostError(format!("instantiate: {e:#}")))?;
-            plan.call_run(&mut store).map_err(|e| HostError(format!("run: {e:#}")))
+            plan.call_run(&mut store)
+                .map_err(|e| HostError(format!("run: {e:#}")))
         })();
         // `$?` is whatever the plan last passed to `set-status`; the host
         // never updates it on its own. Per-run pipes, lists and scopes are

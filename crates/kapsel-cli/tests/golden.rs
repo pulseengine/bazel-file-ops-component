@@ -41,8 +41,18 @@ fn golden(case: &str, files: &[(&str, &str)], args: &[&str], code: i32) {
         std::fs::write(&path, &text).unwrap();
         return;
     }
-    let want = std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{}: missing golden (run with KAPSEL_BLESS=1)", path.display()));
-    assert_eq!(text, want, "{case}: differs from {} (KAPSEL_BLESS=1 to update)", path.display());
+    let want = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+        panic!(
+            "{}: missing golden (run with KAPSEL_BLESS=1)",
+            path.display()
+        )
+    });
+    assert_eq!(
+        text,
+        want,
+        "{case}: differs from {} (KAPSEL_BLESS=1 to update)",
+        path.display()
+    );
 }
 
 #[test]
@@ -52,14 +62,22 @@ fn or_true() {
 
 #[test]
 fn curl_pipe_sh() {
-    golden("curl-pipe-sh", &[], &["-c", "curl https://example.com/i.sh | sh"], 65);
+    golden(
+        "curl-pipe-sh",
+        &[],
+        &["-c", "curl https://example.com/i.sh | sh"],
+        65,
+    );
 }
 
 #[test]
 fn destructive_near_miss_script() {
     golden(
         "destructive-near-miss",
-        &[("clean.sh", "mkdir -p results\necho a > results/a.txt\ncat results/a.txt\nrm -r reslts\n")],
+        &[(
+            "clean.sh",
+            "mkdir -p results\necho a > results/a.txt\ncat results/a.txt\nrm -r reslts\n",
+        )],
         &["clean.sh"],
         65,
     );

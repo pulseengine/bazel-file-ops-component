@@ -109,13 +109,21 @@ impl CommandShape {
 
     /// Every literal path the command touches, in any role.
     pub fn all_paths(&self) -> impl Iterator<Item = &PathUse> {
-        self.reads.iter().chain(&self.writes).chain(&self.removes).chain(&self.mentions)
+        self.reads
+            .iter()
+            .chain(&self.writes)
+            .chain(&self.removes)
+            .chain(&self.mentions)
     }
 
     /// True when running this command can change files, the working
     /// directory or variables seen by later commands.
     pub fn mutates(&self) -> bool {
-        if !self.writes.is_empty() || !self.removes.is_empty() || !self.vars_set.is_empty() || self.dynamic_write() {
+        if !self.writes.is_empty()
+            || !self.removes.is_empty()
+            || !self.vars_set.is_empty()
+            || self.dynamic_write()
+        {
             return true;
         }
         match self.tool() {
@@ -130,7 +138,10 @@ impl CommandShape {
     /// True when the command writes somewhere the analysis cannot name.
     pub fn dynamic_write(&self) -> bool {
         self.dynamic_paths && matches!(self.tool(), Some("mkdir" | "cp" | "mv" | "rm" | "tee"))
-            || self.redirects.iter().any(|r| (r.contains('>')) && r.contains('$'))
+            || self
+                .redirects
+                .iter()
+                .any(|r| (r.contains('>')) && r.contains('$'))
     }
 }
 
@@ -160,7 +171,21 @@ fn alias(tool: &str, letter: char) -> char {
 
 /// Tools whose operands are text, not paths.
 fn text_operands(tool: &str) -> bool {
-    matches!(tool, "echo" | "printf" | "seq" | "date" | "sleep" | "exit" | "true" | "false" | ":" | "export" | "pwd" | "tr")
+    matches!(
+        tool,
+        "echo"
+            | "printf"
+            | "seq"
+            | "date"
+            | "sleep"
+            | "exit"
+            | "true"
+            | "false"
+            | ":"
+            | "export"
+            | "pwd"
+            | "tr"
+    )
 }
 
 /// Normalizes a literal path for comparison.
@@ -192,10 +217,17 @@ fn classify(word: &ast::Word) -> (ArgClass, String, BTreeSet<String>) {
     let mut class = ArgClass::Literal;
     let mut text = String::new();
     let mut vars = BTreeSet::new();
-    fn walk(parts: &[ast::WordPart], class: &mut ArgClass, text: &mut String, vars: &mut BTreeSet<String>) {
+    fn walk(
+        parts: &[ast::WordPart],
+        class: &mut ArgClass,
+        text: &mut String,
+        vars: &mut BTreeSet<String>,
+    ) {
         for p in parts {
             match p {
-                ast::WordPart::Literal { text: t } | ast::WordPart::SingleQuoted { text: t } => text.push_str(t),
+                ast::WordPart::Literal { text: t } | ast::WordPart::SingleQuoted { text: t } => {
+                    text.push_str(t)
+                }
                 ast::WordPart::DoubleQuoted { parts } => walk(parts, class, text, vars),
                 ast::WordPart::Param { name } => {
                     vars.insert(name.clone());
@@ -248,7 +280,9 @@ fn capture_scripts(word: &ast::Word) -> Vec<&ast::Script> {
 }
 
 fn excerpt(source: &str, span: Span) -> &str {
-    source.get(span.start as usize..span.end as usize).unwrap_or("")
+    source
+        .get(span.start as usize..span.end as usize)
+        .unwrap_or("")
 }
 
 /// Computes the shapes of every simple command in `script`, in source order.
@@ -263,7 +297,13 @@ pub fn shapes(source: &str, script: &ast::Script) -> Vec<CommandShape> {
     out
 }
 
-fn walk_and_or(source: &str, list: &ast::AndOrList, item: usize, depth: u32, out: &mut Vec<CommandShape>) {
+fn walk_and_or(
+    source: &str,
+    list: &ast::AndOrList,
+    item: usize,
+    depth: u32,
+    out: &mut Vec<CommandShape>,
+) {
     walk_pipeline(source, &list.first, Connector::Start, item, depth, out);
     for (op, p) in &list.rest {
         let c = match op {
@@ -296,7 +336,15 @@ fn walk_pipeline(
                 for w in &f.items {
                     vars_used.extend(classify(w).2);
                 }
-                let key = format!("for {} in {}", f.var, f.items.iter().map(|w| classify(w).1).collect::<Vec<_>>().join(" "));
+                let key = format!(
+                    "for {} in {}",
+                    f.var,
+                    f.items
+                        .iter()
+                        .map(|w| classify(w).1)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
                 out.push(CommandShape {
                     tool: None,
                     flags: Vec::new(),
@@ -343,7 +391,11 @@ fn simple_shape(
 ) -> CommandShape {
     let mut vars_used = BTreeSet::new();
     // Commands inside $(...) first.
-    for w in sc.words.iter().chain(sc.assignments.iter().map(|a| &a.value)) {
+    for w in sc
+        .words
+        .iter()
+        .chain(sc.assignments.iter().map(|a| &a.value))
+    {
         for s in capture_scripts(w) {
             for (i, l) in s.items.iter().enumerate() {
                 let _ = i;
@@ -373,7 +425,10 @@ fn simple_shape(
     let mut flags = Vec::new();
     let mut operands = Vec::new();
     let rest: Vec<&ast::Word> = words.collect();
-    let parse_flags = !matches!(t.as_str(), "echo" | "printf" | "test" | "[" | "export" | "exit");
+    let parse_flags = !matches!(
+        t.as_str(),
+        "echo" | "printf" | "test" | "[" | "export" | "exit"
+    );
     let vflags = value_flags(&t);
     let mut i = 0;
     let mut end_of_flags = !parse_flags;
@@ -386,9 +441,14 @@ fn simple_shape(
             i += 1;
             continue;
         }
-        let is_flag = !end_of_flags && class == ArgClass::Literal && text.len() > 1 && text.starts_with('-');
+        let is_flag =
+            !end_of_flags && class == ArgClass::Literal && text.len() > 1 && text.starts_with('-');
         if !is_flag {
-            operands.push(Arg { class, text, span: w.span });
+            operands.push(Arg {
+                class,
+                text,
+                span: w.span,
+            });
             i += 1;
             continue;
         }
@@ -417,8 +477,18 @@ fn simple_shape(
                 (None, Some(v)) => (format!("--{name}"), format!("--{name}={v}")),
                 (None, None) => (format!("--{name}"), format!("--{name}")),
             };
-            let form = if value.is_some() { format!("--{name}=VALUE") } else { format!("--{name}") };
-            flags.push(Flag { canonical, name: cname, form, raw: excerpt(source, w.span).to_string(), span: w.span });
+            let form = if value.is_some() {
+                format!("--{name}=VALUE")
+            } else {
+                format!("--{name}")
+            };
+            flags.push(Flag {
+                canonical,
+                name: cname,
+                form,
+                raw: excerpt(source, w.span).to_string(),
+                span: w.span,
+            });
             i += 1;
             continue;
         }
@@ -449,7 +519,11 @@ fn simple_shape(
                     consumed_next = true;
                     let (_, v, vars) = classify(next);
                     vars_used.extend(vars);
-                    (v, format!("-{c} VALUE"), Span::new(w.span.start, next.span.end))
+                    (
+                        v,
+                        format!("-{c} VALUE"),
+                        Span::new(w.span.start, next.span.end),
+                    )
                 } else {
                     (String::new(), format!("-{c}"), w.span)
                 };
@@ -494,14 +568,21 @@ fn simple_shape(
     };
     let push = |dst: &mut Vec<PathUse>, a: &Arg, dynamic: &mut bool| {
         if a.class == ArgClass::Literal {
-            dst.push(PathUse { path: norm_path(&a.text), span: a.span });
+            dst.push(PathUse {
+                path: norm_path(&a.text),
+                span: a.span,
+            });
         } else {
             *dynamic = true;
         }
     };
     match t.as_str() {
-        "mkdir" | "tee" => path_ops.iter().for_each(|a| push(&mut writes, a, &mut dynamic_paths)),
-        "rm" => path_ops.iter().for_each(|a| push(&mut removes, a, &mut dynamic_paths)),
+        "mkdir" | "tee" => path_ops
+            .iter()
+            .for_each(|a| push(&mut writes, a, &mut dynamic_paths)),
+        "rm" => path_ops
+            .iter()
+            .for_each(|a| push(&mut removes, a, &mut dynamic_paths)),
         "cp" | "mv" => {
             if let Some((last, srcs)) = path_ops.split_last() {
                 push(&mut writes, last, &mut dynamic_paths);
@@ -515,19 +596,29 @@ fn simple_shape(
         }
         "uniq" => {
             for (k, a) in path_ops.iter().enumerate() {
-                push(if k == 0 { &mut reads } else { &mut writes }, a, &mut dynamic_paths);
+                push(
+                    if k == 0 { &mut reads } else { &mut writes },
+                    a,
+                    &mut dynamic_paths,
+                );
             }
         }
-        "ls" | "test" | "[" | "cd" => {
-            path_ops.iter().filter(|a| !a.text.starts_with('-') && a.text != "]").for_each(|a| push(&mut mentions, a, &mut dynamic_paths))
-        }
-        _ => path_ops.iter().for_each(|a| push(&mut reads, a, &mut dynamic_paths)),
+        "ls" | "test" | "[" | "cd" => path_ops
+            .iter()
+            .filter(|a| !a.text.starts_with('-') && a.text != "]")
+            .for_each(|a| push(&mut mentions, a, &mut dynamic_paths)),
+        _ => path_ops
+            .iter()
+            .for_each(|a| push(&mut reads, a, &mut dynamic_paths)),
     }
     if t == "sort" {
         for f in &flags {
             if f.name == "-o" {
                 let v = f.canonical.trim_start_matches("-o ").to_string();
-                writes.push(PathUse { path: norm_path(&v), span: f.span });
+                writes.push(PathUse {
+                    path: norm_path(&v),
+                    span: f.span,
+                });
             }
         }
     }
@@ -555,7 +646,10 @@ fn simple_shape(
                 vars_used.extend(vars);
                 let is_null = text == "/dev/null";
                 if class == ArgClass::Literal && !is_null {
-                    let pu = PathUse { path: norm_path(&text), span: word.span };
+                    let pu = PathUse {
+                        path: norm_path(&text),
+                        span: word.span,
+                    };
                     match r.op {
                         ast::RedirectOp::Read => reads.push(pu),
                         ast::RedirectOp::Write | ast::RedirectOp::Append => writes.push(pu),
@@ -656,7 +750,13 @@ mod tests {
         assert_eq!(a.key, b.key);
         // ./a.txt is a different operand text but the same path.
         assert_ne!(a.key, c.key);
-        assert_eq!(a.reads, vec![PathUse { path: "a.txt".into(), span: a.reads[0].span }]);
+        assert_eq!(
+            a.reads,
+            vec![PathUse {
+                path: "a.txt".into(),
+                span: a.reads[0].span
+            }]
+        );
         assert_eq!(c.reads[0].path, "a.txt");
     }
 
@@ -692,6 +792,16 @@ mod tests {
         let s = parse(src);
         assert_eq!(shapes(src, &s), shapes(src, &s));
         let keys: Vec<String> = shapes(src, &s).into_iter().map(|s| s.key).collect();
-        assert_eq!(keys, ["cat a", "sort -n -- >b","for f in x y", "cat $f", "ls out", "echo $(...)"]);
+        assert_eq!(
+            keys,
+            [
+                "cat a",
+                "sort -n -- >b",
+                "for f in x y",
+                "cat $f",
+                "ls out",
+                "echo $(...)"
+            ]
+        );
     }
 }

@@ -13,11 +13,14 @@ struct Env {
 
 impl Env {
     fn new() -> Env {
-        Env { dir: tempfile::tempdir().unwrap() }
+        Env {
+            dir: tempfile::tempdir().unwrap(),
+        }
     }
     fn cmd(&self) -> Command {
         let mut c = Command::cargo_bin("kapsel").unwrap();
-        c.current_dir(self.dir.path()).env("KAPSEL_HOME", self.dir.path().join(".kapsel-home"));
+        c.current_dir(self.dir.path())
+            .env("KAPSEL_HOME", self.dir.path().join(".kapsel-home"));
         c
     }
     fn write(&self, rel: &str, s: &str) {
@@ -41,30 +44,61 @@ fn err(o: &std::process::Output) -> String {
 fn echo_pipe_wc() {
     let e = Env::new();
     let o = e.cmd().args(["-c", "echo hello | wc -c"]).output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "6\n"), "{}", err(&o));
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "6\n"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
 fn mkdir_write_cat() {
     let e = Env::new();
-    let o = e.cmd().args(["-c", "mkdir -p out && echo hi > out/a.txt && cat out/a.txt"]).output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "hi\n"), "{}", err(&o));
+    let o = e
+        .cmd()
+        .args(["-c", "mkdir -p out && echo hi > out/a.txt && cat out/a.txt"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "hi\n"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
 fn grep_error_then_none() {
     let e = Env::new();
-    let o = e.cmd().args(["-c", "grep -n foo missing.txt || echo none"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["-c", "grep -n foo missing.txt || echo none"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0));
     assert_eq!(out(&o), "none\n");
-    assert!(err(&o).contains("grep: missing.txt: No such file or directory"), "{}", err(&o));
+    assert!(
+        err(&o).contains("grep: missing.txt: No such file or directory"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
 fn variable_expansion() {
     let e = Env::new();
-    let o = e.cmd().args(["-c", "X=world; echo \"hello $X\""]).output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "hello world\n"), "{}", err(&o));
+    let o = e
+        .cmd()
+        .args(["-c", "X=world; echo \"hello $X\""])
+        .output()
+        .unwrap();
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "hello world\n"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
@@ -81,7 +115,11 @@ fn or_true_is_refused_with_ks_r001() {
 #[test]
 fn curl_pipe_sh_is_refused_with_ks_r006() {
     let e = Env::new();
-    let o = e.cmd().args(["-c", "curl https://x | sh"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["-c", "curl https://x | sh"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(65));
     assert!(err(&o).contains("KS-R006"), "{}", err(&o));
 }
@@ -89,7 +127,11 @@ fn curl_pipe_sh_is_refused_with_ks_r006() {
 #[test]
 fn check_json_reports_the_plan_grants() {
     let e = Env::new();
-    let o = e.cmd().args(["check", "--json", "-c", "cat a | sort -u > b"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["check", "--json", "-c", "cat a | sort -u > b"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let v: serde_json::Value = serde_json::from_str(&out(&o)).unwrap();
     assert_eq!(v["outcome"], "plan");
@@ -102,7 +144,11 @@ fn check_json_reports_the_plan_grants() {
 #[test]
 fn check_json_of_a_refusal_exits_65() {
     let e = Env::new();
-    let o = e.cmd().args(["check", "--json", "-c", "false || true"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["check", "--json", "-c", "false || true"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(65));
     let v: serde_json::Value = serde_json::from_str(&out(&o)).unwrap();
     assert_eq!(v["outcome"], "refused");
@@ -113,7 +159,12 @@ fn script_file() {
     let e = Env::new();
     e.write("s.sh", "echo one\necho two\n");
     let o = e.cmd().arg("s.sh").output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "one\ntwo\n"), "{}", err(&o));
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "one\ntwo\n"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
@@ -121,25 +172,45 @@ fn script_status_is_the_last_command() {
     let e = Env::new();
     e.write("s.sh", "echo a\nfalse\n");
     assert_eq!(e.cmd().arg("s.sh").output().unwrap().status.code(), Some(1));
-    assert_eq!(e.cmd().args(["-c", "exit 3"]).output().unwrap().status.code(), Some(3));
+    assert_eq!(
+        e.cmd()
+            .args(["-c", "exit 3"])
+            .output()
+            .unwrap()
+            .status
+            .code(),
+        Some(3)
+    );
 }
 
 #[test]
 fn interactive_session_keeps_cd_and_variables() {
     let e = Env::new();
     std::fs::create_dir(e.path().join("sub")).unwrap();
-    let o = e.cmd().write_stdin("cd sub\nX=1\npwd\necho $X\n").output().unwrap();
+    let o = e
+        .cmd()
+        .write_stdin("cd sub\nX=1\npwd\necho $X\n")
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let lines: Vec<String> = out(&o).lines().map(|s| s.to_string()).collect();
     assert!(lines[0].ends_with("/sub"), "{lines:?}");
     assert_eq!(lines[1], "1");
-    assert!(err(&o).contains("kapsel$ "), "prompt on stderr: {}", err(&o));
+    assert!(
+        err(&o).contains("kapsel$ "),
+        "prompt on stderr: {}",
+        err(&o)
+    );
 }
 
 #[test]
 fn interactive_continuation_prompt_and_refused_line() {
     let e = Env::new();
-    let o = e.cmd().write_stdin("for i in 1 2; do\necho $i\ndone\nfalse || true\necho after\n").output().unwrap();
+    let o = e
+        .cmd()
+        .write_stdin("for i in 1 2; do\necho $i\ndone\nfalse || true\necho after\n")
+        .output()
+        .unwrap();
     assert_eq!(out(&o), "1\n2\nafter\n", "{}", err(&o));
     assert!(err(&o).contains("> "), "{}", err(&o));
     assert!(err(&o).contains("KS-R001"), "{}", err(&o));
@@ -149,15 +220,36 @@ fn interactive_continuation_prompt_and_refused_line() {
 #[test]
 fn interactive_eof_exits_with_the_last_status_and_exit_ends_the_session() {
     let e = Env::new();
-    assert_eq!(e.cmd().write_stdin("false\n").output().unwrap().status.code(), Some(1));
-    let o = e.cmd().write_stdin("exit 4\necho never\n").output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(4), ""), "{}", err(&o));
+    assert_eq!(
+        e.cmd()
+            .write_stdin("false\n")
+            .output()
+            .unwrap()
+            .status
+            .code(),
+        Some(1)
+    );
+    let o = e
+        .cmd()
+        .write_stdin("exit 4\necho never\n")
+        .output()
+        .unwrap();
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(4), ""),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
 fn compile_writes_a_component() {
     let e = Env::new();
-    let o = e.cmd().args(["compile", "-c", "echo hi", "-o", "out.wasm"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["compile", "-c", "echo hi", "-o", "out.wasm"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     let b = std::fs::read(e.path().join("out.wasm")).unwrap();
     assert_eq!(&b[..4], b"\0asm");
@@ -166,7 +258,11 @@ fn compile_writes_a_component() {
 #[test]
 fn compile_of_a_refused_input_exits_65_and_writes_nothing() {
     let e = Env::new();
-    let o = e.cmd().args(["compile", "-c", "false || true", "-o", "out.wasm"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["compile", "-c", "false || true", "-o", "out.wasm"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(65));
     assert!(!e.path().join("out.wasm").exists());
 }
@@ -178,17 +274,42 @@ fn grants_ro_and_rw_flags() {
     std::fs::write(other.path().join("f"), "from ro\n").unwrap();
     let p = other.path().canonicalize().unwrap();
     let ro = p.display().to_string();
-    let o = e.cmd().args(["--ro", &ro, "-c", &format!("cat {ro}/f")]).output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "from ro\n"), "{}", err(&o));
-    let o = e.cmd().args(["--ro", &ro, "-c", &format!("echo x > {ro}/g")]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["--ro", &ro, "-c", &format!("cat {ro}/f")])
+        .output()
+        .unwrap();
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "from ro\n"),
+        "{}",
+        err(&o)
+    );
+    let o = e
+        .cmd()
+        .args(["--ro", &ro, "-c", &format!("echo x > {ro}/g")])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(1));
-    assert!(err(&o).contains("outside the session's grants"), "{}", err(&o));
+    assert!(
+        err(&o).contains("outside the session's grants"),
+        "{}",
+        err(&o)
+    );
     assert!(!p.join("g").exists());
-    let o = e.cmd().args(["--rw", &ro, "-c", &format!("echo x > {ro}/g")]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["--rw", &ro, "-c", &format!("echo x > {ro}/g")])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
     assert!(p.join("g").exists());
     // without a flag the other directory is out of reach
-    let o = e.cmd().args(["-c", &format!("cat {ro}/f")]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["-c", &format!("cat {ro}/f")])
+        .output()
+        .unwrap();
     assert_eq!((o.status.code(), out(&o).as_str()), (Some(1), ""));
 }
 
@@ -232,7 +353,11 @@ fn invalid_grants_exit_78() {
 #[test]
 fn a_missing_key_file_is_an_internal_error() {
     let e = Env::new();
-    let o = e.cmd().args(["--key", "nokey.pem", "-c", "echo hi"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["--key", "nokey.pem", "-c", "echo hi"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(70), "{}", err(&o));
     assert_eq!(out(&o), "");
 }
@@ -240,22 +365,48 @@ fn a_missing_key_file_is_an_internal_error() {
 #[test]
 fn no_home_fails_closed_with_78_and_writes_nothing() {
     let e = Env::new();
-    for args in [vec!["-c", "echo hi"], vec!["compile", "-c", "echo hi", "-o", "o.wasm"]] {
+    for args in [
+        vec!["-c", "echo hi"],
+        vec!["compile", "-c", "echo hi", "-o", "o.wasm"],
+    ] {
         let mut c = Command::cargo_bin("kapsel").unwrap();
-        let o = c.current_dir(e.path()).env_clear().args(&args).output().unwrap();
+        let o = c
+            .current_dir(e.path())
+            .env_clear()
+            .args(&args)
+            .output()
+            .unwrap();
         assert_eq!(o.status.code(), Some(78), "{args:?}: {}", err(&o));
         assert_eq!(err(&o), "kapsel: no KAPSEL_HOME or HOME; set KAPSEL_HOME\n");
         assert_eq!(out(&o), "");
     }
-    let names: Vec<_> = std::fs::read_dir(e.path()).unwrap().map(|x| x.unwrap().file_name()).collect();
-    assert!(names.is_empty(), "nothing may be created in the working directory: {names:?}");
+    let names: Vec<_> = std::fs::read_dir(e.path())
+        .unwrap()
+        .map(|x| x.unwrap().file_name())
+        .collect();
+    assert!(
+        names.is_empty(),
+        "nothing may be created in the working directory: {names:?}"
+    );
     // an empty value counts as unset
     let mut c = Command::cargo_bin("kapsel").unwrap();
-    let o = c.current_dir(e.path()).env_clear().env("HOME", "").env("KAPSEL_HOME", "").args(["-c", "echo hi"]).output().unwrap();
+    let o = c
+        .current_dir(e.path())
+        .env_clear()
+        .env("HOME", "")
+        .env("KAPSEL_HOME", "")
+        .args(["-c", "echo hi"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(78));
     // check does not need a home
     let mut c = Command::cargo_bin("kapsel").unwrap();
-    let o = c.current_dir(e.path()).env_clear().args(["check", "-c", "echo hi"]).output().unwrap();
+    let o = c
+        .current_dir(e.path())
+        .env_clear()
+        .args(["check", "-c", "echo hi"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(0), "{}", err(&o));
 }
 
@@ -264,20 +415,45 @@ fn dotdot_works_inside_the_grant() {
     let e = Env::new();
     e.write("a.txt", "A\n");
     std::fs::create_dir(e.path().join("sub")).unwrap();
-    let o = e.cmd().args(["-c", "cd sub; cat ../a.txt; pwd > ../where.txt"]).output().unwrap();
-    assert_eq!((o.status.code(), out(&o).as_str()), (Some(0), "A\n"), "{}", err(&o));
-    assert!(std::fs::read_to_string(e.path().join("where.txt")).unwrap().trim_end().ends_with("/sub"));
+    let o = e
+        .cmd()
+        .args(["-c", "cd sub; cat ../a.txt; pwd > ../where.txt"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        (o.status.code(), out(&o).as_str()),
+        (Some(0), "A\n"),
+        "{}",
+        err(&o)
+    );
+    assert!(
+        std::fs::read_to_string(e.path().join("where.txt"))
+            .unwrap()
+            .trim_end()
+            .ends_with("/sub")
+    );
     let o = e.cmd().args(["-c", "cd .."]).output().unwrap();
     assert_eq!(o.status.code(), Some(1));
-    assert!(err(&o).contains("kapsel: ..: outside the session's grants"), "{}", err(&o));
+    assert!(
+        err(&o).contains("kapsel: ..: outside the session's grants"),
+        "{}",
+        err(&o)
+    );
 }
 
 #[test]
 fn nothing_runs_when_check_refuses() {
     let e = Env::new();
-    let o = e.cmd().args(["-c", "echo ran > marker; false || true"]).output().unwrap();
+    let o = e
+        .cmd()
+        .args(["-c", "echo ran > marker; false || true"])
+        .output()
+        .unwrap();
     assert_eq!(o.status.code(), Some(65));
-    assert!(!e.path().join("marker").exists(), "a refused input must not run any part of itself");
+    assert!(
+        !e.path().join("marker").exists(),
+        "a refused input must not run any part of itself"
+    );
 }
 
 #[test]

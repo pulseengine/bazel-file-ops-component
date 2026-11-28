@@ -16,11 +16,23 @@ use kapsel_ast::*;
 
 /// Parses `src` into a script. Panics on input outside the fixture subset.
 pub fn parse(src: &str) -> Script {
-    let mut p = P { s: src.as_bytes(), src, i: 0 };
+    let mut p = P {
+        s: src.as_bytes(),
+        src,
+        i: 0,
+    };
     let items = p.list(&[]);
     p.skip_ws_nl();
-    assert!(p.i == p.s.len(), "testkit: unexpected input at byte {}: {:?}", p.i, &src[p.i..]);
-    Script { items, span: Span::new(0, src.len() as u32) }
+    assert!(
+        p.i == p.s.len(),
+        "testkit: unexpected input at byte {}: {:?}",
+        p.i,
+        &src[p.i..]
+    );
+    Script {
+        items,
+        span: Span::new(0, src.len() as u32),
+    }
 }
 
 struct P<'a> {
@@ -59,9 +71,16 @@ impl P<'_> {
         let start = self.i;
         let mut body = String::new();
         loop {
-            let line_end = self.src[self.i..].find('\n').map(|n| self.i + n).unwrap_or(self.s.len());
+            let line_end = self.src[self.i..]
+                .find('\n')
+                .map(|n| self.i + n)
+                .unwrap_or(self.s.len());
             let line = &self.src[self.i..line_end];
-            let cmp = if strip { line.trim_start_matches('\t') } else { line };
+            let cmp = if strip {
+                line.trim_start_matches('\t')
+            } else {
+                line
+            };
             if cmp == delim {
                 let body_end = self.i;
                 self.i = (line_end + 1).min(self.s.len());
@@ -70,8 +89,15 @@ impl P<'_> {
                 } else {
                     WordPart::Literal { text: body }
                 };
-                let w = Word { parts: vec![part], span: Span::new(start as u32, body_end as u32) };
-                return RedirectTarget::Heredoc { body: w, quoted, strip_tabs: strip };
+                let w = Word {
+                    parts: vec![part],
+                    span: Span::new(start as u32, body_end as u32),
+                };
+                return RedirectTarget::Heredoc {
+                    body: w,
+                    quoted,
+                    strip_tabs: strip,
+                };
             }
             body.push_str(cmp);
             body.push('\n');
@@ -93,7 +119,10 @@ impl P<'_> {
     fn at_keyword(&self, kws: &[&str]) -> bool {
         kws.iter().any(|k| {
             self.starts(k)
-                && self.s.get(self.i + k.len()).is_none_or(|c| matches!(c, b' ' | b'\t' | b'\n' | b';'))
+                && self
+                    .s
+                    .get(self.i + k.len())
+                    .is_none_or(|c| matches!(c, b' ' | b'\t' | b'\n' | b';'))
         })
     }
 
@@ -132,8 +161,15 @@ impl P<'_> {
             }
             rest.push((op, self.pipeline()));
         }
-        let end = rest.last().map(|(_, p): &(AndOrOp, Pipeline)| p.span.end).unwrap_or(first.span.end);
-        AndOrList { first, rest, span: Span::new(start as u32, end) }
+        let end = rest
+            .last()
+            .map(|(_, p): &(AndOrOp, Pipeline)| p.span.end)
+            .unwrap_or(first.span.end);
+        AndOrList {
+            first,
+            rest,
+            span: Span::new(start as u32, end),
+        }
     }
 
     fn pipeline(&mut self) -> Pipeline {
@@ -159,7 +195,11 @@ impl P<'_> {
             Command::For(f) => f.span.end,
             Command::While(w) => w.span.end,
         };
-        Pipeline { negated, commands, span: Span::new(start as u32, end) }
+        Pipeline {
+            negated,
+            commands,
+            span: Span::new(start as u32, end),
+        }
     }
 
     fn command(&mut self) -> Command {
@@ -172,7 +212,11 @@ impl P<'_> {
 
     fn expect_kw(&mut self, kw: &str) {
         self.skip_ws_nl();
-        assert!(self.at_keyword(&[kw]), "testkit: expected `{kw}` at byte {}", self.i);
+        assert!(
+            self.at_keyword(&[kw]),
+            "testkit: expected `{kw}` at byte {}",
+            self.i
+        );
         self.i += kw.len();
     }
 
@@ -181,7 +225,10 @@ impl P<'_> {
         self.i += 3;
         self.skip_ws();
         let ns = self.i;
-        while self.peek().is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+        {
             self.i += 1;
         }
         let var = self.src[ns..self.i].to_string();
@@ -197,7 +244,12 @@ impl P<'_> {
         self.expect_kw("do");
         let body = self.list(&["done"]);
         self.expect_kw("done");
-        ForLoop { var, items, body, span: Span::new(start as u32, self.i as u32) }
+        ForLoop {
+            var,
+            items,
+            body,
+            span: Span::new(start as u32, self.i as u32),
+        }
     }
 
     fn simple(&mut self) -> SimpleCommand {
@@ -254,7 +306,9 @@ impl P<'_> {
                         while self.peek().is_some_and(|c| c.is_ascii_digit()) {
                             self.i += 1;
                         }
-                        RedirectTarget::Fd { fd: self.src[ds..self.i].parse().unwrap() }
+                        RedirectTarget::Fd {
+                            fd: self.src[ds..self.i].parse().unwrap(),
+                        }
                     }
                     RedirectOp::Heredoc => {
                         let strip = if self.peek() == Some(b'-') {
@@ -265,7 +319,10 @@ impl P<'_> {
                         };
                         self.skip_ws();
                         let w = self.word();
-                        let quoted = w.parts.iter().any(|p| !matches!(p, WordPart::Literal { .. }));
+                        let quoted = w
+                            .parts
+                            .iter()
+                            .any(|p| !matches!(p, WordPart::Literal { .. }));
                         let delim = flat(&w);
                         heredoc_slots.push((redirects.len(), delim, strip, quoted));
                         RedirectTarget::Fd { fd: u32::MAX }
@@ -275,20 +332,32 @@ impl P<'_> {
                         RedirectTarget::Word { word: self.word() }
                     }
                 };
-                redirects.push(Redirect { fd, op, target, span: Span::new(save as u32, self.i as u32) });
+                redirects.push(Redirect {
+                    fd,
+                    op,
+                    target,
+                    span: Span::new(save as u32, self.i as u32),
+                });
                 continue;
             }
             // assignment?
             if words.is_empty() {
                 let ns = self.i;
-                while self.peek().is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_') {
+                while self
+                    .peek()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                {
                     self.i += 1;
                 }
                 if self.i > ns && self.peek() == Some(b'=') && !self.s[ns].is_ascii_digit() {
                     let name = self.src[ns..self.i].to_string();
                     self.i += 1;
                     let value = self.word();
-                    assignments.push(Assignment { name, value, span: Span::new(ns as u32, self.i as u32) });
+                    assignments.push(Assignment {
+                        name,
+                        value,
+                        span: Span::new(ns as u32, self.i as u32),
+                    });
                     continue;
                 }
                 self.i = ns;
@@ -301,12 +370,21 @@ impl P<'_> {
         while e > start && matches!(self.s[e - 1], b' ' | b'\t') {
             e -= 1;
         }
-        let mut cmd = SimpleCommand { assignments, words, redirects, span: Span::new(start as u32, e as u32) };
+        let mut cmd = SimpleCommand {
+            assignments,
+            words,
+            redirects,
+            span: Span::new(start as u32, e as u32),
+        };
         // Fixture restriction: a command with a heredoc must end its line, so
         // the bodies follow directly.
         if !heredoc_slots.is_empty() {
             self.skip_ws();
-            assert!(matches!(self.peek(), Some(b'\n')), "testkit: a heredoc must end its line (byte {})", self.i);
+            assert!(
+                matches!(self.peek(), Some(b'\n')),
+                "testkit: a heredoc must end its line (byte {})",
+                self.i
+            );
             self.newline();
             for (idx, delim, strip, quoted) in heredoc_slots {
                 cmd.redirects[idx].target = self.heredoc_body(&delim, strip, quoted);
@@ -321,7 +399,9 @@ impl P<'_> {
         let mut lit = String::new();
         let flush = |lit: &mut String, parts: &mut Vec<WordPart>| {
             if !lit.is_empty() {
-                parts.push(WordPart::Literal { text: std::mem::take(lit) });
+                parts.push(WordPart::Literal {
+                    text: std::mem::take(lit),
+                });
             }
         };
         while let Some(c) = self.peek() {
@@ -334,8 +414,14 @@ impl P<'_> {
                 }
                 b'\'' => {
                     flush(&mut lit, &mut parts);
-                    let end = self.src[self.i + 1..].find('\'').expect("testkit: unterminated '") + self.i + 1;
-                    parts.push(WordPart::SingleQuoted { text: self.src[self.i + 1..end].to_string() });
+                    let end = self.src[self.i + 1..]
+                        .find('\'')
+                        .expect("testkit: unterminated '")
+                        + self.i
+                        + 1;
+                    parts.push(WordPart::SingleQuoted {
+                        text: self.src[self.i + 1..end].to_string(),
+                    });
                     self.i = end + 1;
                 }
                 b'"' => {
@@ -375,12 +461,25 @@ impl P<'_> {
                 b'*' | b'?' => {
                     flush(&mut lit, &mut parts);
                     self.i += 1;
-                    parts.push(WordPart::Glob { glob: if c == b'*' { GlobPart::Star } else { GlobPart::Question } });
+                    parts.push(WordPart::Glob {
+                        glob: if c == b'*' {
+                            GlobPart::Star
+                        } else {
+                            GlobPart::Question
+                        },
+                    });
                 }
                 b'[' => {
                     flush(&mut lit, &mut parts);
-                    let end = self.src[self.i..].find(']').expect("testkit: unterminated [") + self.i;
-                    parts.push(WordPart::Glob { glob: GlobPart::Class { set: self.src[self.i + 1..end].to_string() } });
+                    let end = self.src[self.i..]
+                        .find(']')
+                        .expect("testkit: unterminated [")
+                        + self.i;
+                    parts.push(WordPart::Glob {
+                        glob: GlobPart::Class {
+                            set: self.src[self.i + 1..end].to_string(),
+                        },
+                    });
                     self.i = end + 1;
                 }
                 _ => {
@@ -392,7 +491,10 @@ impl P<'_> {
         }
         flush(&mut lit, &mut parts);
         assert!(self.i > start, "testkit: expected a word at byte {start}");
-        Word { parts, span: Span::new(start as u32, self.i as u32) }
+        Word {
+            parts,
+            span: Span::new(start as u32, self.i as u32),
+        }
     }
 
     fn dollar(&mut self) -> WordPart {
@@ -406,27 +508,39 @@ impl P<'_> {
                 assert_eq!(self.peek(), Some(b')'), "testkit: unterminated $(");
                 let span = Span::new(start as u32, self.i as u32);
                 self.i += 1;
-                WordPart::CommandSubst { script: Box::new(Script { items, span }) }
+                WordPart::CommandSubst {
+                    script: Box::new(Script { items, span }),
+                }
             }
             Some(b'{') => {
-                let end = self.src[self.i..].find('}').expect("testkit: unterminated ${") + self.i;
+                let end = self.src[self.i..]
+                    .find('}')
+                    .expect("testkit: unterminated ${")
+                    + self.i;
                 let name = self.src[self.i + 1..end].to_string();
                 self.i = end + 1;
                 WordPart::Param { name }
             }
             Some(c) if matches!(c, b'?' | b'#' | b'@' | b'*') || c.is_ascii_digit() => {
                 self.i += 1;
-                WordPart::Param { name: (c as char).to_string() }
+                WordPart::Param {
+                    name: (c as char).to_string(),
+                }
             }
             _ => {
                 let ns = self.i;
-                while self.peek().is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_') {
+                while self
+                    .peek()
+                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                {
                     self.i += 1;
                 }
                 if self.i == ns {
                     WordPart::Literal { text: "$".into() }
                 } else {
-                    WordPart::Param { name: self.src[ns..self.i].to_string() }
+                    WordPart::Param {
+                        name: self.src[ns..self.i].to_string(),
+                    }
                 }
             }
         }
@@ -460,8 +574,13 @@ mod tests {
         let src = "cat a.txt | sort -n > out.txt && echo \"done $X\"";
         let s = parse(src);
         assert_eq!(s.items.len(), 1);
-        let Command::Simple(c) = &s.items[0].first.commands[1] else { panic!() };
-        assert_eq!(&src[c.span.start as usize..c.span.end as usize], "sort -n > out.txt");
+        let Command::Simple(c) = &s.items[0].first.commands[1] else {
+            panic!()
+        };
+        assert_eq!(
+            &src[c.span.start as usize..c.span.end as usize],
+            "sort -n > out.txt"
+        );
         assert_eq!(c.redirects.len(), 1);
     }
 
@@ -470,9 +589,16 @@ mod tests {
         let src = "cat <<EOF\nhello $X\nEOF\necho after\n";
         let s = parse(src);
         assert_eq!(s.items.len(), 2);
-        let Command::Simple(c) = &s.items[0].first.commands[0] else { panic!() };
-        let RedirectTarget::Heredoc { body, .. } = &c.redirects[0].target else { panic!("{:?}", c.redirects) };
-        assert_eq!(&src[body.span.start as usize..body.span.end as usize], "hello $X\n");
+        let Command::Simple(c) = &s.items[0].first.commands[0] else {
+            panic!()
+        };
+        let RedirectTarget::Heredoc { body, .. } = &c.redirects[0].target else {
+            panic!("{:?}", c.redirects)
+        };
+        assert_eq!(
+            &src[body.span.start as usize..body.span.end as usize],
+            "hello $X\n"
+        );
     }
 
     #[test]

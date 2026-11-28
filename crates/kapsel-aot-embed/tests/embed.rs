@@ -66,7 +66,10 @@ const V022_AOT_SHA256: &str = "19e180368077c55d4565bd63cd7063cfc3f242f6f3d3e5dff
 const V022_SHA256: &str = "fbf869e7075a42c804814965603c50231c93c86a65d3c35b529a942a07474a9f";
 
 fn sha(b: &[u8]) -> String {
-    Sha256::digest(b).iter().map(|x| format!("{x:02x}")).collect()
+    Sha256::digest(b)
+        .iter()
+        .map(|x| format!("{x:02x}"))
+        .collect()
 }
 
 /// Needs `KAPSEL_FILEOPS_ORACLE_DIR` holding the v0.2.2 assets

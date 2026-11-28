@@ -15,7 +15,6 @@ mod text;
 mod text2;
 mod timefmt;
 
-
 pub struct Ctx<'a> {
     pub name: String,
     pub sh: &'a mut Shell,
@@ -34,7 +33,6 @@ impl Ctx<'_> {
         let m = format!("{}: {}", operand, errstr(e));
         self.msg(&m);
     }
-
 
     pub fn deny_msg(&mut self, operand: &str, why: grants::GrantErr) {
         let _ = writeln!(self.err, "kapsel: {operand}: {}", why.reason());
@@ -105,10 +103,18 @@ impl Parsed {
         self.flags.iter().any(|(f, _)| *f == c)
     }
     pub fn val(&self, c: char) -> Option<&str> {
-        self.flags.iter().rev().find(|(f, _)| *f == c).and_then(|(_, v)| v.as_deref())
+        self.flags
+            .iter()
+            .rev()
+            .find(|(f, _)| *f == c)
+            .and_then(|(_, v)| v.as_deref())
     }
     pub fn vals(&self, c: char) -> Vec<&str> {
-        self.flags.iter().filter(|(f, _)| *f == c).filter_map(|(_, v)| v.as_deref()).collect()
+        self.flags
+            .iter()
+            .filter(|(f, _)| *f == c)
+            .filter_map(|(_, v)| v.as_deref())
+            .collect()
     }
 }
 
@@ -228,7 +234,13 @@ pub fn getopt(ctx: &mut Ctx, args: &[String], spec: &Spec) -> Result<Parsed, ()>
 
 /// Runs the built-in `args[0]`. Returns the status (256 + n for `exit n`).
 pub fn run(sh: &mut Shell, args: &[String], stdin: Box<dyn Read>, out: Sink, err: Sink) -> i32 {
-    let mut ctx = Ctx { name: args[0].clone(), sh, stdin, out, err };
+    let mut ctx = Ctx {
+        name: args[0].clone(),
+        sh,
+        stdin,
+        out,
+        err,
+    };
     let a = &args[1..];
     match args[0].as_str() {
         ":" | "true" => 0,

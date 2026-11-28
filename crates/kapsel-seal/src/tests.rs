@@ -1,5 +1,5 @@
 use super::*;
-use kapsel_plan::{Call, Grants, PAndOr, PPipeline, PStage, PWord, PLAN_SCHEMA, Span};
+use kapsel_plan::{Call, Grants, PAndOr, PLAN_SCHEMA, PPipeline, PStage, PWord, Span};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -15,7 +15,10 @@ fn plan(source: &str, argv: &[&str], grants: Grants, span_shift: u32) -> Plan {
         schema: PLAN_SCHEMA.into(),
         source_sha256: hex_sha256(source.as_bytes()),
         body: vec![PAndOr {
-            first: PPipeline { negated: false, stages: vec![PStage::Call(call)] },
+            first: PPipeline {
+                negated: false,
+                stages: vec![PStage::Call(call)],
+            },
             rest: vec![],
         }],
         grants,
@@ -53,11 +56,21 @@ fn round_trip_returns_both_input_hashes() {
     let key = SigningKey::generate();
     let (p, m) = sealed(&key);
     let att = verify(&m, &p.normalized_sha256(), &key.trusted()).unwrap();
-    let by = |n: &str| att.inputs.iter().find(|i| i.artifact.name == n).unwrap().artifact.clone();
+    let by = |n: &str| {
+        att.inputs
+            .iter()
+            .find(|i| i.artifact.name == n)
+            .unwrap()
+            .artifact
+            .clone()
+    };
     assert_eq!(by(INPUT_SOURCE).hash, p.source_sha256);
     assert_eq!(by(INPUT_SOURCE).size, SRC.len() as u64);
     assert_eq!(by(INPUT_NORMALIZED_PLAN).hash, p.normalized_sha256());
-    assert_eq!(by(INPUT_NORMALIZED_PLAN).size, serde_json::to_vec(&p.normalized()).unwrap().len() as u64);
+    assert_eq!(
+        by(INPUT_NORMALIZED_PLAN).size,
+        serde_json::to_vec(&p.normalized()).unwrap().len() as u64
+    );
     assert_eq!(att.tool.name, "kapsel-compile");
     assert_eq!(att.tool.version, COMPILER_VERSION);
     assert_eq!(att.tool.parameters["wit"], "kapsel:shell@0.1.0");
@@ -81,7 +94,10 @@ fn flipped_byte_fails() {
     for i in 0..m.len() {
         let mut bad = m.clone();
         bad[i] ^= 0x01;
-        assert!(verify(&bad, &p.normalized_sha256(), &trust).is_err(), "flip at {i} verified");
+        assert!(
+            verify(&bad, &p.normalized_sha256(), &trust).is_err(),
+            "flip at {i} verified"
+        );
     }
 }
 
@@ -90,7 +106,10 @@ fn different_key_fails() {
     let key = SigningKey::generate();
     let (p, m) = sealed(&key);
     let other = SigningKey::generate();
-    assert!(matches!(verify(&m, &p.normalized_sha256(), &other.trusted()), Err(SealError::BadSignature)));
+    assert!(matches!(
+        verify(&m, &p.normalized_sha256(), &other.trusted()),
+        Err(SealError::BadSignature)
+    ));
     assert!(verify(&m, &p.normalized_sha256(), &TrustedKeys::empty()).is_err());
 }
 
@@ -113,7 +132,10 @@ fn stripped_signature_fails() {
     module.sections.retain(|s| !matches!(s, Section::Custom(c) if c.is_signature_header() || c.is_signature_delimiter()));
     let mut stripped = Vec::new();
     module.serialize(&mut stripped).unwrap();
-    assert!(matches!(verify(&stripped, &p.normalized_sha256(), &key.trusted()), Err(SealError::NotSigned)));
+    assert!(matches!(
+        verify(&stripped, &p.normalized_sha256(), &key.trusted()),
+        Err(SealError::NotSigned)
+    ));
 }
 
 #[test]
@@ -124,7 +146,10 @@ fn signed_without_attestation_fails() {
     let signed = key.pair.sk.sign(bare, None).unwrap();
     let mut bytes = Vec::new();
     signed.serialize(&mut bytes).unwrap();
-    assert!(matches!(verify(&bytes, &p.normalized_sha256(), &key.trusted()), Err(SealError::MissingAttestation)));
+    assert!(matches!(
+        verify(&bytes, &p.normalized_sha256(), &key.trusted()),
+        Err(SealError::MissingAttestation)
+    ));
 }
 
 #[test]
@@ -135,21 +160,25 @@ fn wsc_cli_accepts_a_library_sealed_module() {
     let (module, pubkey) = (dir.join("m.wasm"), dir.join("k.pub"));
     std::fs::write(&module, &m).unwrap();
     key.pair.pk.to_file(&pubkey).unwrap();
-    let run = |pk: &PathBuf| match std::process::Command::new("wsc")
-        .args(["verify", "-K"])
-        .arg(pk)
-        .arg("-i")
-        .arg(&module)
-        .output()
-    {
-        Ok(o) => Some(o),
-        Err(_) => None,
+    let run = |pk: &PathBuf| {
+        std::process::Command::new("wsc")
+            .args(["verify", "-K"])
+            .arg(pk)
+            .arg("-i")
+            .arg(&module)
+            .output()
+            .ok()
     };
     let Some(ok) = run(&pubkey) else {
         eprintln!("wsc not on PATH: cross-check skipped");
         return;
     };
-    assert!(ok.status.success(), "wsc verify failed: {}{}", String::from_utf8_lossy(&ok.stdout), String::from_utf8_lossy(&ok.stderr));
+    assert!(
+        ok.status.success(),
+        "wsc verify failed: {}{}",
+        String::from_utf8_lossy(&ok.stdout),
+        String::from_utf8_lossy(&ok.stderr)
+    );
     // Negative control: another key must be refused by the CLI too.
     let other = dir.join("other.pub");
     SigningKey::generate().pair.pk.to_file(&other).unwrap();
@@ -163,7 +192,11 @@ fn key_is_created_once_with_mode_0600_and_reloads() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(dir.join("kapsel.key")).unwrap().permissions().mode() & 0o777;
+        let mode = std::fs::metadata(dir.join("kapsel.key"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(mode, 0o600);
     }
     let b = SigningKey::load_or_create(&dir).unwrap();
@@ -238,7 +271,10 @@ fn wrongly_keyed_cache_entry_is_rejected_and_removed() {
     let key = SigningKey::generate();
     let other = seal(&q, SRC, stand_in(&q).unwrap(), &key).unwrap();
     std::fs::write(&file, other).unwrap();
-    assert!(matches!(cache.get(&p, &key.trusted()), Lookup::Miss(MissReason::Rejected(_))));
+    assert!(matches!(
+        cache.get(&p, &key.trusted()),
+        Lookup::Miss(MissReason::Rejected(_))
+    ));
     assert!(!file.exists());
 }
 
@@ -251,7 +287,12 @@ fn concurrent_put_of_one_key_does_not_corrupt() {
     let trust = key.trusted();
     let mut handles = vec![];
     for _ in 0..8 {
-        let (c, p, m, t) = (cache.clone(), p.clone(), sealed_module.clone(), trust.clone());
+        let (c, p, m, t) = (
+            cache.clone(),
+            p.clone(),
+            sealed_module.clone(),
+            trust.clone(),
+        );
         handles.push(std::thread::spawn(move || {
             for _ in 0..25 {
                 c.put(&p, &m).unwrap();
@@ -281,8 +322,18 @@ fn concurrent_put_of_one_key_does_not_corrupt() {
 
 #[test]
 fn grants_change_the_key_but_never_enter_a_module() {
-    let g1 = Grants { read: vec!["/secret/alpha-input".into()], write: vec![], dynamic: false, native: vec![] };
-    let g2 = Grants { read: vec![], write: vec!["/secret/beta-output".into()], dynamic: false, native: vec![] };
+    let g1 = Grants {
+        read: vec!["/secret/alpha-input".into()],
+        write: vec![],
+        dynamic: false,
+        native: vec![],
+    };
+    let g2 = Grants {
+        read: vec![],
+        write: vec!["/secret/beta-output".into()],
+        dynamic: false,
+        native: vec![],
+    };
     let a = plan(SRC, &["echo", "hi"], g1, 0);
     let b = plan(SRC, &["echo", "hi"], g2, 0);
     assert_ne!(Cache::key(&a), Cache::key(&b));
@@ -293,6 +344,9 @@ fn grants_change_the_key_but_never_enter_a_module() {
     for (p, path) in [(&a, "/secret/alpha-input"), (&b, "/secret/beta-output")] {
         let (m, o) = run(p, SRC, &cache, &key);
         assert_eq!(o, CacheOutcome::Miss(MissReason::Absent));
-        assert!(!m.windows(path.len()).any(|w| w == path.as_bytes()), "{path} appears in the module");
+        assert!(
+            !m.windows(path.len()).any(|w| w == path.as_bytes()),
+            "{path} appears in the module"
+        );
     }
 }

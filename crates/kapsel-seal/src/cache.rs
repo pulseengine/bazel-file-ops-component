@@ -50,7 +50,15 @@ impl Cache {
 
     /// The cache key for a plan: layout-only source changes share it.
     pub fn key(plan: &Plan) -> String {
-        hex_sha256(format!("{}\0{}\0{}", plan.normalized_sha256(), COMPILER_VERSION, WIT_VERSION).as_bytes())
+        hex_sha256(
+            format!(
+                "{}\0{}\0{}",
+                plan.normalized_sha256(),
+                COMPILER_VERSION,
+                WIT_VERSION
+            )
+            .as_bytes(),
+        )
     }
 
     fn path(&self, plan: &Plan) -> PathBuf {

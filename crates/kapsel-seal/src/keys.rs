@@ -21,21 +21,34 @@ pub struct SigningKey {
 
 impl SigningKey {
     pub fn generate() -> Self {
-        SigningKey { pair: KeyPair::generate() }
+        SigningKey {
+            pair: KeyPair::generate(),
+        }
     }
 
     /// Loads a secret key file (as written by [`SigningKey::write`]).
     pub fn from_file(path: &Path) -> Result<Self, SealError> {
         let sk = SecretKey::from_file(path).map_err(|e| SealError::Key(e.to_string()))?;
-        let pk = PublicKey { pk: sk.sk.public_key(), key_id: None };
-        Ok(SigningKey { pair: KeyPair { pk, sk } })
+        let pk = PublicKey {
+            pk: sk.sk.public_key(),
+            key_id: None,
+        };
+        Ok(SigningKey {
+            pair: KeyPair { pk, sk },
+        })
     }
 
     /// Writes the secret key (mode 0600) to `secret` and the public key to
     /// `public` in sigil's raw format, which is what `wsc verify -K` reads.
     pub fn write(&self, secret: &Path, public: &Path) -> Result<(), SealError> {
-        self.pair.sk.to_file(secret).map_err(|e| SealError::Key(e.to_string()))?;
-        self.pair.pk.to_file(public).map_err(|e| SealError::Key(e.to_string()))?;
+        self.pair
+            .sk
+            .to_file(secret)
+            .map_err(|e| SealError::Key(e.to_string()))?;
+        self.pair
+            .pk
+            .to_file(public)
+            .map_err(|e| SealError::Key(e.to_string()))?;
         Ok(())
     }
 
@@ -77,7 +90,9 @@ pub struct TrustedKeys {
 
 impl TrustedKeys {
     pub fn empty() -> Self {
-        TrustedKeys { set: PublicKeySet::empty() }
+        TrustedKeys {
+            set: PublicKeySet::empty(),
+        }
     }
 
     pub(crate) fn add(&mut self, pk: PublicKey) {
@@ -109,11 +124,15 @@ impl TrustedKeys {
 
 /// `$KAPSEL_HOME` if set and non-empty.
 fn kapsel_home() -> Option<PathBuf> {
-    std::env::var_os("KAPSEL_HOME").filter(|v| !v.is_empty()).map(PathBuf::from)
+    std::env::var_os("KAPSEL_HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 /// `$KAPSEL_HOME/keys`, default `~/.config/kapsel/keys`.

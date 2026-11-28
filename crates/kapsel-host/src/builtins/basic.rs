@@ -72,7 +72,8 @@ pub fn echo(ctx: &mut Ctx, a: &[String]) -> i32 {
     let mut i = 0;
     while i < a.len() {
         let w = &a[i];
-        if w.len() > 1 && w.starts_with('-') && w[1..].chars().all(|c| matches!(c, 'n' | 'e' | 'E')) {
+        if w.len() > 1 && w.starts_with('-') && w[1..].chars().all(|c| matches!(c, 'n' | 'e' | 'E'))
+        {
             for c in w[1..].chars() {
                 match c {
                     'n' => nl = false,
@@ -156,14 +157,17 @@ fn parse_int(ctx: &mut Ctx, s: &str, status: &mut i32) -> i128 {
         Some(r) => (true, r),
         None => (false, t.strip_prefix('+').unwrap_or(t)),
     };
-    let (radix, digits) = if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
-        (16, h)
-    } else if body.len() > 1 && body.starts_with('0') {
-        (8, &body[1..])
-    } else {
-        (10, body)
-    };
-    let end = digits.find(|c: char| !c.is_digit(radix)).unwrap_or(digits.len());
+    let (radix, digits) =
+        if let Some(h) = body.strip_prefix("0x").or_else(|| body.strip_prefix("0X")) {
+            (16, h)
+        } else if body.len() > 1 && body.starts_with('0') {
+            (8, &body[1..])
+        } else {
+            (10, body)
+        };
+    let end = digits
+        .find(|c: char| !c.is_digit(radix))
+        .unwrap_or(digits.len());
     if end == 0 {
         ctx.msg(&format!("'{s}': expected a numeric value"));
         *status = 1;
@@ -207,9 +211,18 @@ fn fmt_g(v: f64, prec: Option<usize>, alt: bool, upper: bool) -> String {
         None => 6,
     };
     if v == 0.0 {
-        return if alt { format!("{:.*}", p - 1, 0.0) } else { "0".into() };
+        return if alt {
+            format!("{:.*}", p - 1, 0.0)
+        } else {
+            "0".into()
+        };
     }
-    let x: i32 = format!("{:.*e}", p - 1, v).split_once('e').unwrap().1.parse().unwrap();
+    let x: i32 = format!("{:.*e}", p - 1, v)
+        .split_once('e')
+        .unwrap()
+        .1
+        .parse()
+        .unwrap();
     let mut s = if x >= -4 && (x as i64) < p as i64 {
         format!("{:.*}", (p as i32 - 1 - x).max(0) as usize, v)
     } else {
@@ -220,14 +233,25 @@ fn fmt_g(v: f64, prec: Option<usize>, alt: bool, upper: bool) -> String {
             Some((m, e)) => (m.to_string(), format!("e{e}")),
             None => (s.clone(), String::new()),
         };
-        let mant = if mant.contains('.') { mant.trim_end_matches('0').trim_end_matches('.').to_string() } else { mant };
+        let mant = if mant.contains('.') {
+            mant.trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            mant
+        };
         s = format!("{mant}{exp}");
     }
     if upper { s.to_uppercase() } else { s }
 }
 
 /// One pass over the format. Returns whether any argument was consumed.
-fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: &mut Vec<u8>, status: &mut i32) -> Result<(bool, bool), ()> {
+fn format_once(
+    ctx: &mut Ctx,
+    fmt: &str,
+    args: &[String],
+    pos: &mut usize,
+    out: &mut Vec<u8>,
+    status: &mut i32,
+) -> Result<(bool, bool), ()> {
     let chars: Vec<char> = fmt.chars().collect();
     let mut i = 0;
     let mut used = false;
@@ -260,7 +284,11 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
                     k += 1;
                 }
             }
-            let seg: String = if k > j { chars[i..k].iter().collect() } else { seg };
+            let seg: String = if k > j {
+                chars[i..k].iter().collect()
+            } else {
+                seg
+            };
             let cont = unescape(&seg, out, true);
             i = k;
             if !cont {
@@ -280,7 +308,15 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
             *status = 1;
             return Err(());
         }
-        let mut f = Fmt { minus: false, plus: false, space: false, zero: false, alt: false, width: None, prec: None };
+        let mut f = Fmt {
+            minus: false,
+            plus: false,
+            space: false,
+            zero: false,
+            alt: false,
+            width: None,
+            prec: None,
+        };
         while i < chars.len() {
             match chars[i] {
                 '-' => f.minus = true,
@@ -367,8 +403,19 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
                         digits.insert(0, '0');
                     }
                 }
-                let sign = if v < 0 { "-" } else if f.plus { "+" } else if f.space { " " } else { "" };
-                let ff = Fmt { zero: f.zero && f.prec.is_none(), ..f };
+                let sign = if v < 0 {
+                    "-"
+                } else if f.plus {
+                    "+"
+                } else if f.space {
+                    " "
+                } else {
+                    ""
+                };
+                let ff = Fmt {
+                    zero: f.zero && f.prec.is_none(),
+                    ..f
+                };
                 out.extend_from_slice(pad(format!("{sign}{digits}"), &ff, true).as_bytes());
             }
             'u' | 'o' | 'x' | 'X' => {
@@ -393,7 +440,10 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
                         _ => {}
                     }
                 }
-                let ff = Fmt { zero: f.zero && f.prec.is_none(), ..f };
+                let ff = Fmt {
+                    zero: f.zero && f.prec.is_none(),
+                    ..f
+                };
                 out.extend_from_slice(pad(digits, &ff, true).as_bytes());
             }
             'f' | 'F' | 'e' | 'E' | 'g' | 'G' => {
@@ -405,7 +455,15 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
                     _ => fmt_g(v.abs(), f.prec, f.alt, conv == 'G'),
                 };
                 let neg = v.is_sign_negative() && !(v == 0.0 && false);
-                let sign = if neg { "-" } else if f.plus { "+" } else if f.space { " " } else { "" };
+                let sign = if neg {
+                    "-"
+                } else if f.plus {
+                    "+"
+                } else if f.space {
+                    " "
+                } else {
+                    ""
+                };
                 s = format!("{sign}{s}");
                 out.extend_from_slice(pad(s, &f, true).as_bytes());
             }
@@ -420,7 +478,11 @@ fn format_once(ctx: &mut Ctx, fmt: &str, args: &[String], pos: &mut usize, out: 
 }
 
 pub fn printf(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let a: Vec<String> = if a.first().map(|s| s.as_str()) == Some("--") { a[1..].to_vec() } else { a.to_vec() };
+    let a: Vec<String> = if a.first().map(|s| s.as_str()) == Some("--") {
+        a[1..].to_vec()
+    } else {
+        a.to_vec()
+    };
     if a.is_empty() {
         ctx.msg("missing operand");
         return 2;
@@ -455,16 +517,30 @@ pub fn printf(ctx: &mut Ctx, a: &[String]) -> i32 {
 // ---- pwd cd export exit ----------------------------------------------------
 
 pub fn pwd(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let spec = Spec { short: "LP", long: &[], numeric: false, supported: "-L -P (the working directory is always physical)" };
-    let Ok(_p) = getopt(ctx, a, &spec) else { return 2 };
+    let spec = Spec {
+        short: "LP",
+        long: &[],
+        numeric: false,
+        supported: "-L -P (the working directory is always physical)",
+    };
+    let Ok(_p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let s = format!("{}\n", ctx.sh.cwd.display());
     ctx.puts(&s);
     0
 }
 
 pub fn cd(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let spec = Spec { short: "", long: &[], numeric: false, supported: "no flags; usage: cd [DIR | -]" };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let spec = Spec {
+        short: "",
+        long: &[],
+        numeric: false,
+        supported: "no flags; usage: cd [DIR | -]",
+    };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     if p.operands.len() > 1 {
         ctx.msg("too many arguments");
         return 1;
@@ -490,7 +566,9 @@ pub fn cd(ctx: &mut Ctx, a: &[String]) -> i32 {
         },
         Some(t) => t.to_string(),
     };
-    let Some(r) = ctx.rpath(&target) else { return 1 };
+    let Some(r) = ctx.rpath(&target) else {
+        return 1;
+    };
     match std::fs::metadata(&r) {
         Ok(md) if md.is_dir() => {}
         Ok(_) => {
@@ -515,18 +593,32 @@ pub fn cd(ctx: &mut Ctx, a: &[String]) -> i32 {
 
 fn valid_name(n: &str) -> bool {
     let mut c = n.chars();
-    matches!(c.next(), Some(x) if x.is_ascii_alphabetic() || x == '_') && c.all(|x| x.is_ascii_alphanumeric() || x == '_')
+    matches!(c.next(), Some(x) if x.is_ascii_alphabetic() || x == '_')
+        && c.all(|x| x.is_ascii_alphanumeric() || x == '_')
 }
 
 pub fn export(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let spec = Spec { short: "p", long: &[], numeric: false, supported: "-p; usage: export [NAME[=VALUE]]..." };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let spec = Spec {
+        short: "p",
+        long: &[],
+        numeric: false,
+        supported: "-p; usage: export [NAME[=VALUE]]...",
+    };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     if p.operands.is_empty() {
         let lines: Vec<String> = ctx
             .sh
             .exported
             .iter()
-            .map(|n| format!("export {}=\"{}\"\n", n, ctx.sh.vars.get(n).cloned().unwrap_or_default()))
+            .map(|n| {
+                format!(
+                    "export {}=\"{}\"\n",
+                    n,
+                    ctx.sh.vars.get(n).cloned().unwrap_or_default()
+                )
+            })
             .collect();
         for l in lines {
             ctx.puts(&l);
@@ -577,8 +669,12 @@ struct TestParser<'a, 'b> {
     pos: usize,
 }
 
-const UNARY: &[&str] = &["-e", "-f", "-d", "-r", "-w", "-x", "-s", "-z", "-n", "-L", "-h"];
-const BINARY: &[&str] = &["=", "==", "!=", "<", ">", "-eq", "-ne", "-lt", "-le", "-gt", "-ge"];
+const UNARY: &[&str] = &[
+    "-e", "-f", "-d", "-r", "-w", "-x", "-s", "-z", "-n", "-L", "-h",
+];
+const BINARY: &[&str] = &[
+    "=", "==", "!=", "<", ">", "-eq", "-ne", "-lt", "-le", "-gt", "-ge",
+];
 
 impl TestParser<'_, '_> {
     fn peek(&self, k: usize) -> Option<&str> {
@@ -623,7 +719,11 @@ impl TestParser<'_, '_> {
             return Ok(v);
         }
         let rem = self.t.len() - self.pos;
-        if rem >= 3 && self.peek(1).is_some_and(|o| o.starts_with('-') || BINARY.contains(&o)) {
+        if rem >= 3
+            && self
+                .peek(1)
+                .is_some_and(|o| o.starts_with('-') || BINARY.contains(&o))
+        {
             let op = self.peek(1).unwrap().to_string();
             if BINARY.contains(&op.as_str()) {
                 let rhs = self.t[self.pos + 2].clone();
@@ -631,16 +731,26 @@ impl TestParser<'_, '_> {
                 return self.binary(&tok, &op, &rhs);
             }
             if !matches!(op.as_str(), "-a" | "-o") {
-                return Err(format!("unsupported operator '{op}'; supported: {}", supported_ops()));
+                return Err(format!(
+                    "unsupported operator '{op}'; supported: {}",
+                    supported_ops()
+                ));
             }
         }
-        if rem >= 2 && tok.starts_with('-') && tok.len() == 2 && !matches!(tok.as_str(), "-a" | "-o") {
+        if rem >= 2
+            && tok.starts_with('-')
+            && tok.len() == 2
+            && !matches!(tok.as_str(), "-a" | "-o")
+        {
             if UNARY.contains(&tok.as_str()) {
                 let arg = self.t[self.pos + 1].clone();
                 self.pos += 2;
                 return Ok(self.unary(&tok, &arg));
             }
-            return Err(format!("unsupported operator '{tok}'; supported: {}", supported_ops()));
+            return Err(format!(
+                "unsupported operator '{tok}'; supported: {}",
+                supported_ops()
+            ));
         }
         self.pos += 1;
         Ok(!tok.is_empty())
@@ -651,8 +761,14 @@ impl TestParser<'_, '_> {
             "-n" => return !arg.is_empty(),
             _ => {}
         }
-        let Some(p) = self.ctx.rpath(arg) else { return false };
-        let md = if op == "-L" || op == "-h" { std::fs::symlink_metadata(&p) } else { std::fs::metadata(&p) };
+        let Some(p) = self.ctx.rpath(arg) else {
+            return false;
+        };
+        let md = if op == "-L" || op == "-h" {
+            std::fs::symlink_metadata(&p)
+        } else {
+            std::fs::metadata(&p)
+        };
         let Ok(md) = md else { return false };
         use std::os::unix::fs::PermissionsExt;
         let mode = md.permissions().mode();
@@ -675,8 +791,14 @@ impl TestParser<'_, '_> {
             "<" => Ok(l < r),
             ">" => Ok(l > r),
             _ => {
-                let a: i64 = l.trim().parse().map_err(|_| format!("{l}: integer expression expected"))?;
-                let b: i64 = r.trim().parse().map_err(|_| format!("{r}: integer expression expected"))?;
+                let a: i64 = l
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("{l}: integer expression expected"))?;
+                let b: i64 = r
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("{r}: integer expression expected"))?;
                 Ok(match op {
                     "-eq" => a == b,
                     "-ne" => a != b,
@@ -712,10 +834,17 @@ pub fn test(ctx: &mut Ctx, a: &[String], bracket: bool) -> i32 {
     let leftover = p.t.get(p.pos).cloned();
     match r {
         Ok(v) if done => {
-            if v { 0 } else { 1 }
+            if v {
+                0
+            } else {
+                1
+            }
         }
         Ok(_) => {
-            ctx.msg(&format!("{}: unexpected argument", leftover.unwrap_or_default()));
+            ctx.msg(&format!(
+                "{}: unexpected argument",
+                leftover.unwrap_or_default()
+            ));
             2
         }
         Err(e) => {

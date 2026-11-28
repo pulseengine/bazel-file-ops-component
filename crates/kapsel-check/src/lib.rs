@@ -10,8 +10,8 @@
 
 use kapsel_ast as ast;
 use kapsel_plan::{
-    Call, CheckOutcome, Finding, Grants, PAndOr, PPart, PPipeline, PRedirect, PRedirectTarget,
-    PStage, PWord, Plan, Refusal, Severity, Tool, PLAN_SCHEMA,
+    Call, CheckOutcome, Finding, Grants, PAndOr, PLAN_SCHEMA, PPart, PPipeline, PRedirect,
+    PRedirectTarget, PStage, PWord, Plan, Refusal, Severity, Tool,
 };
 use sha2::{Digest, Sha256};
 
@@ -44,8 +44,9 @@ const SHELLS: &[&str] = &["sh", "bash", "dash", "zsh", "ksh"];
 /// Programs that fetch from the network (KS-R006).
 const FETCHERS: &[&str] = &["curl", "wget"];
 /// Programs that run what they are fed (KS-R006).
-const INTERPRETERS: &[&str] =
-    &["sh", "bash", "dash", "zsh", "ksh", "python", "python3", "perl", "ruby", "node"];
+const INTERPRETERS: &[&str] = &[
+    "sh", "bash", "dash", "zsh", "ksh", "python", "python3", "perl", "ruby", "node",
+];
 
 fn sha256_hex(text: &str) -> String {
     let digest = Sha256::digest(text.as_bytes());
@@ -55,24 +56,58 @@ fn sha256_hex(text: &str) -> String {
 /// Why each rule exists: one fixed note per rule, so the text is reviewed like code.
 fn notes_for(rule: &str) -> Vec<String> {
     let n: &[&str] = match rule {
-        R000 => &["kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)"],
-        R001 => &["`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)"],
-        R002 => &["2>/dev/null appears in 21% of measured agent shell calls and hides the error the next step needs"],
-        R003 => &["a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"],
-        R004 => &["code assembled from strings cannot be checked before it runs, so it would bypass every other rule"],
-        R005 => &["kapsel fixes its status rules (no implicit `set -e`, no pipefail) so a plan means the same thing every time"],
-        R006 => &["piping the network into an interpreter runs code nobody reviewed, with the session's grants"],
-        R007 => &["a plan must end when kapsel ends; detached processes keep running with no check and no record"],
+        R000 => &[
+            "kapsel runs a small, fully parsed subset of POSIX sh; anything outside it is refused instead of guessed at (REQ-KS-010)",
+        ],
+        R001 => &[
+            "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+        ],
+        R002 => &[
+            "2>/dev/null appears in 21% of measured agent shell calls and hides the error the next step needs",
+        ],
+        R003 => &[
+            "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything",
+        ],
+        R004 => &[
+            "code assembled from strings cannot be checked before it runs, so it would bypass every other rule",
+        ],
+        R005 => &[
+            "kapsel fixes its status rules (no implicit `set -e`, no pipefail) so a plan means the same thing every time",
+        ],
+        R006 => &[
+            "piping the network into an interpreter runs code nobody reviewed, with the session's grants",
+        ],
+        R007 => &[
+            "a plan must end when kapsel ends; detached processes keep running with no check and no record",
+        ],
         R008 => &["pattern kills also hit processes this session never started"],
-        R009 => &["every command is compiled to a WASM component and run in a sandbox; programs outside the built-in list need native tools, planned for v0.5 (REQ-KS-030)"],
-        R011 => &["`|| echo` was how two CI steps in kapsel#143 passed while the build or signature check had failed"],
-        R012 => &["an unquoted expansion in a redirect target splits or globs when the value has spaces or wildcards, and shells differ on whether that is an error"],
-        R013 => &["`[ $n -eq 0 ]` with an empty `n` becomes `[ -eq 0 ]`, a syntax error that reads as false"],
-        R014 => &["`cd X; cmd` runs `cmd` in the old directory when the cd fails (3 measured in agent calls)"],
-        R015 => &["an unquoted glob in `--include=*.rs` was the commonest single failure in measured agent shell calls (268 `no matches found`)"],
-        R016 => &["the status of a pipeline is its last stage, so a missing path in an earlier stage prints an error and still exits 0 (187 measured)"],
-        R017 => &["an unset or empty variable at the start of a path silently turns `\"$DIR/x\"` into `/x` (91 measured)"],
-        R010 => &["the command name decides what the grant check applies to, so it must be known before the plan is accepted"],
+        R009 => &[
+            "every command is compiled to a WASM component and run in a sandbox; programs outside the built-in list need native tools, planned for v0.5 (REQ-KS-030)",
+        ],
+        R011 => &[
+            "`|| echo` was how two CI steps in kapsel#143 passed while the build or signature check had failed",
+        ],
+        R012 => &[
+            "an unquoted expansion in a redirect target splits or globs when the value has spaces or wildcards, and shells differ on whether that is an error",
+        ],
+        R013 => &[
+            "`[ $n -eq 0 ]` with an empty `n` becomes `[ -eq 0 ]`, a syntax error that reads as false",
+        ],
+        R014 => &[
+            "`cd X; cmd` runs `cmd` in the old directory when the cd fails (3 measured in agent calls)",
+        ],
+        R015 => &[
+            "an unquoted glob in `--include=*.rs` was the commonest single failure in measured agent shell calls (268 `no matches found`)",
+        ],
+        R016 => &[
+            "the status of a pipeline is its last stage, so a missing path in an earlier stage prints an error and still exits 0 (187 measured)",
+        ],
+        R017 => &[
+            "an unset or empty variable at the start of a path silently turns `\"$DIR/x\"` into `/x` (91 measured)",
+        ],
+        R010 => &[
+            "the command name decides what the grant check applies to, so it must be known before the plan is accepted",
+        ],
         _ => &[],
     };
     n.iter().map(|s| s.to_string()).collect()
@@ -141,10 +176,19 @@ fn edit_distance(a: &str, b: &str) -> usize {
 }
 
 fn excerpt(source: &str, span: ast::Span) -> String {
-    source.get(span.start as usize..span.end as usize).unwrap_or("").to_string()
+    source
+        .get(span.start as usize..span.end as usize)
+        .unwrap_or("")
+        .to_string()
 }
 
-fn finding(source: &str, rule: &str, severity: Severity, message: String, span: ast::Span) -> Finding {
+fn finding(
+    source: &str,
+    rule: &str,
+    severity: Severity,
+    message: String,
+    span: ast::Span,
+) -> Finding {
     Finding {
         rule: rule.to_string(),
         severity,
@@ -168,10 +212,17 @@ fn refusal(source: &str, findings: Vec<Finding>) -> CheckOutcome {
 /// Checks a parsed script. `source` is the exact text it was parsed from
 /// (for `source_sha256` and finding excerpts).
 pub fn check(source: &str, script: &ast::Script) -> CheckOutcome {
-    let mut cx = Cx { source, findings: Vec::new(), grants: Grants::default(), cd_seen: false };
+    let mut cx = Cx {
+        source,
+        findings: Vec::new(),
+        grants: Grants::default(),
+        cd_seen: false,
+    };
     let body = cx.lower_list(&script.items, false);
     let mut findings = cx.findings;
-    findings.sort_by(|a, b| (a.span.start, a.span.end, &a.rule).cmp(&(b.span.start, b.span.end, &b.rule)));
+    findings.sort_by(|a, b| {
+        (a.span.start, a.span.end, &a.rule).cmp(&(b.span.start, b.span.end, &b.rule))
+    });
     if findings.iter().any(|f| f.severity == Severity::Refuse) {
         return refusal(source, findings);
     }
@@ -266,13 +317,13 @@ impl Cx<'_> {
             if n + 1 < items.len()
                 && let Some(span) = ends_with_cd(i)
             {
-                    self.warn(
+                self.warn(
                         R014,
                         "`cd` is followed by more commands that run in the old directory if the `cd` fails"
                             .to_string(),
                         span,
                     );
-                    self.help(help_for(R014, ""));
+                self.help(help_for(R014, ""));
             }
             out.push(self.lower_and_or(i, in_condition));
         }
@@ -301,14 +352,23 @@ impl Cx<'_> {
         if rhs.negated || rhs.commands.len() != 1 {
             return;
         }
-        let ast::Command::Simple(cmd) = &rhs.commands[0] else { return };
-        let Some(name) = cmd.words.first().and_then(literal_of) else { return };
+        let ast::Command::Simple(cmd) = &rhs.commands[0] else {
+            return;
+        };
+        let Some(name) = cmd.words.first().and_then(literal_of) else {
+            return;
+        };
         if name != "true" && name != ":" {
             return;
         }
         // Widen the span back over the `||` operator when the text allows it.
-        let gap = self.source.get(prev_end as usize..rhs.span.start as usize).unwrap_or("");
-        let start = gap.rfind("||").map_or(rhs.span.start, |i| prev_end + i as u32);
+        let gap = self
+            .source
+            .get(prev_end as usize..rhs.span.start as usize)
+            .unwrap_or("");
+        let start = gap
+            .rfind("||")
+            .map_or(rhs.span.start, |i| prev_end + i as u32);
         self.refuse(
             R001,
             format!(
@@ -328,9 +388,14 @@ impl Cx<'_> {
             .commands
             .iter()
             .enumerate()
-            .map(|(i, c)| self.lower_command(c, handled && i + 1 == n, claimed.contains(&i), i + 1 == n))
+            .map(|(i, c)| {
+                self.lower_command(c, handled && i + 1 == n, claimed.contains(&i), i + 1 == n)
+            })
             .collect();
-        PPipeline { negated: p.negated, stages }
+        PPipeline {
+            negated: p.negated,
+            stages,
+        }
     }
 
     /// KS-R006: network fetch piped into an interpreter. Returns the stage
@@ -346,7 +411,9 @@ impl Cx<'_> {
             .collect();
         let mut claimed = Vec::new();
         for (j, nj) in names.iter().enumerate() {
-            let Some(interp) = nj.as_deref().filter(|n| INTERPRETERS.contains(n)) else { continue };
+            let Some(interp) = nj.as_deref().filter(|n| INTERPRETERS.contains(n)) else {
+                continue;
+            };
             let Some(i) =
                 (0..j).find(|&i| names[i].as_deref().is_some_and(|n| FETCHERS.contains(&n)))
             else {
@@ -371,7 +438,13 @@ impl Cx<'_> {
         claimed
     }
 
-    fn lower_command(&mut self, c: &ast::Command, handled: bool, claimed: bool, last: bool) -> PStage {
+    fn lower_command(
+        &mut self,
+        c: &ast::Command,
+        handled: bool,
+        claimed: bool,
+        last: bool,
+    ) -> PStage {
         match c {
             ast::Command::Simple(s) => PStage::Call(self.lower_simple(s, handled, claimed, last)),
             ast::Command::For(f) => {
@@ -380,7 +453,11 @@ impl Cx<'_> {
                 }
                 let items = f.items.iter().map(|w| self.lower_word(w)).collect();
                 let body = self.lower_list(&f.body, false);
-                PStage::For { var: f.var.clone(), items, body }
+                PStage::For {
+                    var: f.var.clone(),
+                    items,
+                    body,
+                }
             }
             ast::Command::While(w) => {
                 if contains_cd(&w.condition) || contains_cd(&w.body) {
@@ -388,20 +465,41 @@ impl Cx<'_> {
                 }
                 let condition = self.lower_list(&w.condition, true);
                 let body = self.lower_list(&w.body, false);
-                PStage::While { until: w.until, condition, body }
+                PStage::While {
+                    until: w.until,
+                    condition,
+                    body,
+                }
             }
         }
     }
 
-    fn lower_simple(&mut self, s: &ast::SimpleCommand, handled: bool, claimed: bool, last: bool) -> Call {
-        let assignments: Vec<(String, PWord)> =
-            s.assignments.iter().map(|a| (a.name.clone(), self.lower_word(&a.value))).collect();
+    fn lower_simple(
+        &mut self,
+        s: &ast::SimpleCommand,
+        handled: bool,
+        claimed: bool,
+        last: bool,
+    ) -> Call {
+        let assignments: Vec<(String, PWord)> = s
+            .assignments
+            .iter()
+            .map(|a| (a.name.clone(), self.lower_word(&a.value)))
+            .collect();
         let argv: Vec<PWord> = s.words.iter().map(|w| self.lower_word(w)).collect();
-        let redirects: Vec<PRedirect> = s.redirects.iter().map(|r| self.lower_redirect(r, handled)).collect();
+        let redirects: Vec<PRedirect> = s
+            .redirects
+            .iter()
+            .map(|r| self.lower_redirect(r, handled))
+            .collect();
         // A redirect-only command (`> f`) is `:` with redirects: POSIX creates or
         // truncates the file and the status is 0.
         let redirect_only = argv.is_empty() && assignments.is_empty() && !redirects.is_empty();
-        let argv = if redirect_only { vec![PWord::literal(":")] } else { argv };
+        let argv = if redirect_only {
+            vec![PWord::literal(":")]
+        } else {
+            argv
+        };
         let tool = if redirect_only {
             Some(Tool::Builtin(":".to_string()))
         } else if argv.is_empty() {
@@ -409,7 +507,13 @@ impl Cx<'_> {
         } else {
             self.classify(s, &argv, claimed)
         };
-        let call = Call { tool, argv, assignments, redirects, span: s.span };
+        let call = Call {
+            tool,
+            argv,
+            assignments,
+            redirects,
+            span: s.span,
+        };
         self.check_option_globs(s);
         self.collect_grants(&call, s, last);
         call
@@ -429,9 +533,8 @@ impl Cx<'_> {
             return None;
         };
         let args = &argv[1..];
-        let has_opt = |f: &dyn Fn(&str) -> bool| {
-            args.iter().filter_map(|a| a.as_literal()).any(|t| f(&t))
-        };
+        let has_opt =
+            |f: &dyn Fn(&str) -> bool| args.iter().filter_map(|a| a.as_literal()).any(|t| f(&t));
         let specific = match name.as_str() {
             "eval" | "source" | "." => {
                 self.refuse(
@@ -629,7 +732,11 @@ impl Cx<'_> {
                 PRedirectTarget::Heredoc { body: w }
             }
         };
-        PRedirect { fd, op: r.op, target }
+        PRedirect {
+            fd,
+            op: r.op,
+            target,
+        }
     }
 
     fn lower_word(&mut self, w: &ast::Word) -> PWord {
@@ -642,20 +749,30 @@ impl Cx<'_> {
 
     fn lower_part(&mut self, p: &ast::WordPart, quoted: bool, out: &mut Vec<PPart>) {
         match p {
-            ast::WordPart::Literal { text } => out.push(PPart::Lit { text: text.clone(), quoted }),
-            ast::WordPart::SingleQuoted { text } => {
-                out.push(PPart::Lit { text: text.clone(), quoted: true })
-            }
+            ast::WordPart::Literal { text } => out.push(PPart::Lit {
+                text: text.clone(),
+                quoted,
+            }),
+            ast::WordPart::SingleQuoted { text } => out.push(PPart::Lit {
+                text: text.clone(),
+                quoted: true,
+            }),
             ast::WordPart::DoubleQuoted { parts } => {
                 if parts.is_empty() {
                     // `""` is an empty word, not no word.
-                    out.push(PPart::Lit { text: String::new(), quoted: true });
+                    out.push(PPart::Lit {
+                        text: String::new(),
+                        quoted: true,
+                    });
                 }
                 for q in parts {
                     self.lower_part(q, true, out);
                 }
             }
-            ast::WordPart::Param { name } => out.push(PPart::Var { name: name.clone(), quoted }),
+            ast::WordPart::Param { name } => out.push(PPart::Var {
+                name: name.clone(),
+                quoted,
+            }),
             ast::WordPart::CommandSubst { script } => {
                 let body = self.lower_list(&script.items, false);
                 out.push(PPart::Capture { body, quoted });
@@ -663,9 +780,14 @@ impl Cx<'_> {
             ast::WordPart::Glob { glob } => {
                 if quoted {
                     // Defensive: a glob inside quotes is plain text.
-                    out.push(PPart::Lit { text: glob_text(glob), quoted: true });
+                    out.push(PPart::Lit {
+                        text: glob_text(glob),
+                        quoted: true,
+                    });
                 } else {
-                    out.push(PPart::Glob { pattern: glob_text(glob) });
+                    out.push(PPart::Glob {
+                        pattern: glob_text(glob),
+                    });
                 }
             }
         }
@@ -673,12 +795,18 @@ impl Cx<'_> {
 
     /// KS-R011: `cmd || echo ...` as the last step turns a failure into success.
     fn check_or_echo(&mut self, item: &ast::AndOrList) {
-        let Some((op, rhs)) = item.rest.last() else { return };
+        let Some((op, rhs)) = item.rest.last() else {
+            return;
+        };
         if *op != ast::AndOrOp::Or || rhs.negated || rhs.commands.len() != 1 {
             return;
         }
-        let ast::Command::Simple(cmd) = &rhs.commands[0] else { return };
-        let Some(name) = cmd.words.first().and_then(literal_of) else { return };
+        let ast::Command::Simple(cmd) = &rhs.commands[0] else {
+            return;
+        };
+        let Some(name) = cmd.words.first().and_then(literal_of) else {
+            return;
+        };
         if name != "echo" && name != "printf" {
             return;
         }
@@ -686,8 +814,13 @@ impl Cx<'_> {
             1 => item.first.span.end,
             n => item.rest[n - 2].1.span.end,
         };
-        let gap = self.source.get(prev_end as usize..rhs.span.start as usize).unwrap_or("");
-        let start = gap.rfind("||").map_or(rhs.span.start, |i| prev_end + i as u32);
+        let gap = self
+            .source
+            .get(prev_end as usize..rhs.span.start as usize)
+            .unwrap_or("");
+        let start = gap
+            .rfind("||")
+            .map_or(rhs.span.start, |i| prev_end + i as u32);
         self.warn(
             R011,
             format!(
@@ -757,8 +890,12 @@ impl Cx<'_> {
     /// it came from, and whether some option was not understood.
     fn accesses(call: &Call, s: &ast::SimpleCommand) -> (Vec<(PWord, Access, ast::Span)>, bool) {
         let mut out: Vec<(PWord, Access, ast::Span)> = Vec::new();
-        let Some(Tool::Builtin(name)) = &call.tool else { return (out, false) };
-        let Some(spec) = spec_for(name) else { return (out, false) };
+        let Some(Tool::Builtin(name)) = &call.tool else {
+            return (out, false);
+        };
+        let Some(spec) = spec_for(name) else {
+            return (out, false);
+        };
         let args = &call.argv[1..];
         let spans: Vec<ast::Span> = s.words.iter().skip(1).map(|w| w.span).collect();
         let sp = split_args(&spec, args, &spans);
@@ -802,13 +939,18 @@ impl Cx<'_> {
                         out.push((w.clone(), Access::Read, *span));
                     }
                 }
-                let files: Vec<(&PWord, ast::Span)> = sp.positional.get(skip..).unwrap_or(&[]).to_vec();
+                let files: Vec<(&PWord, ast::Span)> =
+                    sp.positional.get(skip..).unwrap_or(&[]).to_vec();
                 let in_place = name == "sed" && sp.opts.iter().any(|o| sed_in_place(o));
                 if name == "sed" {
                     // A script can write files (`w`) or run commands (`e`);
                     // an expansion in it can be anything.
-                    let mut scripts: Vec<&PWord> =
-                        sp.values.iter().filter(|(k, _, _)| *k == 'e').map(|(_, w, _)| w).collect();
+                    let mut scripts: Vec<&PWord> = sp
+                        .values
+                        .iter()
+                        .filter(|(k, _, _)| *k == 'e')
+                        .map(|(_, w, _)| w)
+                        .collect();
                     if skip == 1 {
                         scripts.extend(sp.positional.first().map(|(w, _)| *w));
                     }
@@ -828,7 +970,12 @@ impl Cx<'_> {
                 }
                 // BSD `sed -i ""`: the empty word is a suffix there and a
                 // script here; the meaning of every later word is unclear.
-                if in_place && sp.positional.iter().any(|(w, _)| w.as_literal().as_deref() == Some("")) {
+                if in_place
+                    && sp
+                        .positional
+                        .iter()
+                        .any(|(w, _)| w.as_literal().as_deref() == Some(""))
+                {
                     return (out, true);
                 }
             }
@@ -885,7 +1032,9 @@ impl Cx<'_> {
         };
         // `rm -r` with an empty-able prefix is already KS-R003.
         let skip_r017 = name == "rm"
-            && self.findings.iter().any(|f| f.rule == R003 && f.span.start >= s.span.start && f.span.end <= s.span.end);
+            && self.findings.iter().any(|f| {
+                f.rule == R003 && f.span.start >= s.span.start && f.span.end <= s.span.end
+            });
         for (w, access, span) in &acc {
             if !skip_r017 {
                 self.check_empty_prefix(w, *span);
@@ -894,7 +1043,10 @@ impl Cx<'_> {
             if !last_stage
                 && *access == Access::Read
                 && w.as_literal().is_some()
-                && matches!(name.as_str(), "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort")
+                && matches!(
+                    name.as_str(),
+                    "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort"
+                )
             {
                 let path = w.as_literal().unwrap_or_default();
                 self.warn(
@@ -939,13 +1091,17 @@ impl Cx<'_> {
 fn contains_cd(items: &[ast::AndOrList]) -> bool {
     fn cmd(c: &ast::Command) -> bool {
         match c {
-            ast::Command::Simple(s) => s.words.first().and_then(literal_of).as_deref() == Some("cd"),
+            ast::Command::Simple(s) => {
+                s.words.first().and_then(literal_of).as_deref() == Some("cd")
+            }
             ast::Command::For(f) => contains_cd(&f.body),
             ast::Command::While(w) => contains_cd(&w.condition) || contains_cd(&w.body),
         }
     }
     items.iter().any(|i| {
-        std::iter::once(&i.first).chain(i.rest.iter().map(|(_, p)| p)).any(|p| p.commands.iter().any(cmd))
+        std::iter::once(&i.first)
+            .chain(i.rest.iter().map(|(_, p)| p))
+            .any(|p| p.commands.iter().any(cmd))
     })
 }
 
@@ -957,7 +1113,11 @@ fn ends_with_cd(item: &ast::AndOrList) -> Option<ast::Span> {
         return None;
     }
     match &last.commands[0] {
-        ast::Command::Simple(s) if s.words.first().and_then(literal_of).as_deref() == Some("cd") => Some(s.span),
+        ast::Command::Simple(s)
+            if s.words.first().and_then(literal_of).as_deref() == Some("cd") =>
+        {
+            Some(s.span)
+        }
         _ => None,
     }
 }
@@ -970,7 +1130,6 @@ fn unquoted_expansion(w: &ast::Word) -> bool {
         _ => false,
     })
 }
-
 
 fn literal_of(w: &ast::Word) -> Option<String> {
     let mut out = String::new();

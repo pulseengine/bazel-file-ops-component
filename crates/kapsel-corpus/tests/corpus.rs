@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap()
 }
 
 /// The kapsel binary: `KAPSEL_BIN`, or the workspace's debug build.
@@ -28,7 +31,10 @@ fn scratch(name: &str, side: &str) -> PathBuf {
 /// Relative path -> contents for every file under `dir` (directories as "<dir>").
 fn tree(dir: &Path) -> BTreeMap<String, Vec<u8>> {
     fn walk(base: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
-        let mut entries: Vec<_> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        let mut entries: Vec<_> = fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
         entries.sort();
         for p in entries {
             let rel = p.strip_prefix(base).unwrap().to_string_lossy().into_owned();
@@ -51,11 +57,16 @@ fn tree(dir: &Path) -> BTreeMap<String, Vec<u8>> {
 /// placeholder before comparing.
 fn normalize(files: BTreeMap<String, Vec<u8>>, cwd: &Path) -> BTreeMap<String, Vec<u8>> {
     let logical = cwd.to_string_lossy().into_owned();
-    let physical = cwd.canonicalize().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| logical.clone());
+    let physical = cwd
+        .canonicalize()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| logical.clone());
     files
         .into_iter()
         .map(|(k, v)| {
-            let s = String::from_utf8_lossy(&v).replace(&physical, "<cwd>").replace(&logical, "<cwd>");
+            let s = String::from_utf8_lossy(&v)
+                .replace(&physical, "<cwd>")
+                .replace(&logical, "<cwd>");
             (k, if v == b"<dir>" { v } else { s.into_bytes() })
         })
         .collect()
@@ -107,31 +118,51 @@ fn corpus_agrees_with_dash() {
     for script in &scripts {
         let name = script.file_stem().unwrap().to_string_lossy().into_owned();
         let home = scratch(&name, "home");
-        let dash = run(Path::new("/bin/dash"), script, &scratch(&name, "dash"), &home);
+        let dash = run(
+            Path::new("/bin/dash"),
+            script,
+            &scratch(&name, "dash"),
+            &home,
+        );
         let kapsel = run(&bin, script, &scratch(&name, "kapsel"), &home);
         let mut diffs = Vec::new();
         if dash.stdout != kapsel.stdout {
-            diffs.push(format!("stdout\n  dash:   {:?}\n  kapsel: {:?}", dash.stdout, kapsel.stdout));
+            diffs.push(format!(
+                "stdout\n  dash:   {:?}\n  kapsel: {:?}",
+                dash.stdout, kapsel.stdout
+            ));
         }
         if dash.status != kapsel.status {
-            diffs.push(format!("status dash {:?} kapsel {:?}", dash.status, kapsel.status));
+            diffs.push(format!(
+                "status dash {:?} kapsel {:?}",
+                dash.status, kapsel.status
+            ));
         }
         if dash.files != kapsel.files {
             let d: Vec<_> = dash.files.keys().collect();
             let k: Vec<_> = kapsel.files.keys().collect();
-            diffs.push(format!("files\n  dash:   {d:?}\n  kapsel: {k:?} (or contents differ)"));
+            diffs.push(format!(
+                "files\n  dash:   {d:?}\n  kapsel: {k:?} (or contents differ)"
+            ));
         }
         if !diffs.is_empty() {
             mismatches.push(format!("{name}: {}", diffs.join("; ")));
         }
     }
-    let _ = fs::remove_dir_all(std::env::temp_dir().join(format!("kapsel-corpus-{}", std::process::id())));
+    let _ = fs::remove_dir_all(
+        std::env::temp_dir().join(format!("kapsel-corpus-{}", std::process::id())),
+    );
 
     println!("{} scripts, {} mismatches", scripts.len(), mismatches.len());
     for m in &mismatches {
         println!("MISMATCH {m}");
     }
     if cfg!(target_os = "linux") {
-        assert!(mismatches.is_empty(), "{} of {} scripts disagree with dash", mismatches.len(), scripts.len());
+        assert!(
+            mismatches.is_empty(),
+            "{} of {} scripts disagree with dash",
+            mismatches.len(),
+            scripts.len()
+        );
     }
 }

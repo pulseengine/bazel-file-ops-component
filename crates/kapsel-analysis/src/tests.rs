@@ -22,8 +22,14 @@ fn session(cmds: &[(&str, Option<i32>)]) -> (String, Vec<SessionFinding>) {
     let texts: Vec<&str> = cmds.iter().map(|c| c.0).collect();
     let (history, offsets) = history_text(&texts);
     let shaped: Vec<_> = cmds.iter().map(|(t, _)| shapes(t, &parse(t))).collect();
-    let entries: Vec<HistoryEntry> =
-        shaped.iter().zip(cmds).map(|(s, (_, st))| HistoryEntry { shapes: s, status: *st }).collect();
+    let entries: Vec<HistoryEntry> = shaped
+        .iter()
+        .zip(cmds)
+        .map(|(s, (_, st))| HistoryEntry {
+            shapes: s,
+            status: *st,
+        })
+        .collect();
     let f = analyze_session(&history, &offsets, &entries);
     (history, f)
 }
@@ -32,35 +38,62 @@ fn session(cmds: &[(&str, Option<i32>)]) -> (String, Vec<SessionFinding>) {
 
 #[test]
 fn s001_planted_identical_retry() {
-    let (h, f) = session(&[("grep -n foo missing.txt", Some(2)), ("grep -n foo missing.txt", None)]);
-    let f: Vec<_> = f.into_iter().filter(|f| f.finding.rule == KS_S001).collect();
+    let (h, f) = session(&[
+        ("grep -n foo missing.txt", Some(2)),
+        ("grep -n foo missing.txt", None),
+    ]);
+    let f: Vec<_> = f
+        .into_iter()
+        .filter(|f| f.finding.rule == KS_S001)
+        .collect();
     assert_eq!(f.len(), 1, "{f:#?}");
     assert_eq!(f[0].command, 1);
     assert_eq!(f[0].finding.severity, Severity::Warn);
     assert_eq!(text(&h, f[0].finding.span), "grep -n foo missing.txt");
     assert_eq!(f[0].finding.related[0].span.start, 0);
-    assert_eq!(f[0].finding.help.as_deref(), Some("it failed the same way before; change the input or read the error"));
+    assert_eq!(
+        f[0].finding.help.as_deref(),
+        Some("it failed the same way before; change the input or read the error")
+    );
 }
 
 #[test]
 fn s001_planted_quoting_whitespace_flag_order() {
-    let (_, f) = session(&[("grep -n -i foo missing.txt", Some(2)), ("grep  -i -n 'foo' \"missing.txt\"", None)]);
-    let f: Vec<_> = f.into_iter().filter(|f| f.finding.rule == KS_S001).collect();
+    let (_, f) = session(&[
+        ("grep -n -i foo missing.txt", Some(2)),
+        ("grep  -i -n 'foo' \"missing.txt\"", None),
+    ]);
+    let f: Vec<_> = f
+        .into_iter()
+        .filter(|f| f.finding.rule == KS_S001)
+        .collect();
     assert_eq!(f.len(), 1);
     assert!(f[0].finding.notes[0].contains("only in quoting"));
 }
 
 #[test]
 fn s001_planted_unrelated_command_in_between() {
-    let (_, f) = session(&[("cat in.txt", Some(1)), ("echo hi > other.txt", Some(0)), ("cat in.txt", None)]);
+    let (_, f) = session(&[
+        ("cat in.txt", Some(1)),
+        ("echo hi > other.txt", Some(0)),
+        ("cat in.txt", None),
+    ]);
     assert_eq!(f.iter().filter(|f| f.finding.rule == KS_S001).count(), 1);
 }
 
 #[test]
 fn s001_control_input_changed_in_between() {
-    let (_, f) = session(&[("cat in.txt", Some(1)), ("echo hi > in.txt", Some(0)), ("cat in.txt", None)]);
+    let (_, f) = session(&[
+        ("cat in.txt", Some(1)),
+        ("echo hi > in.txt", Some(0)),
+        ("cat in.txt", None),
+    ]);
     assert!(f.iter().all(|f| f.finding.rule != KS_S001), "{f:#?}");
-    let (_, f) = session(&[("cat out/a.txt", Some(1)), ("mkdir -p out", Some(0)), ("cat out/a.txt", None)]);
+    let (_, f) = session(&[
+        ("cat out/a.txt", Some(1)),
+        ("mkdir -p out", Some(0)),
+        ("cat out/a.txt", None),
+    ]);
     assert!(f.iter().all(|f| f.finding.rule != KS_S001), "{f:#?}");
     let (_, f) = session(&[("cat a", Some(1)), ("cd sub", Some(0)), ("cat a", None)]);
     assert!(f.iter().all(|f| f.finding.rule != KS_S001));
@@ -77,7 +110,11 @@ fn s001_control_success_or_different_command() {
 #[test]
 fn s001_refused_command_in_between_does_not_count() {
     // The middle command was refused, so it never wrote in.txt.
-    let (_, f) = session(&[("cat in.txt", Some(1)), ("echo hi > in.txt", None), ("cat in.txt", None)]);
+    let (_, f) = session(&[
+        ("cat in.txt", Some(1)),
+        ("echo hi > in.txt", None),
+        ("cat in.txt", None),
+    ]);
     assert_eq!(f.iter().filter(|f| f.finding.rule == KS_S001).count(), 1);
 }
 
@@ -146,7 +183,10 @@ fn s003_control() {
 #[test]
 fn s003_across_session() {
     let (h, f) = session(&[("echo hi > notes.txt", Some(0)), ("cat notse.txt", None)]);
-    let f: Vec<_> = f.into_iter().filter(|f| f.finding.rule == KS_S003).collect();
+    let f: Vec<_> = f
+        .into_iter()
+        .filter(|f| f.finding.rule == KS_S003)
+        .collect();
     assert_eq!(f.len(), 1, "{f:#?}");
     assert_eq!(f[0].command, 1);
     assert_eq!(text(&h, f[0].finding.related[0].span), "notes.txt");
@@ -167,7 +207,13 @@ fn s004_planted() {
 #[test]
 fn s004_control() {
     // State change between; the command writes; output-only commands.
-    assert!(rule("wc -l data.txt\necho x >> data.txt\nwc -l data.txt\n", KS_S004).is_empty());
+    assert!(
+        rule(
+            "wc -l data.txt\necho x >> data.txt\nwc -l data.txt\n",
+            KS_S004
+        )
+        .is_empty()
+    );
     assert!(rule("echo x >> log\necho x >> log\n", KS_S004).is_empty());
     assert!(rule("echo ---\necho ---\n", KS_S004).is_empty());
     assert!(rule("wc -l a\nwc -l b\n", KS_S004).is_empty());
@@ -183,14 +229,31 @@ fn s005_planted() {
     assert_eq!(f[0].severity, Severity::Refuse);
     assert_eq!(text(src, f[0].span), "reslts");
     assert_eq!(text(src, f[0].related[0].span), "results");
-    assert!(f[0].help.as_deref().unwrap().starts_with("did you mean `results`?"));
+    assert!(
+        f[0].help
+            .as_deref()
+            .unwrap()
+            .starts_with("did you mean `results`?")
+    );
 }
 
 #[test]
 fn s005_control() {
     // The real path; a target named elsewhere too; a path used once only.
-    assert!(rule("mkdir -p results\necho a > results/a.txt\nrm -r results\n", KS_S005).is_empty());
-    assert!(rule("mkdir -p results\ncat results/a\ntest -e reslts && rm -r reslts\n", KS_S005).is_empty());
+    assert!(
+        rule(
+            "mkdir -p results\necho a > results/a.txt\nrm -r results\n",
+            KS_S005
+        )
+        .is_empty()
+    );
+    assert!(
+        rule(
+            "mkdir -p results\ncat results/a\ntest -e reslts && rm -r reslts\n",
+            KS_S005
+        )
+        .is_empty()
+    );
     assert!(rule("echo a > results.txt\nrm reslts.txt\n", KS_S005).is_empty());
 }
 
@@ -218,12 +281,18 @@ fn real_parser_gives_the_same_findings() {
     ];
     for src in planted {
         let real = kapsel_syntax::parse(src).unwrap_or_else(|e| panic!("{src:?}: {e:?}"));
-        let a: Vec<String> = shapes(src, &parse(src)).into_iter().map(|s| s.key).collect();
+        let a: Vec<String> = shapes(src, &parse(src))
+            .into_iter()
+            .map(|s| s.key)
+            .collect();
         let b: Vec<String> = shapes(src, &real).into_iter().map(|s| s.key).collect();
         assert_eq!(a, b, "shape keys differ for {src:?}");
-        let fa: Vec<(String, kapsel_plan::Span)> = run(src).into_iter().map(|f| (f.rule, f.span)).collect();
-        let fb: Vec<(String, kapsel_plan::Span)> =
-            analyze_script(src, &real).into_iter().map(|f| (f.rule, f.span)).collect();
+        let fa: Vec<(String, kapsel_plan::Span)> =
+            run(src).into_iter().map(|f| (f.rule, f.span)).collect();
+        let fb: Vec<(String, kapsel_plan::Span)> = analyze_script(src, &real)
+            .into_iter()
+            .map(|f| (f.rule, f.span))
+            .collect();
         assert_eq!(fa, fb, "findings differ for {src:?}");
     }
 }
@@ -245,7 +314,16 @@ fn large_script_and_session_stay_bounded() {
     let f = run(&src);
     assert!(f.iter().any(|f| f.rule == KS_S003));
     let cmds: Vec<String> = (0..3000).map(|i| format!("cat in{}.txt", i % 7)).collect();
-    let (_, s) = session(&cmds.iter().map(|c| (c.as_str(), Some(1))).collect::<Vec<_>>());
+    let (_, s) = session(
+        &cmds
+            .iter()
+            .map(|c| (c.as_str(), Some(1)))
+            .collect::<Vec<_>>(),
+    );
     assert!(s.iter().any(|f| f.finding.rule == KS_S001));
-    assert!(t.elapsed() < std::time::Duration::from_secs(30), "took {:?}", t.elapsed());
+    assert!(
+        t.elapsed() < std::time::Duration::from_secs(30),
+        "took {:?}",
+        t.elapsed()
+    );
 }

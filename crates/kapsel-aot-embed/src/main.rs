@@ -53,7 +53,11 @@ fn embed(args: &[String]) -> Result<Option<()>, String> {
     for (name, data) in &artifacts {
         println!("{}{name}: {} bytes", kapsel_aot_embed::PREFIX, data.len());
     }
-    println!("{input}: {} bytes -> {output}: {} bytes", wasm.len(), out.len());
+    println!(
+        "{input}: {} bytes -> {output}: {} bytes",
+        wasm.len(),
+        out.len()
+    );
     Ok(Some(()))
 }
 

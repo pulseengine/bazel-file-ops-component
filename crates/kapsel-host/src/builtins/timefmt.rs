@@ -2,9 +2,28 @@
 
 use super::{Ctx, Spec, getopt};
 
-const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 const MONTHS: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
@@ -102,7 +121,11 @@ fn parse_date(s: &str) -> Option<i64> {
     if dp.len() != 3 {
         return None;
     }
-    let (y, m, d): (i64, u32, u32) = (dp[0].parse().ok()?, dp[1].parse().ok()?, dp[2].parse().ok()?);
+    let (y, m, d): (i64, u32, u32) = (
+        dp[0].parse().ok()?,
+        dp[1].parse().ok()?,
+        dp[2].parse().ok()?,
+    );
     if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
         return None;
     }
@@ -128,7 +151,9 @@ pub fn date(ctx: &mut Ctx, a: &[String]) -> i32 {
         numeric: false,
         supported: "-u -d @SECONDS|YYYY-MM-DD[ HH:MM[:SS]] +FORMAT (time zone is always UTC)",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let now = match p.val('d') {
         Some(s) => match parse_date(s) {
             Some(t) => t,
@@ -137,14 +162,19 @@ pub fn date(ctx: &mut Ctx, a: &[String]) -> i32 {
                 return 1;
             }
         },
-        None => std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0),
+        None => std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0),
     };
     let mut fmt = "%a %b %e %H:%M:%S %Z %Y".to_string();
     for o in &p.operands {
         match o.strip_prefix('+') {
             Some(f) => fmt = f.to_string(),
             None => {
-                ctx.msg(&format!("invalid date '{o}'; only +FORMAT is supported as an operand"));
+                ctx.msg(&format!(
+                    "invalid date '{o}'; only +FORMAT is supported as an operand"
+                ));
                 return 1;
             }
         }
@@ -155,8 +185,15 @@ pub fn date(ctx: &mut Ctx, a: &[String]) -> i32 {
 }
 
 pub fn sleep(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let spec = Spec { short: "", long: &[], numeric: false, supported: "no flags; usage: sleep NUMBER[s|m|h|d]..." };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let spec = Spec {
+        short: "",
+        long: &[],
+        numeric: false,
+        supported: "no flags; usage: sleep NUMBER[s|m|h|d]...",
+    };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     if p.operands.is_empty() {
         ctx.msg("missing operand");
         return 1;

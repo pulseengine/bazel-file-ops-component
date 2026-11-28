@@ -51,6 +51,11 @@ fn bracket(chars: &[char], i: &mut usize, out: &mut String) -> Result<(), String
     }
 }
 
+/// A valid ERE interval at the start of the rest of the pattern.
+static INTERVAL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"^\{[0-9]+(,[0-9]*)?\}").expect("valid interval regex")
+});
+
 /// Translates a POSIX pattern. `ere` selects extended syntax.
 pub fn translate_regex(pat: &str, ere: bool) -> Result<String, String> {
     let chars: Vec<char> = pat.chars().collect();
@@ -102,7 +107,9 @@ pub fn translate_regex(pat: &str, ere: bool) -> Result<String, String> {
             }
             '$' => {
                 let end = i + 1 == chars.len()
-                    || (!ere && matches!(chars.get(i + 1), Some('\\')) && matches!(chars.get(i + 2), Some(')') | Some('|')));
+                    || (!ere
+                        && matches!(chars.get(i + 1), Some('\\'))
+                        && matches!(chars.get(i + 2), Some(')') | Some('|')));
                 if ere || end {
                     out.push('$');
                 } else {
@@ -118,8 +125,7 @@ pub fn translate_regex(pat: &str, ere: bool) -> Result<String, String> {
             '{' if ere => {
                 // a valid interval is copied; otherwise a literal brace
                 let rest: String = chars[i..].iter().collect();
-                let re = regex::Regex::new(r"^\{[0-9]+(,[0-9]*)?\}").unwrap();
-                if let Some(m) = re.find(&rest) {
+                if let Some(m) = INTERVAL.find(&rest) {
                     out.push_str(m.as_str());
                     i += m.as_str().chars().count();
                     continue;

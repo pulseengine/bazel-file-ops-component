@@ -23,9 +23,12 @@ fn wat_bytes(b: &[u8]) -> String {
 fn plan(sets: &[(&'static str, &'static str)], words: &[Vec<P>]) -> Vec<u8> {
     let mut data = String::new();
     let mut at: u32 = 64;
-    let mut put = |data: &mut String, bytes: &[u8], at: &mut u32| -> u32 {
+    let put = |data: &mut String, bytes: &[u8], at: &mut u32| -> u32 {
         let p = *at;
-        data.push_str(&format!("(data (i32.const {p}) \"{}\")\n", wat_bytes(bytes)));
+        data.push_str(&format!(
+            "(data (i32.const {p}) \"{}\")\n",
+            wat_bytes(bytes)
+        ));
         *at += (bytes.len() as u32 + 3) & !3;
         p
     };
@@ -37,7 +40,7 @@ fn plan(sets: &[(&'static str, &'static str)], words: &[Vec<P>]) -> Vec<u8> {
         v.extend([1, 0, 0, 0]);
         v
     };
-    let mut make_word = |data: &mut String, at: &mut u32, parts: &[P]| -> (u32, u32) {
+    let make_word = |data: &mut String, at: &mut u32, parts: &[P]| -> (u32, u32) {
         let mut bytes = Vec::new();
         for p in parts {
             match p {
@@ -57,7 +60,10 @@ fn plan(sets: &[(&'static str, &'static str)], words: &[Vec<P>]) -> Vec<u8> {
     for (name, val) in sets {
         let np = put(&mut data, name.as_bytes(), &mut at);
         let (wp, wl) = make_word(&mut data, &mut at, &[P::Lit(val)]);
-        body.push_str(&format!("(call $set_var (i32.const {np}) (i32.const {}) (i32.const {wp}) (i32.const {wl}))\n", name.len()));
+        body.push_str(&format!(
+            "(call $set_var (i32.const {np}) (i32.const {}) (i32.const {wp}) (i32.const {wl}))\n",
+            name.len()
+        ));
     }
     let mut table = Vec::new();
     for w in words {
@@ -82,10 +88,20 @@ fn plan(sets: &[(&'static str, &'static str)], words: &[Vec<P>]) -> Vec<u8> {
     );
     let mut core = wat::parse_str(&wat).expect("wat");
     let mut resolve = Resolve::default();
-    let pkg = resolve.push_file(concat!(env!("CARGO_MANIFEST_DIR"), "/../../wit/kapsel-shell.wit")).unwrap();
+    let pkg = resolve
+        .push_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../wit/kapsel-shell.wit"
+        ))
+        .unwrap();
     let world = resolve.select_world(&[pkg], Some("plan")).unwrap();
     embed_component_metadata(&mut core, &resolve, world, StringEncoding::UTF8, false).unwrap();
-    ComponentEncoder::default().module(&core).unwrap().validate(true).encode().unwrap()
+    ComponentEncoder::default()
+        .module(&core)
+        .unwrap()
+        .validate(true)
+        .encode()
+        .unwrap()
 }
 
 fn run(t: &mut T, bytes: &[u8]) -> u32 {
@@ -118,7 +134,10 @@ fn variables_persist_across_components() {
     let c1 = plan(&[("X", "world")], &[vec![P::Lit(":")]]);
     assert_eq!(run(&mut t, &c1), 0);
     assert_eq!(t.s.var("X").as_deref(), Some("world"));
-    let c2 = plan(&[], &[vec![P::Lit("echo")], vec![P::Lit("hello "), P::Var("X")]]);
+    let c2 = plan(
+        &[],
+        &[vec![P::Lit("echo")], vec![P::Lit("hello "), P::Var("X")]],
+    );
     assert_eq!(run(&mut t, &c2), 0);
     assert_eq!(t.out.string(), "hello world\n");
 }

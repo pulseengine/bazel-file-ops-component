@@ -100,8 +100,14 @@ impl ParseOutcome {
 #[salsa::tracked]
 pub fn parse(db: &dyn Db, file: SourceFile) -> ParseOutcome {
     match (db.frontend().parse)(file.text(db)) {
-        Ok(script) => ParseOutcome { script: Some(Arc::new(script)), errors: Arc::from([]) },
-        Err(errors) => ParseOutcome { script: None, errors: errors.into() },
+        Ok(script) => ParseOutcome {
+            script: Some(Arc::new(script)),
+            errors: Arc::from([]),
+        },
+        Err(errors) => ParseOutcome {
+            script: None,
+            errors: errors.into(),
+        },
     }
 }
 
@@ -129,7 +135,10 @@ pub fn shapes(db: &dyn Db, file: SourceFile) -> Arc<Vec<CommandShape>> {
 /// KS-S002..S005 within one file.
 #[salsa::tracked]
 pub fn script_findings(db: &dyn Db, file: SourceFile) -> Arc<Vec<Finding>> {
-    Arc::new(kapsel_analysis::analyze_shapes(file.text(db), shapes(db, file)))
+    Arc::new(kapsel_analysis::analyze_shapes(
+        file.text(db),
+        shapes(db, file),
+    ))
 }
 
 /// The full check: the check stage plus the similar-command rules of this
@@ -152,10 +161,23 @@ pub fn merge(outcome: CheckOutcome, extra: &[Finding]) -> CheckOutcome {
         }
         CheckOutcome::Plan(mut plan) => {
             if extra.iter().any(|f| f.severity == Severity::Refuse) {
-                let mut findings: Vec<Finding> = extra.iter().filter(|f| f.severity == Severity::Refuse).cloned().collect();
+                let mut findings: Vec<Finding> = extra
+                    .iter()
+                    .filter(|f| f.severity == Severity::Refuse)
+                    .cloned()
+                    .collect();
                 findings.extend(plan.warnings);
-                findings.extend(extra.iter().filter(|f| f.severity != Severity::Refuse).cloned());
-                CheckOutcome::Refused(Refusal { schema: PLAN_SCHEMA.into(), source_sha256: plan.source_sha256, findings })
+                findings.extend(
+                    extra
+                        .iter()
+                        .filter(|f| f.severity != Severity::Refuse)
+                        .cloned(),
+                );
+                CheckOutcome::Refused(Refusal {
+                    schema: PLAN_SCHEMA.into(),
+                    source_sha256: plan.source_sha256,
+                    findings,
+                })
             } else {
                 plan.warnings.extend(extra.iter().cloned());
                 CheckOutcome::Plan(plan)
@@ -195,7 +217,11 @@ impl History {
 
 #[salsa::tracked]
 pub fn history(db: &dyn Db, session: Session) -> Arc<History> {
-    let texts: Vec<&str> = session.commands(db).iter().map(|f| f.text(db).as_str()).collect();
+    let texts: Vec<&str> = session
+        .commands(db)
+        .iter()
+        .map(|f| f.text(db).as_str())
+        .collect();
     let (text, offsets) = kapsel_analysis::history_text(&texts);
     Arc::new(History { text, offsets })
 }
@@ -207,14 +233,20 @@ pub fn history(db: &dyn Db, session: Session) -> Arc<History> {
 pub fn session_findings(db: &dyn Db, session: Session) -> Arc<Vec<SessionFinding>> {
     let files = session.commands(db);
     let statuses = session.statuses(db);
-    let shaped: Vec<Arc<Vec<CommandShape>>> = files.iter().map(|f| shapes(db, *f).clone()).collect();
+    let shaped: Vec<Arc<Vec<CommandShape>>> =
+        files.iter().map(|f| shapes(db, *f).clone()).collect();
     let entries: Vec<HistoryEntry<'_>> = shaped
         .iter()
         .enumerate()
-        .map(|(i, s)| HistoryEntry { shapes: s, status: statuses.get(i).copied().flatten() })
+        .map(|(i, s)| HistoryEntry {
+            shapes: s,
+            status: statuses.get(i).copied().flatten(),
+        })
         .collect();
     let h = history(db, session);
-    Arc::new(kapsel_analysis::analyze_session(&h.text, &h.offsets, &entries))
+    Arc::new(kapsel_analysis::analyze_session(
+        &h.text, &h.offsets, &entries,
+    ))
 }
 
 /// The default database.
@@ -227,8 +259,14 @@ pub struct RootDatabase {
 
 impl RootDatabase {
     /// A database with custom stages, and an optional salsa event callback.
-    pub fn with_frontend(frontend: Frontend, events: Option<Box<dyn Fn(salsa::Event) + Send + Sync + 'static>>) -> Self {
-        Self { storage: salsa::Storage::new(events), frontend }
+    pub fn with_frontend(
+        frontend: Frontend,
+        events: Option<Box<dyn Fn(salsa::Event) + Send + Sync + 'static>>,
+    ) -> Self {
+        Self {
+            storage: salsa::Storage::new(events),
+            frontend,
+        }
     }
 }
 

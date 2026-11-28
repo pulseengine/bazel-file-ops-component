@@ -26,17 +26,28 @@ fn plant_pack_through_the_real_parser() {
             CheckOutcome::Plan(p) => p.warnings,
             CheckOutcome::Refused(r) => r.findings,
         };
-        assert!(found.iter().any(|f| f.rule == id), "{id} planted not caught: {found:?}");
+        assert!(
+            found.iter().any(|f| f.rule == id),
+            "{id} planted not caught: {found:?}"
+        );
         for f in &found {
-            assert_eq!(f.excerpt, &planted[f.span.start as usize..f.span.end as usize]);
+            assert_eq!(
+                f.excerpt,
+                &planted[f.span.start as usize..f.span.end as usize]
+            );
         }
         if id != "KS-R000" {
             let want: Vec<kapsel_plan::Finding> =
-                serde_json::from_str(&std::fs::read_to_string(dir.join("expected.json")).unwrap()).unwrap();
+                serde_json::from_str(&std::fs::read_to_string(dir.join("expected.json")).unwrap())
+                    .unwrap();
             assert_eq!(found, want, "golden for {id}");
         }
         match run(&control) {
-            CheckOutcome::Plan(p) => assert!(p.warnings.iter().all(|f| f.rule != id), "{id} control warns: {:?}", p.warnings),
+            CheckOutcome::Plan(p) => assert!(
+                p.warnings.iter().all(|f| f.rule != id),
+                "{id} control warns: {:?}",
+                p.warnings
+            ),
             CheckOutcome::Refused(r) => panic!("{id} control refused: {:?}", r.findings),
         }
     }

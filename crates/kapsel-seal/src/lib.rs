@@ -64,10 +64,16 @@ impl std::fmt::Display for SealError {
         match self {
             SealError::Malformed(m) => write!(f, "malformed module: {m}"),
             SealError::NotSigned => f.write_str("module is not signed"),
-            SealError::BadSignature => f.write_str("signature does not verify against a trusted key"),
-            SealError::MissingAttestation => f.write_str("module has no transformation attestation"),
+            SealError::BadSignature => {
+                f.write_str("signature does not verify against a trusted key")
+            }
+            SealError::MissingAttestation => {
+                f.write_str("module has no transformation attestation")
+            }
             SealError::Attestation(m) => write!(f, "attestation rejected: {m}"),
-            SealError::SourceMismatch => f.write_str("source text does not match the plan's source hash"),
+            SealError::SourceMismatch => {
+                f.write_str("source text does not match the plan's source hash")
+            }
             SealError::Key(m) => write!(f, "key error: {m}"),
             SealError::Io(e) => write!(f, "io error: {e}"),
             SealError::Compile(m) => write!(f, "compile error: {m}"),
@@ -86,7 +92,10 @@ impl From<std::io::Error> for SealError {
 }
 
 pub(crate) fn hex_sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn normalized_json(plan: &Plan) -> Vec<u8> {
@@ -101,7 +110,12 @@ fn parse(module: &[u8]) -> Result<Module, SealError> {
 ///
 /// Inputs are `source` (hash `plan.source_sha256`) and the normalized plan
 /// (hash `plan.normalized_sha256()`); the output is `module` before signing.
-pub fn seal(plan: &Plan, source: &str, module: Vec<u8>, key: &SigningKey) -> Result<Vec<u8>, SealError> {
+pub fn seal(
+    plan: &Plan,
+    source: &str,
+    module: Vec<u8>,
+    key: &SigningKey,
+) -> Result<Vec<u8>, SealError> {
     if hex_sha256(source.as_bytes()) != plan.source_sha256 {
         return Err(SealError::SourceMismatch);
     }
@@ -109,25 +123,39 @@ pub fn seal(plan: &Plan, source: &str, module: Vec<u8>, key: &SigningKey) -> Res
     let norm = normalized_json(plan);
     debug_assert_eq!(hex_sha256(&norm), plan.normalized_sha256());
 
-    let attestation = TransformationAttestationBuilder::new(TransformationType::Custom, TOOL_NAME, COMPILER_VERSION)
-        .add_parameter("wit", serde_json::Value::String(WIT_VERSION.into()))
-        .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
-        .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
-        .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
-        .map_err(SealError::Key)?;
+    let attestation = TransformationAttestationBuilder::new(
+        TransformationType::Custom,
+        TOOL_NAME,
+        COMPILER_VERSION,
+    )
+    .add_parameter("wit", serde_json::Value::String(WIT_VERSION.into()))
+    .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
+    .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
+    .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
+    .map_err(SealError::Key)?;
 
     let embedded = embed_transformation_attestation(parsed, &attestation)
         .map_err(|e| SealError::Malformed(e.to_string()))?;
-    let signed = key.pair.sk.sign(embedded, None).map_err(|e| SealError::Key(e.to_string()))?;
+    let signed = key
+        .pair
+        .sk
+        .sign(embedded, None)
+        .map_err(|e| SealError::Key(e.to_string()))?;
     let mut out = Vec::with_capacity(module.len() + 1024);
-    signed.serialize(&mut out).map_err(|e| SealError::Malformed(e.to_string()))?;
+    signed
+        .serialize(&mut out)
+        .map_err(|e| SealError::Malformed(e.to_string()))?;
     Ok(out)
 }
 
 /// Checks a sealed module: the signature verifies against a trusted key, the
 /// attestation is present, it describes this module, and its normalized-plan
 /// input hash equals `expected_normalized`.
-pub fn verify(module: &[u8], expected_normalized: &str, trust: &TrustedKeys) -> Result<Attestation, SealError> {
+pub fn verify(
+    module: &[u8],
+    expected_normalized: &str,
+    trust: &TrustedKeys,
+) -> Result<Attestation, SealError> {
     let parsed = parse(module)?;
     match parsed.sections.first() {
         Some(Section::Custom(c)) if c.is_signature_header() => {}
@@ -143,7 +171,10 @@ pub fn verify(module: &[u8], expected_normalized: &str, trust: &TrustedKeys) -> 
         .map_err(|e| SealError::Attestation(e.to_string()))?
         .ok_or(SealError::MissingAttestation)?;
     if att.tool.name != TOOL_NAME {
-        return Err(SealError::Attestation(format!("tool is {}, not {TOOL_NAME}", att.tool.name)));
+        return Err(SealError::Attestation(format!(
+            "tool is {}, not {TOOL_NAME}",
+            att.tool.name
+        )));
     }
     let attested = att
         .inputs
@@ -167,9 +198,12 @@ pub fn verify(module: &[u8], expected_normalized: &str, trust: &TrustedKeys) -> 
         _ => true,
     });
     let mut bytes = Vec::new();
-    bare.serialize(&mut bytes).map_err(|e| SealError::Malformed(e.to_string()))?;
+    bare.serialize(&mut bytes)
+        .map_err(|e| SealError::Malformed(e.to_string()))?;
     if hex_sha256(&bytes) != att.output.hash {
-        return Err(SealError::Attestation("attested output hash does not match the module".into()));
+        return Err(SealError::Attestation(
+            "attested output hash does not match the module".into(),
+        ));
     }
     Ok(att)
 }

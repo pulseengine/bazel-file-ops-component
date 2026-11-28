@@ -71,13 +71,22 @@ fn diff_window(a: &str, b: &str) -> (String, String, Option<char>, Option<char>)
     }
     let before = if p > 0 { Some(a[p - 1]) } else { None };
     let after = if s > 0 { Some(a[a.len() - s]) } else { None };
-    (a[p..a.len() - s].iter().collect(), b[p..b.len() - s].iter().collect(), before, after)
+    (
+        a[p..a.len() - s].iter().collect(),
+        b[p..b.len() - s].iter().collect(),
+        before,
+        after,
+    )
 }
 
 /// Largest distance that still counts as a near miss for paths this long:
 /// 1 below 6 characters, 2 from 6 on.
 pub fn max_distance(a: &str, b: &str) -> usize {
-    if a.chars().count().min(b.chars().count()) < 6 { 1 } else { 2 }
+    if a.chars().count().min(b.chars().count()) < 6 {
+        1
+    } else {
+        2
+    }
 }
 
 /// Returns the distance when `a` and `b` look like a typo of each other:
@@ -124,7 +133,9 @@ mod tests {
         for i in 1..=n {
             for j in 1..=m {
                 let cost = usize::from(a[i - 1] != b[j - 1]);
-                let mut v = (d[i - 1][j] + 1).min(d[i][j - 1] + 1).min(d[i - 1][j - 1] + cost);
+                let mut v = (d[i - 1][j] + 1)
+                    .min(d[i][j - 1] + 1)
+                    .min(d[i - 1][j - 1] + cost);
                 if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
                     v = v.min(d[i - 2][j - 2] + 1);
                 }
@@ -147,12 +158,31 @@ mod tests {
 
     #[test]
     fn band_agrees_with_full_matrix() {
-        let words = ["", "a", "ab", "ba", "abc", "acb", "out/a.txt", "out/a.text", "ou/a.txt", "data.csv", "dta.csv", "café", "cafe", "xyz"];
+        let words = [
+            "",
+            "a",
+            "ab",
+            "ba",
+            "abc",
+            "acb",
+            "out/a.txt",
+            "out/a.text",
+            "ou/a.txt",
+            "data.csv",
+            "dta.csv",
+            "café",
+            "cafe",
+            "xyz",
+        ];
         for a in words {
             for b in words {
                 let f = full(a, b);
                 for max in 0..4 {
-                    assert_eq!(bounded_distance(a, b, max), (f <= max).then_some(f), "{a:?} {b:?} max {max}");
+                    assert_eq!(
+                        bounded_distance(a, b, max),
+                        (f <= max).then_some(f),
+                        "{a:?} {b:?} max {max}"
+                    );
                 }
             }
         }
@@ -170,14 +200,21 @@ mod tests {
         // 1M x 1M matrix.
         assert_eq!(bounded_distance(&a, &b, 2), Some(1));
         assert_eq!(bounded_distance(&a, &format!("{a}xyz"), 2), None);
-        assert!(t.elapsed() < std::time::Duration::from_secs(5), "took {:?}", t.elapsed());
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(5),
+            "took {:?}",
+            t.elapsed()
+        );
     }
 
     #[test]
     fn near_misses() {
         assert_eq!(near_miss("out/a.txt", "out/a.text"), Some(1));
         assert_eq!(near_miss("data.csv", "dta.csv"), Some(1));
-        assert_eq!(near_miss("results/report.txt", "results/reprot.txt"), Some(1));
+        assert_eq!(
+            near_miss("results/report.txt", "results/reprot.txt"),
+            Some(1)
+        );
         assert_eq!(near_miss("build/output", "biuld/outptu"), Some(2));
     }
 
@@ -194,7 +231,11 @@ mod tests {
 
     #[test]
     fn symmetric_and_deterministic() {
-        for (a, b) in [("out/a.txt", "out/a.text"), ("data.csv", "dta.csv"), ("log1", "log2")] {
+        for (a, b) in [
+            ("out/a.txt", "out/a.text"),
+            ("data.csv", "dta.csv"),
+            ("log1", "log2"),
+        ] {
             assert_eq!(near_miss(a, b), near_miss(b, a));
             assert_eq!(bounded_distance(a, b, 2), bounded_distance(b, a, 2));
         }

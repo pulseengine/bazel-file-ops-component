@@ -14,8 +14,8 @@ use kapsel_db::{RootDatabase, Session as DbSession, SourceFile};
 use kapsel_diag::{Options, Source};
 use kapsel_host::{GrantSet, Session};
 use kapsel_plan::{CheckOutcome, Finding, Plan, exit};
-use salsa::Setter;
 use kapsel_seal::{Cache, SigningKey, keys_dir};
+use salsa::Setter;
 
 const USAGE: &str = "\
 usage: kapsel [GLOBAL FLAGS] -c COMMAND
@@ -58,12 +58,23 @@ fn usage_error(msg: &str) -> i32 {
 }
 
 fn parse_args(args: &[String]) -> Result<Opts, i32> {
-    let mut o = Opts { sub: Sub::Run, rw: vec![], ro: vec![], key: None, json: false, out: None, cmd: None, file: None };
+    let mut o = Opts {
+        sub: Sub::Run,
+        rw: vec![],
+        ro: vec![],
+        key: None,
+        json: false,
+        out: None,
+        cmd: None,
+        file: None,
+    };
     let mut i = 0;
     let mut positional = 0;
     let value = |i: &mut usize, flag: &str| -> Result<String, i32> {
         *i += 1;
-        args.get(*i).cloned().ok_or_else(|| usage_error(&format!("{flag} needs a value")))
+        args.get(*i)
+            .cloned()
+            .ok_or_else(|| usage_error(&format!("{flag} needs a value")))
     };
     while i < args.len() {
         let a = args[i].as_str();
@@ -83,10 +94,18 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
             "--key" => o.key = Some(PathBuf::from(value(&mut i, "--key")?)),
             "-o" => o.out = Some(PathBuf::from(value(&mut i, "-o")?)),
             "--json" => o.json = true,
-            "check" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Check,
-            "compile" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Compile,
-            "explain" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => o.sub = Sub::Explain,
-            s if s.starts_with('-') && s != "-" => return Err(usage_error(&format!("unknown flag {s}"))),
+            "check" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => {
+                o.sub = Sub::Check
+            }
+            "compile" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => {
+                o.sub = Sub::Compile
+            }
+            "explain" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => {
+                o.sub = Sub::Explain
+            }
+            s if s.starts_with('-') && s != "-" => {
+                return Err(usage_error(&format!("unknown flag {s}")));
+            }
             _ => {
                 if o.file.is_some() {
                     return Err(usage_error(&format!("unexpected argument '{a}'")));
@@ -115,7 +134,9 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
         return Err(usage_error("-o belongs to `compile`"));
     }
     if o.sub != Sub::Run && o.cmd.is_none() && o.file.is_none() {
-        return Err(usage_error("`check` and `compile` need -c COMMAND or a FILE"));
+        return Err(usage_error(
+            "`check` and `compile` need -c COMMAND or a FILE",
+        ));
     }
     if o.sub == Sub::Compile && o.out.is_none() {
         return Err(usage_error("`compile` needs -o OUT.wasm"));
@@ -124,7 +145,9 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
 }
 
 fn render_opts() -> Options {
-    Options { color: std::io::stderr().is_terminal() }
+    Options {
+        color: std::io::stderr().is_terminal(),
+    }
 }
 
 /// The findings an outcome carries: a refusal's findings or a plan's warnings.
@@ -141,7 +164,8 @@ fn outcome_findings(outcome: &CheckOutcome) -> &[Finding] {
 fn outcome_json(src: Source<'_>, outcome: &CheckOutcome) -> Result<String, String> {
     let mut v = serde_json::to_value(outcome).map_err(|e| e.to_string())?;
     let diag: serde_json::Value =
-        serde_json::from_str(&kapsel_diag::render_json(src, outcome_findings(outcome))).map_err(|e| e.to_string())?;
+        serde_json::from_str(&kapsel_diag::render_json(src, outcome_findings(outcome)))
+            .map_err(|e| e.to_string())?;
     match v.as_object_mut() {
         Some(o) => {
             o.insert("diagnostics".into(), diag);
@@ -164,7 +188,10 @@ fn report(name: &str, text: &str, outcome: CheckOutcome, json: bool) -> Result<P
             }
         }
     } else {
-        eprint!("{}", kapsel_diag::render_outcome(src, &outcome, render_opts()));
+        eprint!(
+            "{}",
+            kapsel_diag::render_outcome(src, &outcome, render_opts())
+        );
     }
     match outcome {
         CheckOutcome::Plan(p) => Ok(p),
@@ -193,19 +220,32 @@ impl Analysis {
     fn new() -> Analysis {
         let db = RootDatabase::default();
         let session = DbSession::new(&db, vec![], vec![]);
-        Analysis { db, session, files: vec![], statuses: vec![] }
+        Analysis {
+            db,
+            session,
+            files: vec![],
+            statuses: vec![],
+        }
     }
 
     fn sync(&mut self) {
-        self.session.set_commands(&mut self.db).to(self.files.clone());
-        self.session.set_statuses(&mut self.db).to(self.statuses.clone());
+        self.session
+            .set_commands(&mut self.db)
+            .to(self.files.clone());
+        self.session
+            .set_statuses(&mut self.db)
+            .to(self.statuses.clone());
     }
 
     /// Checks `line` as the next command of the session: its own findings
     /// plus the cross-command ones (KS-S001 ...), all rendered against the
     /// history text. A refusal leaves the session unchanged.
     fn check_line(&mut self, line: &str) -> Result<Plan, i32> {
-        let file = SourceFile::new(&self.db, format!("history:{}", self.files.len() + 1), line.to_string());
+        let file = SourceFile::new(
+            &self.db,
+            format!("history:{}", self.files.len() + 1),
+            line.to_string(),
+        );
         self.files.push(file);
         self.statuses.push(None);
         self.sync();
@@ -422,7 +462,9 @@ fn real_main() -> i32 {
         Ok(o) => o,
         Err(code) => return code,
     };
-    let ctx = Ctx { key_file: o.key.clone() };
+    let ctx = Ctx {
+        key_file: o.key.clone(),
+    };
 
     match o.sub {
         Sub::Explain => return explain_rule(o.file.as_deref().unwrap_or("")),

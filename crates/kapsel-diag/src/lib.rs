@@ -54,7 +54,11 @@ pub struct Options {
 }
 
 fn renderer(opts: Options) -> Renderer {
-    if opts.color { Renderer::styled() } else { Renderer::plain() }
+    if opts.color {
+        Renderer::styled()
+    } else {
+        Renderer::plain()
+    }
 }
 
 /// Clamps `span` into `text` and widens it to character boundaries.
@@ -88,7 +92,10 @@ fn primary_label(f: &Finding) -> Option<String> {
     if f.rule != PARSE_ERROR_RULE {
         return None;
     }
-    f.notes.iter().find_map(|n| n.starts_with("expected ").then(|| n.split(", found").next().unwrap_or(n).to_string()))
+    f.notes.iter().find_map(|n| {
+        n.starts_with("expected ")
+            .then(|| n.split(", found").next().unwrap_or(n).to_string())
+    })
 }
 
 fn finding_group<'a>(src: Source<'a>, f: &'a Finding) -> Group<'a> {
@@ -99,9 +106,16 @@ fn finding_group<'a>(src: Source<'a>, f: &'a Finding) -> Group<'a> {
     }
     snippet = snippet.annotation(primary);
     for r in &f.related {
-        snippet = snippet.annotation(AnnotationKind::Context.span(clamp(src.text, r.span)).label(r.label.as_str()));
+        snippet = snippet.annotation(
+            AnnotationKind::Context
+                .span(clamp(src.text, r.span))
+                .label(r.label.as_str()),
+        );
     }
-    let mut group = level(f.severity).primary_title(f.message.as_str()).id(f.rule.as_str()).element(snippet);
+    let mut group = level(f.severity)
+        .primary_title(f.message.as_str())
+        .id(f.rule.as_str())
+        .element(snippet);
     for n in &f.notes {
         group = group.element(Level::NOTE.message(n.as_str()));
     }
@@ -171,7 +185,10 @@ pub fn render_report(src: Source<'_>, findings: &[Finding], opts: Options) -> St
         out.push_str(&r.render(&[finding_group(src, f)]));
         out.push_str("\n\n");
     }
-    let errors = findings.iter().filter(|f| f.severity == Severity::Refuse).count();
+    let errors = findings
+        .iter()
+        .filter(|f| f.severity == Severity::Refuse)
+        .count();
     let warnings = findings.len() - errors;
     let plural = |n: usize, w: &str| format!("{n} {w}{}", if n == 1 { "" } else { "s" });
     let summary = if errors > 0 {
@@ -181,7 +198,9 @@ pub fn render_report(src: Source<'_>, findings: &[Finding], opts: Options) -> St
         }
         r.render(&[Group::with_title(Level::ERROR.primary_title(s))])
     } else {
-        r.render(&[Group::with_title(Level::WARNING.primary_title(format!("{} emitted", plural(warnings, "warning"))))])
+        r.render(&[Group::with_title(
+            Level::WARNING.primary_title(format!("{} emitted", plural(warnings, "warning"))),
+        )])
     };
     out.push_str(&summary);
     out.push('\n');
@@ -212,7 +231,10 @@ pub fn line_col(text: &str, offset: u32) -> LineCol {
     let prefix = &text[..r.start];
     let line = prefix.bytes().filter(|&b| b == b'\n').count() as u32 + 1;
     let line_start = prefix.rfind('\n').map(|i| i + 1).unwrap_or(0);
-    LineCol { line, col: text[line_start..r.start].chars().count() as u32 + 1 }
+    LineCol {
+        line,
+        col: text[line_start..r.start].chars().count() as u32 + 1,
+    }
 }
 
 #[derive(Serialize)]
@@ -282,8 +304,17 @@ pub fn render_json(src: Source<'_>, findings: &[Finding]) -> String {
                 .collect(),
         })
         .collect();
-    let errors = findings.iter().filter(|f| f.severity == Severity::Refuse).count();
-    let report = JsonReport { schema: DIAG_SCHEMA, file: src.name, errors, warnings: findings.len() - errors, diagnostics };
+    let errors = findings
+        .iter()
+        .filter(|f| f.severity == Severity::Refuse)
+        .count();
+    let report = JsonReport {
+        schema: DIAG_SCHEMA,
+        file: src.name,
+        errors,
+        warnings: findings.len() - errors,
+        diagnostics,
+    };
     serde_json::to_string_pretty(&report).expect("diagnostics serialize")
 }
 

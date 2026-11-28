@@ -169,7 +169,10 @@ impl Shell {
     }
 
     pub fn scope_pop(&mut self) -> R<()> {
-        let s = self.scopes.pop().ok_or_else(|| HostError("scope-pop without scope-push".into()))?;
+        let s = self
+            .scopes
+            .pop()
+            .ok_or_else(|| HostError("scope-pop without scope-push".into()))?;
         self.vars = s.vars;
         self.exported = s.exported;
         self.cwd = s.cwd;
@@ -185,7 +188,9 @@ impl Shell {
     }
 
     pub fn pipe_write(&mut self, h: u32, bytes: &[u8]) {
-        self.pipes[h as usize - 1].borrow_mut().extend_from_slice(bytes);
+        self.pipes[h as usize - 1]
+            .borrow_mut()
+            .extend_from_slice(bytes);
     }
 
     pub fn pipe_read(&self, h: u32) -> Vec<u8> {
@@ -264,7 +269,11 @@ impl Shell {
 
     /// Full expansion of one word into fields.
     pub fn expand_fields(&self, w: &WWord) -> R<Vec<String>> {
-        let ifs = self.vars.get("IFS").cloned().unwrap_or_else(|| " \t\n".to_string());
+        let ifs = self
+            .vars
+            .get("IFS")
+            .cloned()
+            .unwrap_or_else(|| " \t\n".to_string());
         let mut fields: Vec<Vec<(char, bool)>> = Vec::new();
         let mut cur: Vec<(char, bool)> = Vec::new();
         let mut exists = false;
@@ -311,7 +320,9 @@ impl Shell {
         }
         let mut out = Vec::new();
         for f in fields {
-            if f.iter().any(|(c, active)| *active && matches!(c, '*' | '?' | '[')) {
+            if f.iter()
+                .any(|(c, active)| *active && matches!(c, '*' | '?' | '['))
+            {
                 let m = self.glob_expand(&f);
                 if m.is_empty() {
                     out.push(f.iter().map(|(c, _)| *c).collect());
@@ -403,7 +414,10 @@ impl Shell {
             return Vec::new();
         };
         let mut v: Vec<String> = match std::fs::read_dir(&resolved) {
-            Ok(rd) => rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).collect(),
+            Ok(rd) => rd
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect(),
             Err(_) => Vec::new(),
         };
         v.sort();
@@ -438,7 +452,11 @@ impl Shell {
             let bytes = self.pipe(stdin)?.borrow().clone();
             Box::new(Cursor::new(bytes))
         };
-        let mut out = if stdout == 0 { self.stdout.clone() } else { Sink(self.pipe(stdout)?) };
+        let mut out = if stdout == 0 {
+            self.stdout.clone()
+        } else {
+            Sink(self.pipe(stdout)?)
+        };
         let mut err = self.stderr.clone();
 
         // Redirects, in order.
@@ -454,8 +472,10 @@ impl Shell {
             1
         } else {
             // Temporary assignments, restored afterwards.
-            let saved: Vec<(String, Option<String>)> =
-                avals.iter().map(|(n, _)| (n.clone(), self.vars.get(n).cloned())).collect();
+            let saved: Vec<(String, Option<String>)> = avals
+                .iter()
+                .map(|(n, _)| (n.clone(), self.vars.get(n).cloned()))
+                .collect();
             for (n, v) in &avals {
                 self.vars.insert(n.clone(), v.clone());
             }
@@ -471,7 +491,7 @@ impl Shell {
         let _ = out.flush();
         let _ = err.flush();
         if status >= 256 {
-            self.exit_request = Some(status as i32 - 256);
+            self.exit_request = Some(status - 256);
         }
         Ok(status as u32)
     }
@@ -496,7 +516,10 @@ impl Shell {
             },
             ROp::DupIn => {
                 if r.fd != r.target_fd {
-                    return Err(format!("kapsel: {}<&{}: unsupported file descriptor", r.fd, r.target_fd));
+                    return Err(format!(
+                        "kapsel: {}<&{}: unsupported file descriptor",
+                        r.fd, r.target_fd
+                    ));
                 }
             }
             ROp::Read | ROp::Write | ROp::Append => {
@@ -508,7 +531,10 @@ impl Shell {
                 let path = &fields[0];
                 if r.op == ROp::Read {
                     if r.fd != 0 {
-                        return Err(format!("kapsel: {}<{path}: unsupported file descriptor", r.fd));
+                        return Err(format!(
+                            "kapsel: {}<{path}: unsupported file descriptor",
+                            r.fd
+                        ));
                     }
                     if path == "/dev/null" {
                         *stdin = Box::new(io::empty());
@@ -523,7 +549,10 @@ impl Shell {
                     *stdin = Box::new(f);
                 } else {
                     if r.fd != 1 && r.fd != 2 {
-                        return Err(format!("kapsel: {}>{path}: unsupported file descriptor", r.fd));
+                        return Err(format!(
+                            "kapsel: {}>{path}: unsupported file descriptor",
+                            r.fd
+                        ));
                     }
                     let sink = if path == "/dev/null" {
                         Sink::null()
@@ -539,7 +568,9 @@ impl Shell {
                         } else {
                             oo.truncate(true);
                         }
-                        let f = oo.open(&resolved).map_err(|e| format!("kapsel: {path}: {}", errstr(&e)))?;
+                        let f = oo
+                            .open(&resolved)
+                            .map_err(|e| format!("kapsel: {path}: {}", errstr(&e)))?;
                         Sink::new(f)
                     };
                     if r.fd == 1 {
@@ -606,13 +637,15 @@ pub fn fnmatch(p: &[(char, bool)], s: &[char]) -> bool {
             let mut matched = false;
             let mut k = 0;
             while k < set.len() {
-                if set[k] == '[' && set.get(k + 1) == Some(&':') {
-                    if let Some(close) = (k + 2..set.len().saturating_sub(1)).find(|&m| set[m] == ':' && set[m + 1] == ']') {
-                        let name: String = set[k + 2..close].iter().collect();
-                        matched |= class_match(&name, c);
-                        k = close + 2;
-                        continue;
-                    }
+                if set[k] == '['
+                    && set.get(k + 1) == Some(&':')
+                    && let Some(close) = (k + 2..set.len().saturating_sub(1))
+                        .find(|&m| set[m] == ':' && set[m + 1] == ']')
+                {
+                    let name: String = set[k + 2..close].iter().collect();
+                    matched |= class_match(&name, c);
+                    k = close + 2;
+                    continue;
                 }
                 if k + 2 < set.len() && set[k + 1] == '-' {
                     if set[k] <= c && c <= set[k + 2] {

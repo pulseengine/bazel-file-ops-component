@@ -103,8 +103,16 @@ pub struct PPipeline {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PStage {
     Call(Call),
-    For { var: String, items: Vec<PWord>, body: Vec<PAndOr> },
-    While { until: bool, condition: Vec<PAndOr>, body: Vec<PAndOr> },
+    For {
+        var: String,
+        items: Vec<PWord>,
+        body: Vec<PAndOr>,
+    },
+    While {
+        until: bool,
+        condition: Vec<PAndOr>,
+        body: Vec<PAndOr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,10 +146,16 @@ pub struct PRedirect {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PRedirectTarget {
-    Word { word: PWord },
-    Fd { fd: u32 },
+    Word {
+        word: PWord,
+    },
+    Fd {
+        fd: u32,
+    },
     /// Heredoc body; a quoted delimiter gives a single quoted literal.
-    Heredoc { body: PWord },
+    Heredoc {
+        body: PWord,
+    },
 }
 
 /// A word after the check stage: quoting is resolved into per-part flags,
@@ -155,18 +169,34 @@ pub struct PWord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PPart {
-    Lit { text: String, quoted: bool },
-    Var { name: String, quoted: bool },
+    Lit {
+        text: String,
+        quoted: bool,
+    },
+    Var {
+        name: String,
+        quoted: bool,
+    },
     /// Glob pattern text in fnmatch syntax (`*`, `?`, `[...]`), always unquoted.
-    Glob { pattern: String },
+    Glob {
+        pattern: String,
+    },
     /// `$(...)`: run `body` with stdout captured, then substitute the output
     /// with trailing newlines removed.
-    Capture { body: Vec<PAndOr>, quoted: bool },
+    Capture {
+        body: Vec<PAndOr>,
+        quoted: bool,
+    },
 }
 
 impl PWord {
     pub fn literal(text: impl Into<String>) -> Self {
-        Self { parts: vec![PPart::Lit { text: text.into(), quoted: false }] }
+        Self {
+            parts: vec![PPart::Lit {
+                text: text.into(),
+                quoted: false,
+            }],
+        }
     }
 
     /// The word's text if it has no expansions at all.
@@ -204,8 +234,8 @@ pub const BUILTINS: &[&str] = &[
     // special
     ":", "true", "false", "cd", "export", "exit", "test", "[", "pwd",
     // first batch, measured (REQ-KS-025)
-    "cat", "echo", "printf", "head", "tail", "wc", "ls", "mkdir", "cp", "mv", "rm",
-    "grep", "sed", "sort", "uniq", "cut", "tr", "tee", "date", "seq", "sleep",
+    "cat", "echo", "printf", "head", "tail", "wc", "ls", "mkdir", "cp", "mv", "rm", "grep", "sed",
+    "sort", "uniq", "cut", "tr", "tee", "date", "seq", "sleep",
 ];
 
 /// Normalization for caching and attestation (REQ-KS-021).
@@ -255,9 +285,8 @@ fn normalize_pipeline(p: &mut PPipeline) {
                 }
                 for r in &mut call.redirects {
                     match &mut r.target {
-                        PRedirectTarget::Word { word } | PRedirectTarget::Heredoc { body: word } => {
-                            normalize_word(word)
-                        }
+                        PRedirectTarget::Word { word }
+                        | PRedirectTarget::Heredoc { body: word } => normalize_word(word),
                         PRedirectTarget::Fd { .. } => {}
                     }
                 }
@@ -266,7 +295,9 @@ fn normalize_pipeline(p: &mut PPipeline) {
                 items.iter_mut().for_each(normalize_word);
                 body.iter_mut().for_each(normalize_and_or);
             }
-            PStage::While { condition, body, .. } => {
+            PStage::While {
+                condition, body, ..
+            } => {
                 condition.iter_mut().for_each(normalize_and_or);
                 body.iter_mut().for_each(normalize_and_or);
             }
@@ -298,7 +329,10 @@ mod normalize_tests {
             schema: PLAN_SCHEMA.into(),
             source_sha256: source_hash.into(),
             body: vec![PAndOr {
-                first: PPipeline { negated: false, stages: vec![PStage::Call(call)] },
+                first: PPipeline {
+                    negated: false,
+                    stages: vec![PStage::Call(call)],
+                },
                 rest: vec![],
             }],
             grants: Grants::default(),

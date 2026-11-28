@@ -112,7 +112,9 @@ pub enum GlobPart {
     Star,
     Question,
     /// Bracket expression contents, without the brackets.
-    Class { set: String },
+    Class {
+        set: String,
+    },
 }
 
 /// `[fd]op target`.
@@ -145,12 +147,20 @@ pub enum RedirectOp {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum RedirectTarget {
-    Word { word: Word },
+    Word {
+        word: Word,
+    },
     /// `2>&1`: the duplicated fd.
-    Fd { fd: u32 },
+    Fd {
+        fd: u32,
+    },
     /// Heredoc body. `quoted` is true when the delimiter was quoted, in which
     /// case `body` is a single literal part with no expansion.
-    Heredoc { body: Word, quoted: bool, strip_tabs: bool },
+    Heredoc {
+        body: Word,
+        quoted: bool,
+        strip_tabs: bool,
+    },
 }
 
 /// `for var in items; do body; done`. Without `in`, the parser refuses

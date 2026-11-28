@@ -37,7 +37,10 @@ pub const MAX_LOOKBACK: usize = 256;
 pub const MAX_CANDIDATES: usize = 1024;
 
 fn excerpt(source: &str, span: Span) -> String {
-    source.get(span.start as usize..span.end as usize).unwrap_or("").to_string()
+    source
+        .get(span.start as usize..span.end as usize)
+        .unwrap_or("")
+        .to_string()
 }
 
 fn finding(source: &str, rule: &str, severity: Severity, span: Span, message: String) -> Finding {
@@ -54,7 +57,10 @@ fn finding(source: &str, rule: &str, severity: Severity, span: Span, message: St
 }
 
 fn related(span: Span, label: impl Into<String>) -> Related {
-    Related { span, label: label.into() }
+    Related {
+        span,
+        label: label.into(),
+    }
 }
 
 /// What a command or line depends on, for "could anything in between have
@@ -88,10 +94,19 @@ fn may_change(inter: &CommandShape, inp: &Inputs) -> bool {
     if inter.tool() == Some("cd") || inter.vars_set.iter().any(|v| inp.vars.contains(v)) {
         return true;
     }
-    if inter.tool().is_some_and(|t| !kapsel_plan::BUILTINS.contains(&t)) || inter.dynamic_write() {
+    if inter
+        .tool()
+        .is_some_and(|t| !kapsel_plan::BUILTINS.contains(&t))
+        || inter.dynamic_write()
+    {
         return true;
     }
-    let mut touched: Vec<&str> = inter.writes.iter().chain(&inter.removes).map(|p| p.path.as_str()).collect();
+    let mut touched: Vec<&str> = inter
+        .writes
+        .iter()
+        .chain(&inter.removes)
+        .map(|p| p.path.as_str())
+        .collect();
     if inter.tool() == Some("sed") && inter.flags.iter().any(|f| f.name == "-i") {
         touched.extend(inter.reads.iter().map(|p| p.path.as_str()));
         if inter.dynamic_paths {
@@ -101,12 +116,20 @@ fn may_change(inter: &CommandShape, inp: &Inputs) -> bool {
     if touched.is_empty() {
         return false;
     }
-    inp.dynamic || touched.iter().any(|t| inp.paths.iter().any(|p| path_related(t, p)))
+    inp.dynamic
+        || touched
+            .iter()
+            .any(|t| inp.paths.iter().any(|p| path_related(t, p)))
 }
 
 /// Tools whose purpose is their output or a delay; repeating them is normal.
 fn output_only(tool: Option<&str>) -> bool {
-    matches!(tool, Some("echo" | "printf" | "date" | "sleep" | "seq" | "true" | "false" | ":" | "exit" | "pwd"))
+    matches!(
+        tool,
+        Some(
+            "echo" | "printf" | "date" | "sleep" | "seq" | "true" | "false" | ":" | "exit" | "pwd"
+        )
+    )
 }
 
 fn line_key(shapes: &[&CommandShape]) -> String {
@@ -153,7 +176,14 @@ fn flag_list(s: &CommandShape) -> BTreeSet<String> {
 }
 
 fn show(set: &BTreeSet<String>) -> String {
-    if set.is_empty() { "no flags".into() } else { set.iter().map(|f| format!("`{f}`")).collect::<Vec<_>>().join(", ") }
+    if set.is_empty() {
+        "no flags".into()
+    } else {
+        set.iter()
+            .map(|f| format!("`{f}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<Finding>) {
@@ -186,10 +216,16 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
                                 lf.raw, ef.raw
                             ),
                         );
-                        f.related.push(related(ef.span, format!("spelled `{}` here", ef.raw)));
+                        f.related
+                            .push(related(ef.span, format!("spelled `{}` here", ef.raw)));
                         f.help = Some(if lf.form == "-NUM" || ef.form == "-NUM" {
-                            let v = lf.canonical.trim_start_matches(&format!("{} ", lf.name)).to_string();
-                            format!("use one spelling throughout; `{tool} -n {v}` is the POSIX form")
+                            let v = lf
+                                .canonical
+                                .trim_start_matches(&format!("{} ", lf.name))
+                                .to_string();
+                            format!(
+                                "use one spelling throughout; `{tool} -n {v}` is the POSIX form"
+                            )
                         } else if lf.form.len() == 2 && ef.form.len() == 2 && lf.form != ef.form {
                             format!(
                                 "use one of `{}` and `{}` everywhere; for `{tool}` they are aliases (GNU `-R` also follows symlinks), so mixing them suggests one is a slip",
@@ -210,10 +246,19 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
         }
         // (b) the same tool on the same input with different flags.
         for e in earlier {
-            if e.operands.iter().map(|a| &a.text).ne(later.operands.iter().map(|a| &a.text)) {
+            if e.operands
+                .iter()
+                .map(|a| &a.text)
+                .ne(later.operands.iter().map(|a| &a.text))
+            {
                 continue;
             }
-            if e.upstream != later.upstream || e.reads.iter().map(|p| &p.path).ne(later.reads.iter().map(|p| &p.path)) {
+            if e.upstream != later.upstream
+                || e.reads
+                    .iter()
+                    .map(|p| &p.path)
+                    .ne(later.reads.iter().map(|p| &p.path))
+            {
                 continue;
             }
             let (lf, ef) = (flag_list(later), flag_list(e));
@@ -226,7 +271,13 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
                 continue;
             }
             // Underline the tool name and its flags, not the redirects.
-            let end_of = |s: &CommandShape| s.flags.iter().map(|f| f.span.end).max().unwrap_or(s.tool_span.end);
+            let end_of = |s: &CommandShape| {
+                s.flags
+                    .iter()
+                    .map(|f| f.span.end)
+                    .max()
+                    .unwrap_or(s.tool_span.end)
+            };
             let span = Span::new(later.tool_span.start, end_of(later));
             let mut f = finding(
                 source,
@@ -239,12 +290,22 @@ fn s002_inconsistent_flags(source: &str, shapes: &[CommandShape], out: &mut Vec<
                     show(&ef)
                 ),
             );
-            f.related.push(related(Span::new(e.tool_span.start, end_of(e)), format!("`{tool}` with {} here", show(&ef))));
-            let earlier_form = std::iter::once(tool.to_string()).chain(ef.iter().cloned()).collect::<Vec<_>>().join(" ");
+            f.related.push(related(
+                Span::new(e.tool_span.start, end_of(e)),
+                format!("`{tool}` with {} here", show(&ef)),
+            ));
+            let earlier_form = std::iter::once(tool.to_string())
+                .chain(ef.iter().cloned())
+                .collect::<Vec<_>>()
+                .join(" ");
             f.help = Some(format!(
                 "if both should give the same result, write `{earlier_form}` in both places; if they differ on purpose, make that visible with different outputs or a comment"
             ));
-            f.notes.push(format!("only here: {}; only there: {}", show(&only_here), show(&only_there)));
+            f.notes.push(format!(
+                "only here: {}; only there: {}",
+                show(&only_here),
+                show(&only_there)
+            ));
             out.push(f);
             break;
         }
@@ -268,7 +329,13 @@ fn s003_near_miss_path(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
             // (a range query, not a scan).
             let dir = format!("{}/", r.path);
             let is_seen = seen.contains(r.path.as_str())
-                || seen.range::<str, _>((std::ops::Bound::Included(dir.as_str()), std::ops::Bound::Unbounded)).next().is_some_and(|p| p.starts_with(&dir));
+                || seen
+                    .range::<str, _>((
+                        std::ops::Bound::Included(dir.as_str()),
+                        std::ops::Bound::Unbounded,
+                    ))
+                    .next()
+                    .is_some_and(|p| p.starts_with(&dir));
             if is_seen || reported.contains(&r.path) {
                 continue;
             }
@@ -294,9 +361,13 @@ fn s003_near_miss_path(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
                 KS_S003,
                 Severity::Warn,
                 r.span,
-                format!("`{}` is read, but nothing before it writes or creates it", r.path),
+                format!(
+                    "`{}` is read, but nothing before it writes or creates it",
+                    r.path
+                ),
             );
-            f.related.push(related(w.span, format!("`{}` is written here", w.path)));
+            f.related
+                .push(related(w.span, format!("`{}` is written here", w.path)));
             f.help = Some(format!("did you mean {}?", w.path));
             f.notes.push(format!(
                 "the two paths differ by {d} edit{}; a read of a path the script never made usually fails or reads stale data",
@@ -321,7 +392,11 @@ fn items(shapes: &[CommandShape]) -> BTreeMap<usize, Vec<&CommandShape>> {
 }
 
 fn line_of(source: &str, offset: u32) -> usize {
-    source[..(offset as usize).min(source.len())].bytes().filter(|&b| b == b'\n').count() + 1
+    source[..(offset as usize).min(source.len())]
+        .bytes()
+        .filter(|&b| b == b'\n')
+        .count()
+        + 1
 }
 
 fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Finding>) {
@@ -332,7 +407,9 @@ fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
     for (b, (_, later)) in list.iter().enumerate() {
         let key = line_key(later);
         let prev = last_by_key.insert(key, b);
-        if later.iter().any(|s| s.mutates() || s.tool().is_none()) || later.iter().all(|s| output_only(s.tool())) {
+        if later.iter().any(|s| s.mutates() || s.tool().is_none())
+            || later.iter().all(|s| output_only(s.tool()))
+        {
             continue;
         }
         // The nearest earlier identical line within MAX_LOOKBACK, with
@@ -340,7 +417,11 @@ fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
         if let Some(a) = prev.filter(|&a| b - a <= MAX_LOOKBACK) {
             let (_, earlier) = list[a];
             let inp = inputs(later.iter().copied());
-            if list[a + 1..b].iter().flat_map(|(_, v)| v.iter()).any(|s| may_change(s, &inp)) {
+            if list[a + 1..b]
+                .iter()
+                .flat_map(|(_, v)| v.iter())
+                .any(|s| may_change(s, &inp))
+            {
                 continue;
             }
             let span = line_span(later);
@@ -356,8 +437,10 @@ fn s004_duplicate_line(source: &str, shapes: &[CommandShape], out: &mut Vec<Find
                 ),
             );
             f.related.push(related(first, "first run here"));
-            f.help = Some("remove the repeat, or save the first result (`> file`) and reuse it".into());
-            f.notes.push("note-level: a repeat is harmless but usually a copy-paste slip".into());
+            f.help =
+                Some("remove the repeat, or save the first result (`> file`) and reuse it".into());
+            f.notes
+                .push("note-level: a repeat is harmless but usually a copy-paste slip".into());
             out.push(f);
         }
     }
@@ -371,7 +454,9 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
         for p in s.all_paths() {
             let mut path = p.path.as_str();
             loop {
-                let e = uses.entry(path.to_string()).or_insert_with(|| (BTreeSet::new(), p.span));
+                let e = uses
+                    .entry(path.to_string())
+                    .or_insert_with(|| (BTreeSet::new(), p.span));
                 e.0.insert(i);
                 match path.rfind('/') {
                     Some(k) if k > 0 => path = &path[..k],
@@ -382,8 +467,11 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
     }
     // Candidates: paths used by at least 2 commands, most used first,
     // at most MAX_CANDIDATES of them.
-    let mut heavy: Vec<(&String, &(BTreeSet<usize>, Span))> = uses.iter().filter(|(_, (set, _))| set.len() >= 2).collect();
-    heavy.sort_by(|a, b| (std::cmp::Reverse(a.1.0.len()), a.0).cmp(&(std::cmp::Reverse(b.1.0.len()), b.0)));
+    let mut heavy: Vec<(&String, &(BTreeSet<usize>, Span))> =
+        uses.iter().filter(|(_, (set, _))| set.len() >= 2).collect();
+    heavy.sort_by(|a, b| {
+        (std::cmp::Reverse(a.1.0.len()), a.0).cmp(&(std::cmp::Reverse(b.1.0.len()), b.0))
+    });
     heavy.truncate(MAX_CANDIDATES);
     for (r, s) in shapes.iter().enumerate() {
         if !matches!(s.tool(), Some("rm" | "mv")) {
@@ -391,7 +479,9 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
         }
         let tool = s.tool().unwrap();
         for t in &s.removes {
-            let used_elsewhere = uses.get(&t.path).is_some_and(|(set, _)| set.iter().any(|&i| i != r));
+            let used_elsewhere = uses
+                .get(&t.path)
+                .is_some_and(|(set, _)| set.iter().any(|&i| i != r));
             if used_elsewhere {
                 continue;
             }
@@ -405,14 +495,18 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
                     // Prefer more uses, then smaller distance, then name order.
                     let better = match best {
                         None => true,
-                        Some((bn, bd, _, _)) => (std::cmp::Reverse(n), d) < (std::cmp::Reverse(bn), bd),
+                        Some((bn, bd, _, _)) => {
+                            (std::cmp::Reverse(n), d) < (std::cmp::Reverse(bn), bd)
+                        }
                     };
                     if better {
                         best = Some((n, d, u, *first));
                     }
                 }
             }
-            let Some((n, d, u, first)) = best else { continue };
+            let Some((n, d, u, first)) = best else {
+                continue;
+            };
             let mut f = finding(
                 source,
                 KS_S005,
@@ -423,7 +517,8 @@ fn s005_destructive_near_miss(source: &str, shapes: &[CommandShape], out: &mut V
                     t.path
                 ),
             );
-            f.related.push(related(first, format!("`{u}` is first used here")));
+            f.related
+                .push(related(first, format!("`{u}` is first used here")));
             f.help = Some(format!(
                 "did you mean `{u}`? if `{}` is really the target, name it once more before the {tool} (e.g. `test -e {} && {tool} ...`)",
                 t.path, t.path
@@ -489,7 +584,13 @@ fn shifted(shapes: &[CommandShape], by: u32, item: usize) -> Vec<CommandShape> {
             for a in &mut s.operands {
                 a.span = shift(a.span, by);
             }
-            for p in s.reads.iter_mut().chain(&mut s.writes).chain(&mut s.removes).chain(&mut s.mentions) {
+            for p in s
+                .reads
+                .iter_mut()
+                .chain(&mut s.writes)
+                .chain(&mut s.removes)
+                .chain(&mut s.mentions)
+            {
                 p.span = shift(p.span, by);
             }
             s.item = item;
@@ -508,7 +609,11 @@ fn shifted(shapes: &[CommandShape], by: u32, item: usize) -> Vec<CommandShape> {
 ///   per-command check already reports the rest.
 ///
 /// `history` and `offsets` come from [`history_text`].
-pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'_>]) -> Vec<SessionFinding> {
+pub fn analyze_session(
+    history: &str,
+    offsets: &[u32],
+    entries: &[HistoryEntry<'_>],
+) -> Vec<SessionFinding> {
     assert_eq!(offsets.len(), entries.len());
     let command_of = |pos: u32| offsets.iter().rposition(|&o| o <= pos).unwrap_or(0);
     let mut out = Vec::new();
@@ -532,7 +637,9 @@ pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'
         let floor = j.saturating_sub(MAX_LOOKBACK);
         let last_change = (floor..j)
             .rev()
-            .find(|&k| entries[k].status.is_some() && entries[k].shapes.iter().any(|s| may_change(s, &inp)))
+            .find(|&k| {
+                entries[k].status.is_some() && entries[k].shapes.iter().any(|s| may_change(s, &inp))
+            })
             .unwrap_or(floor);
         for &i in earlier_same.iter().rev() {
             if i < last_change {
@@ -545,8 +652,14 @@ pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'
                 Some(0) => break,
                 Some(s) => s,
             };
-            let end_i = offsets.get(i + 1).map(|&o| o as usize - 1).unwrap_or(history.len());
-            let end_j = offsets.get(j + 1).map(|&o| o as usize - 1).unwrap_or(history.len());
+            let end_i = offsets
+                .get(i + 1)
+                .map(|&o| o as usize - 1)
+                .unwrap_or(history.len());
+            let end_j = offsets
+                .get(j + 1)
+                .map(|&o| o as usize - 1)
+                .unwrap_or(history.len());
             let span_i = Span::new(offsets[i], end_i as u32);
             let span_j = Span::new(offsets[j], end_j as u32);
             let mut f = finding(
@@ -554,17 +667,26 @@ pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'
                 KS_S001,
                 Severity::Warn,
                 span_j,
-                format!("retry without change: this command failed with exit status {status} and is run again as it was"),
+                format!(
+                    "retry without change: this command failed with exit status {status} and is run again as it was"
+                ),
             );
-            f.related.push(related(span_i, format!("failed here with exit status {status}")));
-            f.help = Some("it failed the same way before; change the input or read the error".into());
+            f.related.push(related(
+                span_i,
+                format!("failed here with exit status {status}"),
+            ));
+            f.help =
+                Some("it failed the same way before; change the input or read the error".into());
             if excerpt(history, span_i) != excerpt(history, span_j) {
                 f.notes.push("it differs from the failed run only in quoting, whitespace or flag order, which does not change what runs".into());
             }
             f.notes.push(
                 "nothing that ran in between writes a file it reads, changes directory or sets a variable it uses".into(),
             );
-            out.push(SessionFinding { command: j, finding: f });
+            out.push(SessionFinding {
+                command: j,
+                finding: f,
+            });
             break;
         }
     }
@@ -584,9 +706,18 @@ pub fn analyze_session(history: &str, offsets: &[u32], entries: &[HistoryEntry<'
     for f in cross {
         let c = command_of(f.span.start);
         if f.related.iter().any(|r| command_of(r.span.start) != c) {
-            out.push(SessionFinding { command: c, finding: f });
+            out.push(SessionFinding {
+                command: c,
+                finding: f,
+            });
         }
     }
-    out.sort_by(|a, b| (a.command, a.finding.span.start, &a.finding.rule).cmp(&(b.command, b.finding.span.start, &b.finding.rule)));
+    out.sort_by(|a, b| {
+        (a.command, a.finding.span.start, &a.finding.rule).cmp(&(
+            b.command,
+            b.finding.span.start,
+            &b.finding.rule,
+        ))
+    });
     out
 }

@@ -54,7 +54,13 @@ impl Session {
     }
     /// `redirs`: (fd, op, target, target fd); op is one of read, write,
     /// append, dup-out, dup-in, heredoc.
-    pub fn t_call(&mut self, argv: &[Vec<TPart>], redirs: &[(u32, &str, Vec<TPart>, u32)], stdin: u32, stdout: u32) -> u32 {
+    pub fn t_call(
+        &mut self,
+        argv: &[Vec<TPart>],
+        redirs: &[(u32, &str, Vec<TPart>, u32)],
+        stdin: u32,
+        stdout: u32,
+    ) -> u32 {
         let reds: Vec<WRedirect> = redirs
             .iter()
             .map(|(fd, op, t, tfd)| WRedirect {
@@ -73,7 +79,11 @@ impl Session {
             .collect();
         let w: Vec<WWord> = argv.iter().map(|a| tword(a)).collect();
         let st = self.sh().call(&w, &[], &reds, stdin, stdout).expect("call");
-        self.sh().status = if st >= 256 { (st - 256) as i32 } else { st as i32 };
+        self.sh().status = if st >= 256 {
+            (st - 256) as i32
+        } else {
+            st as i32
+        };
         st
     }
 }

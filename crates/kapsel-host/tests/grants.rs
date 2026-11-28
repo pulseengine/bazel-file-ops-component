@@ -25,9 +25,17 @@ impl G {
         }
         std::fs::write(root.join("out/secret"), "secret\n").unwrap();
         std::fs::write(root.join("ro/file"), "readable\n").unwrap();
-        let grants = GrantSet { read_write: vec![root.join("work")], read_only: vec![root.join("ro")] };
+        let grants = GrantSet {
+            read_write: vec![root.join("work")],
+            read_only: vec![root.join("ro")],
+        };
         let s = Session::with_env(grants, root.join("work"), vec![]).unwrap();
-        G { s, base, out: SharedBuf::new(), err: SharedBuf::new() }
+        G {
+            s,
+            base,
+            out: SharedBuf::new(),
+            err: SharedBuf::new(),
+        }
     }
     fn p(&self, rel: &str) -> PathBuf {
         self.base.path().canonicalize().unwrap().join(rel)
@@ -38,7 +46,11 @@ impl G {
     fn run(&mut self, argv: &[&str]) -> (u32, String, String) {
         self.out.clear();
         self.err.clear();
-        self.s.set_io(Box::new(Cursor::new(Vec::new())), self.out.clone(), self.err.clone());
+        self.s.set_io(
+            Box::new(Cursor::new(Vec::new())),
+            self.out.clone(),
+            self.err.clone(),
+        );
         let st = self.s.call_direct(argv);
         (st, self.out.string(), self.err.string())
     }
@@ -46,10 +58,16 @@ impl G {
     fn run_redir(&mut self, argv: &[&str], op: &str, target: &str) -> (u32, String, String) {
         self.out.clear();
         self.err.clear();
-        self.s.set_io(Box::new(Cursor::new(Vec::new())), self.out.clone(), self.err.clone());
+        self.s.set_io(
+            Box::new(Cursor::new(Vec::new())),
+            self.out.clone(),
+            self.err.clone(),
+        );
         let words: Vec<Vec<TPart>> = argv.iter().map(|a| vec![TPart::Lit(a, true)]).collect();
         let fd = if op == "read" { 0 } else { 1 };
-        let st = self.s.t_call(&words, &[(fd, op, vec![TPart::Lit(target, true)], 0)], 0, 0);
+        let st = self
+            .s
+            .t_call(&words, &[(fd, op, vec![TPart::Lit(target, true)], 0)], 0, 0);
         (st, self.out.string(), self.err.string())
     }
 }
@@ -80,7 +98,10 @@ fn outside_paths_are_refused_and_untouched() {
     let (st, _, err) = g.run_redir(&["echo", "x"], "write", &newf);
     assert_eq!((st, err), (1, outside(&newf)));
     assert!(!g.p("out/new").exists());
-    assert_eq!(g.run(&["cp", &secret, "copy"]), (1, "".into(), outside(&secret)));
+    assert_eq!(
+        g.run(&["cp", &secret, "copy"]),
+        (1, "".into(), outside(&secret))
+    );
     assert!(!g.p("work/copy").exists());
     std::fs::write(g.p("work/mine"), "m").unwrap();
     assert_eq!(g.run(&["cp", "mine", &newf]).0, 1);
@@ -88,7 +109,10 @@ fn outside_paths_are_refused_and_untouched() {
     assert!(g.p("work/mine").exists() && !g.p("out/new").exists());
     assert_eq!(g.run(&["tee", &newf]).0, 1);
     assert_eq!(g.run(&["sed", "-i", "s/s/X/", &secret]).0, 1);
-    assert_eq!(std::fs::read_to_string(g.p("out/secret")).unwrap(), "secret\n");
+    assert_eq!(
+        std::fs::read_to_string(g.p("out/secret")).unwrap(),
+        "secret\n"
+    );
 }
 
 #[test]
@@ -100,7 +124,10 @@ fn read_only_grant_cannot_be_written() {
     assert_eq!(g.run(&["tee", &n]).0, 1);
     let (st, _, err) = g.run_redir(&["echo", "x"], "append", &f);
     assert_eq!((st, err), (1, outside(&f)));
-    assert_eq!(std::fs::read_to_string(g.p("ro/file")).unwrap(), "readable\n");
+    assert_eq!(
+        std::fs::read_to_string(g.p("ro/file")).unwrap(),
+        "readable\n"
+    );
     assert!(!g.p("ro/new").exists());
 }
 
@@ -114,12 +141,18 @@ fn symlink_inside_rw_pointing_outside_is_refused() {
     let (st, _, err) = g.run_redir(&["echo", "pwned"], "write", "link");
     assert_eq!(st, 1);
     assert_eq!(err, outside("link"));
-    assert_eq!(std::fs::read_to_string(g.p("out/secret")).unwrap(), "secret\n");
+    assert_eq!(
+        std::fs::read_to_string(g.p("out/secret")).unwrap(),
+        "secret\n"
+    );
     assert_eq!(g.run(&["tee", "link"]).0, 1);
     std::fs::write(g.p("work/f"), "f").unwrap();
     assert_eq!(g.run(&["cp", "f", "link"]).0, 1);
     assert_eq!(g.run(&["sed", "-i", "s/s/X/", "link"]).0, 1);
-    assert_eq!(std::fs::read_to_string(g.p("out/secret")).unwrap(), "secret\n");
+    assert_eq!(
+        std::fs::read_to_string(g.p("out/secret")).unwrap(),
+        "secret\n"
+    );
     // control: rm acts on the link itself and leaves the target alone
     assert_eq!(g.run(&["rm", "link"]), (0, "".into(), "".into()));
     assert!(!g.p("work/link").exists() && g.p("out/secret").exists());
@@ -129,12 +162,21 @@ fn symlink_inside_rw_pointing_outside_is_refused() {
 fn symlinked_directory_pointing_outside_is_refused() {
     let mut g = G::new();
     symlink(g.p("out"), g.p("work/linkdir")).unwrap();
-    assert_eq!(g.run(&["cat", "linkdir/secret"]), (1, "".into(), outside("linkdir/secret")));
-    assert_eq!(g.run(&["mkdir", "linkdir/x"]), (1, "".into(), outside("linkdir/x")));
+    assert_eq!(
+        g.run(&["cat", "linkdir/secret"]),
+        (1, "".into(), outside("linkdir/secret"))
+    );
+    assert_eq!(
+        g.run(&["mkdir", "linkdir/x"]),
+        (1, "".into(), outside("linkdir/x"))
+    );
     assert_eq!(g.run(&["mkdir", "-p", "linkdir/x/y"]).0, 1);
     assert!(!g.p("out/x").exists());
     assert_eq!(g.run(&["ls", "linkdir"]).0, 2);
-    assert_eq!(g.run(&["cd", "linkdir"]), (1, "".into(), outside("linkdir")));
+    assert_eq!(
+        g.run(&["cd", "linkdir"]),
+        (1, "".into(), outside("linkdir"))
+    );
     assert_eq!(g.run(&["rm", "linkdir/secret"]).0, 1);
     assert!(g.p("out/secret").exists());
 }
@@ -158,7 +200,10 @@ fn symlink_inside_rw_pointing_inside_is_refused_for_write_but_readable() {
     symlink(g.p("work/real"), g.p("work/alias")).unwrap();
     assert_eq!(g.run(&["cat", "alias"]), (0, "real\n".into(), "".into()));
     let (st, _, err) = g.run_redir(&["echo", "x"], "write", "alias");
-    assert_eq!((st, err.as_str()), (1, "kapsel: alias: refusing to write through symlink\n"));
+    assert_eq!(
+        (st, err.as_str()),
+        (1, "kapsel: alias: refusing to write through symlink\n")
+    );
     assert_eq!(std::fs::read_to_string(g.p("work/real")).unwrap(), "real\n");
     // control: a plain file is writable
     let (st, _, err) = g.run_redir(&["echo", "x"], "write", "real");
@@ -181,8 +226,14 @@ fn cp_r_and_redirect_through_link_to_outside_dir_are_refused() {
     assert!(!g.p("out/f").exists());
     // control: the same copy into a real directory works
     std::fs::create_dir(g.p("work/real")).unwrap();
-    assert_eq!(g.run(&["cp", "-r", "src", "real/x"]), (0, "".into(), "".into()));
-    assert_eq!(std::fs::read_to_string(g.p("work/real/x/sub/a")).unwrap(), "a");
+    assert_eq!(
+        g.run(&["cp", "-r", "src", "real/x"]),
+        (0, "".into(), "".into())
+    );
+    assert_eq!(
+        std::fs::read_to_string(g.p("work/real/x/sub/a")).unwrap(),
+        "a"
+    );
     let (st, _, _) = g.run_redir(&["echo", "x"], "write", "real/f");
     assert_eq!(st, 0);
 }
@@ -202,7 +253,10 @@ fn cp_r_does_not_write_through_a_link_inside_the_destination_tree() {
     std::fs::write(g.p("work/src/f"), "new").unwrap();
     symlink(g.p("out/secret"), g.p("work/dest/src/f")).unwrap();
     g.run(&["cp", "-r", "src", "dest"]);
-    assert_eq!(std::fs::read_to_string(g.p("out/secret")).unwrap(), "secret\n");
+    assert_eq!(
+        std::fs::read_to_string(g.p("out/secret")).unwrap(),
+        "secret\n"
+    );
 }
 
 #[test]
@@ -228,13 +282,22 @@ fn cp_r_and_mv_refuse_to_recreate_symlinks() {
     assert!(err.contains("refusing to copy a symlink"), "{err}");
     // mv of a link to another directory is refused; in place is fine
     let (st, _, err) = g.run(&["mv", "a/l", "deep"]);
-    assert_eq!((st, err.as_str()), (1, "kapsel: a/l: refusing to copy a symlink\n"));
+    assert_eq!(
+        (st, err.as_str()),
+        (1, "kapsel: a/l: refusing to copy a symlink\n")
+    );
     assert!(std::fs::symlink_metadata(g.p("work/a/l")).is_ok());
     assert_eq!(g.run(&["mv", "a/l", "a/l2"]), (0, "".into(), "".into()));
     // control: a tree without links copies
     std::fs::remove_file(g.p("work/a/l2")).unwrap();
-    assert_eq!(g.run(&["cp", "-r", "a", "deep/er/a3"]), (0, "".into(), "".into()));
-    assert_eq!(std::fs::read_to_string(g.p("work/deep/er/a3/ok")).unwrap(), "ok");
+    assert_eq!(
+        g.run(&["cp", "-r", "a", "deep/er/a3"]),
+        (0, "".into(), "".into())
+    );
+    assert_eq!(
+        std::fs::read_to_string(g.p("work/deep/er/a3/ok")).unwrap(),
+        "ok"
+    );
 }
 
 #[test]
@@ -262,7 +325,10 @@ fn dotdot_is_resolved_physically_after_symlinks() {
     let mut g = G::new();
     std::fs::create_dir(g.p("work/sub")).unwrap();
     // `..` out of the grant is refused by the grant check on the result
-    assert_eq!(g.run(&["cat", "../out/secret"]), (1, "".into(), outside("../out/secret")));
+    assert_eq!(
+        g.run(&["cat", "../out/secret"]),
+        (1, "".into(), outside("../out/secret"))
+    );
     assert_eq!(g.run(&["cat", "sub/../../out/secret"]).0, 1);
     // Planted: link -> <outside dir>. Lexically `link/../secret` is
     // work/secret (inside); the kernel goes to the parent of the target,
@@ -271,7 +337,10 @@ fn dotdot_is_resolved_physically_after_symlinks() {
     std::fs::write(g.p("out/secret2"), "outside\n").unwrap();
     std::fs::write(g.p("work/secret2"), "inside\n").unwrap();
     symlink(g.p("out/deeper"), g.p("work/link")).unwrap();
-    assert_eq!(g.run(&["cat", "link/../secret2"]), (1, "".into(), outside("link/../secret2")));
+    assert_eq!(
+        g.run(&["cat", "link/../secret2"]),
+        (1, "".into(), outside("link/../secret2"))
+    );
     let (st, _, err) = g.run_redir(&["echo", "x"], "write", "link/../new");
     assert_eq!((st, err.as_str()), (1, outside("link/../new").as_str()));
     assert!(!g.p("out/new").exists() && !g.p("work/new").exists());
@@ -279,7 +348,10 @@ fn dotdot_is_resolved_physically_after_symlinks() {
     assert!(!g.p("out/d").exists());
     // Controls: the same shape through a real directory works.
     std::fs::create_dir(g.p("work/real")).unwrap();
-    assert_eq!(g.run(&["cat", "real/../secret2"]), (0, "inside\n".into(), "".into()));
+    assert_eq!(
+        g.run(&["cat", "real/../secret2"]),
+        (0, "inside\n".into(), "".into())
+    );
     assert_eq!(g.run(&["mkdir", "real/../d2"]), (0, "".into(), "".into()));
     assert!(g.p("work/d2").is_dir());
     // cd sub; cat ../a.txt and > ../where.txt work inside the grant
@@ -288,7 +360,10 @@ fn dotdot_is_resolved_physically_after_symlinks() {
     assert_eq!(g.run(&["cat", "../a.txt"]), (0, "A\n".into(), "".into()));
     let (st, _, err) = g.run_redir(&["pwd"], "write", "../where.txt");
     assert_eq!((st, err.as_str()), (0, ""));
-    assert_eq!(std::fs::read_to_string(g.p("work/where.txt")).unwrap(), format!("{}\n", g.abs("work/sub")));
+    assert_eq!(
+        std::fs::read_to_string(g.p("work/where.txt")).unwrap(),
+        format!("{}\n", g.abs("work/sub"))
+    );
     // cd .. back to the top grant works; cd .. above it fails with the grants message
     assert_eq!(g.run(&["cd", ".."]).0, 0);
     assert_eq!(g.s.cwd(), g.p("work"));
@@ -301,9 +376,19 @@ fn symlink_loops_are_denied_not_guessed() {
     let mut g = G::new();
     symlink(g.p("work/b"), g.p("work/a")).unwrap();
     symlink(g.p("work/a"), g.p("work/b")).unwrap();
-    assert_eq!(g.run(&["cat", "a"]), (1, "".into(), "kapsel: a: cannot resolve (symlink loop)\n".into()));
+    assert_eq!(
+        g.run(&["cat", "a"]),
+        (
+            1,
+            "".into(),
+            "kapsel: a: cannot resolve (symlink loop)\n".into()
+        )
+    );
     let (st, _, err) = g.run_redir(&["echo", "x"], "write", "b");
-    assert_eq!((st, err.as_str()), (1, "kapsel: b: cannot resolve (symlink loop)\n"));
+    assert_eq!(
+        (st, err.as_str()),
+        (1, "kapsel: b: cannot resolve (symlink loop)\n")
+    );
     assert_eq!(g.run(&["mkdir", "-p", "a/c"]).0, 1);
     // a loop that is a prefix of a deeper path
     assert_eq!(g.run(&["cat", "a/x/y"]).0, 1);
@@ -327,16 +412,22 @@ fn cd_outside_grants_fails_and_cd_to_read_only_works() {
 fn glob_outside_grants_stays_literal_and_probes_nothing() {
     let mut g = G::new();
     // only cwd is granted: /etc/pass* must not expand
-    let r = g.s.t_expand(&[vec![TPart::Lit("/etc/pass", false), TPart::Glob("*")]]);
+    let r =
+        g.s.t_expand(&[vec![TPart::Lit("/etc/pass", false), TPart::Glob("*")]]);
     assert_eq!(r, vec!["/etc/pass*".to_string()]);
     let r = g.s.t_expand(&[vec![TPart::Glob("/e?c/passwd")]]);
     assert_eq!(r, vec!["/e?c/passwd".to_string()]);
     // a literal path outside is not "found" either
     let out = g.abs("out");
-    let r = g.s.t_expand(&[vec![TPart::Lit(&out, false), TPart::Lit("/", false), TPart::Glob("*")]]);
+    let r = g.s.t_expand(&[vec![
+        TPart::Lit(&out, false),
+        TPart::Lit("/", false),
+        TPart::Glob("*"),
+    ]]);
     assert_eq!(r, vec![format!("{out}/*")]);
     // `..` in a pattern is not followed
-    let r = g.s.t_expand(&[vec![TPart::Lit("../out/", false), TPart::Glob("*")]]);
+    let r =
+        g.s.t_expand(&[vec![TPart::Lit("../out/", false), TPart::Glob("*")]]);
     assert_eq!(r, vec!["../out/*".to_string()]);
     // control: inside the grant it expands
     std::fs::write(g.p("work/a.txt"), "").unwrap();
@@ -344,16 +435,26 @@ fn glob_outside_grants_stays_literal_and_probes_nothing() {
     assert_eq!(r, vec!["a.txt".to_string()]);
     // control: a read-only grant is visible to globs
     let ro = g.abs("ro");
-    let r = g.s.t_expand(&[vec![TPart::Lit(&ro, false), TPart::Lit("/", false), TPart::Glob("f*")]]);
+    let r = g.s.t_expand(&[vec![
+        TPart::Lit(&ro, false),
+        TPart::Lit("/", false),
+        TPart::Glob("f*"),
+    ]]);
     assert_eq!(r, vec![format!("{ro}/file")]);
 }
 
 #[test]
 fn invalid_grants_are_errors() {
-    let g = GrantSet { read_write: vec![PathBuf::from("/definitely/not/here")], read_only: vec![] };
+    let g = GrantSet {
+        read_write: vec![PathBuf::from("/definitely/not/here")],
+        read_only: vec![],
+    };
     assert!(Session::new(g).is_err());
     let f = tempfile::NamedTempFile::new().unwrap();
-    let g = GrantSet { read_write: vec![f.path().to_path_buf()], read_only: vec![] };
+    let g = GrantSet {
+        read_write: vec![f.path().to_path_buf()],
+        read_only: vec![],
+    };
     let e = Session::new(g).err().unwrap();
     assert!(e.0.contains("not a directory"), "{}", e.0);
 }

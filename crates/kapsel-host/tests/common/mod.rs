@@ -17,10 +17,27 @@ impl T {
     pub fn new() -> T {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
-        let grants = GrantSet { read_write: vec![root.clone()], read_only: vec![] };
-        let s = Session::with_env(grants, root.clone(), vec![("HOME".to_string(), root.display().to_string())]).unwrap();
-        let mut t = T { s, dir, out: SharedBuf::new(), err: SharedBuf::new() };
-        t.s.set_io(Box::new(Cursor::new(Vec::new())), t.out.clone(), t.err.clone());
+        let grants = GrantSet {
+            read_write: vec![root.clone()],
+            read_only: vec![],
+        };
+        let s = Session::with_env(
+            grants,
+            root.clone(),
+            vec![("HOME".to_string(), root.display().to_string())],
+        )
+        .unwrap();
+        let mut t = T {
+            s,
+            dir,
+            out: SharedBuf::new(),
+            err: SharedBuf::new(),
+        };
+        t.s.set_io(
+            Box::new(Cursor::new(Vec::new())),
+            t.out.clone(),
+            t.err.clone(),
+        );
         t
     }
 
@@ -50,7 +67,11 @@ impl T {
     pub fn run_in(&mut self, argv: &[&str], stdin: &str) -> (u32, String, String) {
         self.out.clear();
         self.err.clear();
-        self.s.set_io(Box::new(Cursor::new(stdin.as_bytes().to_vec())), self.out.clone(), self.err.clone());
+        self.s.set_io(
+            Box::new(Cursor::new(stdin.as_bytes().to_vec())),
+            self.out.clone(),
+            self.err.clone(),
+        );
         let st = self.s.call_direct(argv);
         (st, self.out.string(), self.err.string())
     }
@@ -63,6 +84,10 @@ impl T {
     #[track_caller]
     pub fn check(&mut self, argv: &[&str], stdin: &str, status: u32, out: &str, err: &str) {
         let (s, o, e) = self.run_in(argv, stdin);
-        assert_eq!((s, o.as_str(), e.as_str()), (status, out, err), "argv {argv:?} stdin {stdin:?}");
+        assert_eq!(
+            (s, o.as_str(), e.as_str()),
+            (status, out, err),
+            "argv {argv:?} stdin {stdin:?}"
+        );
     }
 }

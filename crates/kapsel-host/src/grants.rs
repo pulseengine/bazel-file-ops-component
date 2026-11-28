@@ -40,7 +40,6 @@ pub struct Grants {
     pub read_only: Vec<PathBuf>,
 }
 
-
 impl Grants {
     pub fn new(set: &GrantSet) -> Result<Self, HostError> {
         let canon = |p: &PathBuf| -> Result<PathBuf, HostError> {
@@ -69,33 +68,46 @@ impl Grants {
     /// Resolves an operand for reading and checks it against the grants.
     pub fn check_read(&self, cwd: &Path, arg: &str) -> Result<PathBuf, GrantErr> {
         let r = resolve(cwd, Path::new(arg))?;
-        if self.can_read(&r) { Ok(r) } else { Err(GrantErr::Outside) }
+        if self.can_read(&r) {
+            Ok(r)
+        } else {
+            Err(GrantErr::Outside)
+        }
     }
 
     /// Resolves an operand for writing. With `follow_last`, an existing
     /// symlink in the last component is refused (it would be written through);
     /// without it, the link itself is the target (rm, mv).
-    pub fn check_write(&self, cwd: &Path, arg: &str, follow_last: bool) -> Result<PathBuf, GrantErr> {
+    pub fn check_write(
+        &self,
+        cwd: &Path,
+        arg: &str,
+        follow_last: bool,
+    ) -> Result<PathBuf, GrantErr> {
         let p = Path::new(arg);
         let nofollow = resolve_nofollow_last(cwd, p)?;
         if follow_last {
-            if let Ok(md) = std::fs::symlink_metadata(&nofollow) {
-                if md.file_type().is_symlink() {
-                    // Judge the link only if it lies inside the grants
-                    // (nothing outside is probed). A loop or a target outside
-                    // is reported as such, any other link as a symlink.
-                    if !self.can_write(&nofollow) {
-                        return Err(GrantErr::Outside);
-                    }
-                    return Err(match resolve(cwd, p) {
-                        Err(e) => e,
-                        Ok(r) if !self.can_write(&r) => GrantErr::Outside,
-                        Ok(_) => GrantErr::Symlink,
-                    });
+            if let Ok(md) = std::fs::symlink_metadata(&nofollow)
+                && md.file_type().is_symlink()
+            {
+                // Judge the link only if it lies inside the grants
+                // (nothing outside is probed). A loop or a target outside
+                // is reported as such, any other link as a symlink.
+                if !self.can_write(&nofollow) {
+                    return Err(GrantErr::Outside);
                 }
+                return Err(match resolve(cwd, p) {
+                    Err(e) => e,
+                    Ok(r) if !self.can_write(&r) => GrantErr::Outside,
+                    Ok(_) => GrantErr::Symlink,
+                });
             }
             let r = resolve(cwd, p)?;
-            if self.can_write(&r) { Ok(r) } else { Err(GrantErr::Outside) }
+            if self.can_write(&r) {
+                Ok(r)
+            } else {
+                Err(GrantErr::Outside)
+            }
         } else if self.can_write(&nofollow) {
             Ok(nofollow)
         } else {
@@ -114,10 +126,10 @@ impl Grants {
         if !self.can_write(&full) {
             return Err(GrantErr::Outside);
         }
-        if let Ok(md) = std::fs::symlink_metadata(&full) {
-            if md.file_type().is_symlink() {
-                return Err(GrantErr::Symlink);
-            }
+        if let Ok(md) = std::fs::symlink_metadata(&full)
+            && md.file_type().is_symlink()
+        {
+            return Err(GrantErr::Symlink);
         }
         Ok(())
     }
@@ -127,7 +139,11 @@ impl Grants {
 /// Components that do not exist are kept as written. More than 40 links, or an
 /// unreadable link, is an error (the caller denies).
 pub fn resolve(cwd: &Path, path: &Path) -> Result<PathBuf, GrantErr> {
-    let abs = if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) };
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
     let mut pending: Vec<OsString> = Vec::new();
     let mut cur = PathBuf::from("/");
     let push_comps = |pending: &mut Vec<OsString>, p: &Path| {
@@ -172,7 +188,11 @@ pub fn resolve(cwd: &Path, path: &Path) -> Result<PathBuf, GrantErr> {
 
 /// Like `resolve`, but a symlink in the last component is not followed.
 pub fn resolve_nofollow_last(cwd: &Path, path: &Path) -> Result<PathBuf, GrantErr> {
-    let abs = if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) };
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
     match (abs.parent(), abs.components().next_back()) {
         (Some(parent), Some(Component::Normal(name))) => Ok(resolve(cwd, parent)?.join(name)),
         _ => resolve(cwd, &abs),

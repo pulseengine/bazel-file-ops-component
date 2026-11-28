@@ -27,25 +27,40 @@ fn parse_key(s: &str) -> Result<Key, String> {
     };
     let mut k = Key::default();
     let parse_pos = |t: &str, k: &mut Key, start: bool| -> Result<(usize, usize), String> {
-        let digits_end = t.find(|c: char| !c.is_ascii_digit() && c != '.').unwrap_or(t.len());
+        let digits_end = t
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(t.len());
         let (pos, opts) = t.split_at(digits_end);
         let (f, c) = match pos.split_once('.') {
             Some((f, c)) => (f, c),
             None => (pos, ""),
         };
-        let f: usize = f.parse().map_err(|_| format!("invalid number at field start: invalid count at start of '{s}'"))?;
-        let c: usize = if c.is_empty() { 0 } else { c.parse().map_err(|_| format!("invalid character position in '{s}'"))? };
+        let f: usize = f.parse().map_err(|_| {
+            format!("invalid number at field start: invalid count at start of '{s}'")
+        })?;
+        let c: usize = if c.is_empty() {
+            0
+        } else {
+            c.parse()
+                .map_err(|_| format!("invalid character position in '{s}'"))?
+        };
         for o in opts.chars() {
             match o {
                 'n' => k.numeric = true,
                 'r' => k.reverse = true,
                 'b' => k.blank = true,
-                _ => return Err(format!("unsupported key option '{o}' in '{s}'; supported: n r b")),
+                _ => {
+                    return Err(format!(
+                        "unsupported key option '{o}' in '{s}'; supported: n r b"
+                    ));
+                }
             }
             k.has_opts = true;
         }
         if f == 0 && start {
-            return Err(format!("field number is zero: invalid field specification '{s}'"));
+            return Err(format!(
+                "field number is zero: invalid field specification '{s}'"
+            ));
         }
         Ok((f, c))
     };
@@ -118,7 +133,11 @@ fn key_bytes<'a>(line: &'a [u8], k: &Key, sep: Option<u8>) -> &'a [u8] {
             None => line.len(),
         },
     };
-    if start >= end { &line[start.min(line.len())..start.min(line.len())] } else { &line[start..end] }
+    if start >= end {
+        &line[start.min(line.len())..start.min(line.len())]
+    } else {
+        &line[start..end]
+    }
 }
 
 fn num_value(b: &[u8]) -> f64 {
@@ -163,7 +182,9 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
         numeric: false,
         supported: "-u -r -n -s -b -k KEYDEF -t SEP -o FILE",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let sep = match p.val('t') {
         None => None,
         Some(t) if t.len() == 1 => Some(t.as_bytes()[0]),
@@ -184,7 +205,14 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
     }
     let (gu, gr, gn, gs, gb) = (p.has('u'), p.has('r'), p.has('n'), p.has('s'), p.has('b'));
     if keys.is_empty() {
-        keys.push(Key { sf: 1, numeric: gn, reverse: gr, blank: gb, has_opts: true, ..Default::default() });
+        keys.push(Key {
+            sf: 1,
+            numeric: gn,
+            reverse: gr,
+            blank: gb,
+            has_opts: true,
+            ..Default::default()
+        });
     } else {
         for k in keys.iter_mut() {
             if !k.has_opts {
@@ -195,7 +223,11 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
         }
     }
     let whole_line_default = p.vals('k').is_empty();
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let mut data = Vec::new();
     let mut status = 0;
     for f in &files {
@@ -221,7 +253,9 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
                 (key_bytes(x, k, sep), key_bytes(y, k, sep))
             };
             let mut o = if k.numeric {
-                num_value(kx).partial_cmp(&num_value(ky)).unwrap_or(Ordering::Equal)
+                num_value(kx)
+                    .partial_cmp(&num_value(ky))
+                    .unwrap_or(Ordering::Equal)
             } else {
                 kx.cmp(ky)
             };
@@ -245,19 +279,20 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
     let mut out = Vec::new();
     let mut prev: Option<&[u8]> = None;
     for l in &ls {
-        if gu {
-            if let Some(pv) = prev {
-                if cmp_keys(pv, l) == Ordering::Equal {
-                    continue;
-                }
-            }
+        if gu
+            && let Some(pv) = prev
+            && cmp_keys(pv, l) == Ordering::Equal
+        {
+            continue;
         }
         out.extend_from_slice(l);
         out.push(b'\n');
         prev = Some(l);
     }
     if let Some(o) = p.val('o') {
-        let Some(path) = ctx.wpath(o, true) else { return 2 };
+        let Some(path) = ctx.wpath(o, true) else {
+            return 2;
+        };
         if let Err(e) = std::fs::write(&path, &out) {
             ctx.io_msg(o, &e);
             return 2;
@@ -273,20 +308,37 @@ pub fn sort(ctx: &mut Ctx, a: &[String]) -> i32 {
 pub fn uniq(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "cdui",
-        long: &[("count", 'c'), ("repeated", 'd'), ("unique", 'u'), ("ignore-case", 'i')],
+        long: &[
+            ("count", 'c'),
+            ("repeated", 'd'),
+            ("unique", 'u'),
+            ("ignore-case", 'i'),
+        ],
         numeric: false,
         supported: "-c -d -u -i",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     if p.operands.len() > 1 {
         let extra = p.operands[1].clone();
-        ctx.msg(&format!("extra operand '{extra}' (an output file is not supported; use a redirect)"));
+        ctx.msg(&format!(
+            "extra operand '{extra}' (an output file is not supported; use a redirect)"
+        ));
         return 2;
     }
     let f = p.operands.first().cloned().unwrap_or_else(|| "-".into());
-    let Some(data) = ctx.read_input(&f) else { return 1 };
+    let Some(data) = ctx.read_input(&f) else {
+        return 1;
+    };
     let (c, d, u, i) = (p.has('c'), p.has('d'), p.has('u'), p.has('i'));
-    let key = |l: &[u8]| -> Vec<u8> { if i { l.to_ascii_lowercase() } else { l.to_vec() } };
+    let key = |l: &[u8]| -> Vec<u8> {
+        if i {
+            l.to_ascii_lowercase()
+        } else {
+            l.to_vec()
+        }
+    };
     let ls = lines(&data);
     let mut groups: Vec<(&[u8], usize)> = Vec::new();
     for l in ls {
@@ -316,8 +368,15 @@ pub fn uniq(ctx: &mut Ctx, a: &[String]) -> i32 {
 // ---- tee ------------------------------------------------------------------
 
 pub fn tee(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let spec = Spec { short: "a", long: &[("append", 'a')], numeric: false, supported: "-a" };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let spec = Spec {
+        short: "a",
+        long: &[("append", 'a')],
+        numeric: false,
+        supported: "-a",
+    };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let data = ctx.stdin_all();
     let mut status = 0;
     for f in &p.operands {
@@ -355,8 +414,16 @@ fn parse_list(s: &str) -> Result<Vec<(usize, usize)>, String> {
         let bad = || format!("invalid byte, character or field list '{s}'");
         let (a, b) = match part.split_once('-') {
             Some((a, b)) => {
-                let a = if a.is_empty() { 1 } else { a.parse::<usize>().map_err(|_| bad())? };
-                let b = if b.is_empty() { usize::MAX } else { b.parse::<usize>().map_err(|_| bad())? };
+                let a = if a.is_empty() {
+                    1
+                } else {
+                    a.parse::<usize>().map_err(|_| bad())?
+                };
+                let b = if b.is_empty() {
+                    usize::MAX
+                } else {
+                    b.parse::<usize>().map_err(|_| bad())?
+                };
                 (a, b)
             }
             None => {
@@ -378,11 +445,19 @@ fn parse_list(s: &str) -> Result<Vec<(usize, usize)>, String> {
 pub fn cut(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "d:f:c:b:s",
-        long: &[("delimiter", 'd'), ("fields", 'f'), ("characters", 'c'), ("bytes", 'b'), ("only-delimited", 's')],
+        long: &[
+            ("delimiter", 'd'),
+            ("fields", 'f'),
+            ("characters", 'c'),
+            ("bytes", 'b'),
+            ("only-delimited", 's'),
+        ],
         numeric: false,
         supported: "-d DELIM -f LIST -c LIST -b LIST -s",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let modes = ['f', 'c', 'b'].iter().filter(|m| p.has(**m)).count();
     if modes == 0 {
         ctx.msg("you must specify a list of bytes, characters, or fields");
@@ -413,7 +488,11 @@ pub fn cut(ctx: &mut Ctx, a: &[String]) -> i32 {
         return 2;
     }
     let sel = |i: usize| list.iter().any(|&(a, b)| a <= i && i <= b);
-    let files = if p.operands.is_empty() { vec!["-".to_string()] } else { p.operands.clone() };
+    let files = if p.operands.is_empty() {
+        vec!["-".to_string()]
+    } else {
+        p.operands.clone()
+    };
     let mut status = 0;
     for f in &files {
         let Some(data) = ctx.read_input(f) else {
@@ -430,7 +509,12 @@ pub fn cut(ctx: &mut Ctx, a: &[String]) -> i32 {
                     }
                     continue;
                 }
-                let picked: Vec<&[u8]> = l.split(|&b| b == delim).enumerate().filter(|(i, _)| sel(i + 1)).map(|(_, x)| x).collect();
+                let picked: Vec<&[u8]> = l
+                    .split(|&b| b == delim)
+                    .enumerate()
+                    .filter(|(i, _)| sel(i + 1))
+                    .map(|(_, x)| x)
+                    .collect();
                 out.extend_from_slice(&picked.join(&delim));
                 out.push(b'\n');
             } else if mode == 'b' {
@@ -471,23 +555,24 @@ fn expand_set(s: &str) -> Result<Vec<u8>, String> {
     let mut i = 0;
     let mut out = Vec::new();
     while i < b.len() {
-        if b[i] == b'[' && b.get(i + 1) == Some(&b':') {
-            if let Some(end) = s[i + 2..].find(":]") {
-                let name = &s[i + 2..i + 2 + end];
-                let class: Vec<u8> = (0u8..=255)
-                    .filter(|&c| c < 128 && super::super::shell::class_match(name, c as char))
-                    .collect();
-                if class.is_empty() {
-                    return Err(format!("invalid character class '{name}'"));
-                }
-                toks.push((0, false));
-                // flush pending as ranges later: use marker by expanding directly
-                toks.pop();
-                flush(&mut toks, &mut out);
-                out.extend(class);
-                i += end + 4;
-                continue;
+        if b[i] == b'['
+            && b.get(i + 1) == Some(&b':')
+            && let Some(end) = s[i + 2..].find(":]")
+        {
+            let name = &s[i + 2..i + 2 + end];
+            let class: Vec<u8> = (0u8..=255)
+                .filter(|&c| c < 128 && super::super::shell::class_match(name, c as char))
+                .collect();
+            if class.is_empty() {
+                return Err(format!("invalid character class '{name}'"));
             }
+            toks.push((0, false));
+            // flush pending as ranges later: use marker by expanding directly
+            toks.pop();
+            flush(&mut toks, &mut out);
+            out.extend(class);
+            i += end + 4;
+            continue;
         }
         if b[i] == b'\\' && i + 1 < b.len() {
             i += 1;
@@ -544,11 +629,17 @@ fn flush(toks: &mut Vec<(u8, bool)>, out: &mut Vec<u8>) {
 pub fn tr(ctx: &mut Ctx, a: &[String]) -> i32 {
     let spec = Spec {
         short: "dscC",
-        long: &[("delete", 'd'), ("squeeze-repeats", 's'), ("complement", 'c')],
+        long: &[
+            ("delete", 'd'),
+            ("squeeze-repeats", 's'),
+            ("complement", 'c'),
+        ],
         numeric: false,
         supported: "-d -s -c (sets: ranges a-z, escapes \\n \\t \\NNN, classes [:alpha:] ...)",
     };
-    let Ok(p) = getopt(ctx, a, &spec) else { return 2 };
+    let Ok(p) = getopt(ctx, a, &spec) else {
+        return 2;
+    };
     let (del, sq, comp) = (p.has('d'), p.has('s'), p.has('c') || p.has('C'));
     let ops = &p.operands;
     if ops.is_empty() {
@@ -655,7 +746,9 @@ pub fn seq(ctx: &mut Ctx, a: &[String]) -> i32 {
     while i < a.len() {
         let x = &a[i];
         i += 1;
-        let numlike = x.len() > 1 && x.starts_with('-') && x[1..].starts_with(|c: char| c.is_ascii_digit() || c == '.');
+        let numlike = x.len() > 1
+            && x.starts_with('-')
+            && x[1..].starts_with(|c: char| c.is_ascii_digit() || c == '.');
         if x == "-s" || x == "--separator" {
             if i >= a.len() {
                 ctx.msg("option requires an argument -- 's'");
@@ -724,7 +817,11 @@ pub fn seq(ctx: &mut Ctx, a: &[String]) -> i32 {
         }
     }
     if equal {
-        let w = items.iter().map(|s| s.trim_start_matches('-').len()).max().unwrap_or(0);
+        let w = items
+            .iter()
+            .map(|s| s.trim_start_matches('-').len())
+            .max()
+            .unwrap_or(0);
         for s in items.iter_mut() {
             let neg = s.starts_with('-');
             let body = s.trim_start_matches('-').to_string();
