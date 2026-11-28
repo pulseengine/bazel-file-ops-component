@@ -64,8 +64,8 @@ artifacts:
       phase: phase-1
       acceptance-criteria:
         - "One report artifact per run, a section per repository, with ${{ }} opaque"
-        - "Finds the `|| echo` in ci.yml's Integration Testing step on the pre-fix revision"
-        - "Runs advisory beside the current CI for at least one release before any gate uses it"
+        - "On the pre-#143 ci.yml it reports KS-R011 at every `|| echo` in a run: block inside the v0.3.0 subset (License Check, Performance Monitoring); the Integration Testing block is refused first for `if` and `&>` (KS-R000), and its `|| echo` lines are found once REQ-KS-027 brings `if` in (narrowed 2026-11-28)"
+        - "Runs in CI as an advisory step that uploads its report and never fails on refusals; no gate uses it in v0.3.0, and promotion to a gate waits at least one release"
     links:
       - type: satisfies
         target: REQ-KS-015

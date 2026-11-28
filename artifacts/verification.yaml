@@ -454,6 +454,8 @@ artifacts:
       - type: verifies
         target: FEAT-KS-022
 
+      - type: verifies
+        target: DD-KS-020
   - id: VER-KS-028
     type: verification
     title: The plan schema is published, generated from the types, and every plan validates
