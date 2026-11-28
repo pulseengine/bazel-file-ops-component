@@ -6,6 +6,11 @@ name: CI/CD Pipeline
 # comments: sieve v0.4.4 reads every non-empty line as a context. Each required
 # job (here and in security.yml) runs on every pull request to main, with no
 # paths filter and no job-level `if:`.
+#
+# v0.3.0: the JSON-config component is crates/kapsel-fileops (Rust), which
+# replaced the TinyGo component under the same asset names (REQ-KS-041).
+# "Component Build & Test (<os>)" replaced "TinyGo Component Build & Test
+# (<os>)" in the required list.
 
 on:
   push:
@@ -15,400 +20,171 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 env:
-  USE_BAZEL_VERSION: "8.4.0"
-  RUST_VERSION: "1.82.0"
-  TINYGO_VERSION: "0.38.0"
+  CARGO_TERM_COLOR: never
+  # scripts/install-wasmtime.sh pins the binary and its sha256.
+  WASMTIME_VERSION: "50.0.3"
 
 jobs:
-  # Build and test TinyGo implementation
-  tinygo-component:
-    name: TinyGo Component Build & Test
-    # Stays on hosted: Bazel (not installed on smithy) + macOS matrix.
+  # Build the JSON-config component and prove it equivalent to the released
+  # TinyGo v0.2.2 artifact.
+  component:
+    name: Component Build & Test
+    # Stays on hosted: macOS matrix, and the oracle is fetched with gh.
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest]  # Windows not supported by rules_wasm_component
+        os: [ubuntu-24.04, macos-latest]
 
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
+    - name: Install wasmtime
+      run: scripts/install-wasmtime.sh
 
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: ${{ env.TINYGO_VERSION }}
-
-    - name: Cache Bazel
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: |
-          ~/.cache/bazel
-          ~/.cache/bazelisk
-        key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel', '**/*.bzl') }}
-        restore-keys: |
-          bazel-${{ runner.os }}-
-
-    - name: Build TinyGo Component
+    - name: Build WebAssembly component
       run: |
-        bazel build //tinygo:file_ops_tinygo
+        cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+        ls -l target/wasm32-wasip2/release/kapsel-fileops.wasm
 
-    - name: Test TinyGo Component
-      run: |
-        bazel test //tinygo:file_ops_test --test_output=errors
+    - name: Test kapsel-config and kapsel-fileops
+      run: cargo test --locked -p kapsel-config -p kapsel-fileops --no-fail-fast
 
-    - name: Build WebAssembly Component
-      run: |
-        # Check if target exists before building
-        if bazel query //tinygo:file_ops_component_wasm &>/dev/null; then
-          bazel build //tinygo:file_ops_component_wasm
-        else
-          echo "WebAssembly component target not yet implemented"
-        fi
+    - name: Equivalence with the TinyGo v0.2.2 artifact
+      # The test downloads the v0.2.2 asset and its .sha256 with gh and
+      # refuses to run unless both match the pinned sha256.
+      env:
+        GH_TOKEN: ${{ github.token }}
+        KAPSEL_FILEOPS_ORACLE_DIR: ${{ runner.temp }}/oracle-v0.2.2
+      run: cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture
 
-    - name: Build Signed WebAssembly Component
-      run: |
-        # Component signing requires strategy='bazel' which increases build time significantly
-        # Signing is handled in release workflow instead
-        echo "Component signing skipped in CI - will be done in release workflow"
-
-    - name: Validate WebAssembly Component
-      run: |
-        # Validation is optional - skip if components aren't built
-        if [ -f "bazel-bin/tinygo/file_ops_component.wasm" ]; then
-          echo "✅ WASM component built successfully"
-          ls -lh bazel-bin/tinygo/file_ops_component.wasm
-          file bazel-bin/tinygo/file_ops_component.wasm
-        else
-          echo "⚠️ WASM component not built (expected for test-only runs)"
-        fi
-
-    - name: Upload TinyGo Artifacts
+    - name: Upload component
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
-        name: tinygo-component-${{ matrix.os }}
-        path: |
-          bazel-bin/tinygo/
+        name: kapsel-fileops-${{ matrix.os }}
+        path: target/wasm32-wasip2/release/kapsel-fileops.wasm
         retention-days: 7
-        if-no-files-found: warn
+        if-no-files-found: error
 
-  # Build and test Rust implementation (disabled - package not yet created)
-  # rust-component:
-  #   name: Rust Component Build & Test
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     matrix:
-  #       os: [ubuntu-24.04, macos-latest]
-  #
-  #   steps:
-  #   - name: Checkout code
-  #     uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-  #
-  #   - name: Setup Bazel
-  #     uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
-  #     with:
-  #       bazelisk-cache: true
-  #       disk-cache: ${{ github.workflow }}
-  #       repository-cache: true
-  #
-  #   - name: Setup Rust
-  #     uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
-  #     with:
-  #       toolchain: ${{ env.RUST_VERSION }}
-  #       targets: wasm32-wasi
-  #
-  #   - name: Cache Bazel
-  #     uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-  #     with:
-  #       path: |
-  #         ~/.cache/bazel
-  #         ~/.cache/bazelisk
-  #       key: bazel-rust-${{ runner.os }}-${{ hashFiles('MODULE.bazel', 'rust/**', '**/*.bzl') }}
-  #       restore-keys: |
-  #         bazel-rust-${{ runner.os }}-
-  #
-  #   - name: Cache Cargo
-  #     uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-  #     with:
-  #       path: |
-  #         ~/.cargo/registry/index/
-  #         ~/.cargo/registry/cache/
-  #         ~/.cargo/git/db/
-  #       key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.lock', 'rust/**/Cargo.toml') }}
-  #       restore-keys: |
-  #         cargo-${{ runner.os }}-
-  #
-  #   - name: Build Rust Component
-  #     run: |
-  #       bazel build //rust:file_ops_rust
-  #
-  #   - name: Test Rust Component
-  #     run: |
-  #       bazel test //rust:all --test_output=errors
-  #
-  #   - name: Build WebAssembly Component
-  #     run: |
-  #       bazel build //rust:file_ops_component_wasm
-  #
-  #   - name: Validate WebAssembly Component
-  #     run: |
-  #       # Install wasm-tools if not available
-  #       if ! command -v wasm-tools &> /dev/null; then
-  #         curl -L https://github.com/bytecodealliance/wasm-tools/releases/latest/download/wasm-tools-${{ runner.os == 'Linux' && 'x86_64-linux' || runner.os == 'macOS' && 'x86_64-macos' || 'x86_64-windows' }}.tar.gz | tar xz
-  #         sudo mv wasm-tools*/wasm-tools /usr/local/bin/ || mv wasm-tools*/wasm-tools.exe /usr/local/bin/
-  #       fi
-  #
-  #       # Validate the generated WebAssembly component
-  #       wasm-tools validate bazel-bin/rust/file_ops_component_wasm.wasm
-  #       wasm-tools component wit bazel-bin/rust/file_ops_component_wasm.wasm
-  #
-  #   - name: Upload Rust Artifacts
-  #     uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-  #     with:
-  #       name: rust-component-${{ matrix.os }}
-  #       path: |
-  #         bazel-bin/rust/file_ops_rust*
-  #         bazel-bin/rust/file_ops_component_wasm.wasm
-  #       retention-days: 7
-
-  # Integration and cross-component testing
+  # The Rust workspace end to end, and the release path for the AOT asset.
   integration-test:
     name: Integration Testing
-    # Stays on hosted: Bazel is not installed on smithy.
+    # Stays on hosted: the oracle is fetched with gh, as in the component job.
     runs-on: ubuntu-24.04
-    needs: [tinygo-component]  # rust-component disabled
+    needs: [component]
+    timeout-minutes: 60
 
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: ${{ env.TINYGO_VERSION }}
-
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        toolchain: ${{ env.RUST_VERSION }}
-        targets: wasm32-wasi
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
-    - name: Download All Artifacts
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-      with:
-        path: artifacts/
+    - name: Keep kapsel's key and cache outside the workspace
+      run: echo "KAPSEL_HOME=$RUNNER_TEMP/kapsel-home" >> "$GITHUB_ENV"
 
-    - name: Run Integration Tests
+    - name: Install wasmtime
+      run: scripts/install-wasmtime.sh
+
+    - name: Build workspace
+      run: cargo build --locked --workspace
+
+    - name: Test workspace
+      run: cargo test --locked --workspace --no-fail-fast
+
+    - name: Build the AOT-embedded component as the release does
       run: |
-        # Build available components
-        echo "Building available targets..."
-        bazel build //tinygo:file_ops_tinygo //tinygo:file_ops_component
+        cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+        scripts/build-aot.sh target/wasm32-wasip2/release/kapsel-fileops.wasm "$RUNNER_TEMP/file_ops_component_aot.wasm"
 
-        # Run basic tests
-        echo "Running tests..."
-        bazel test //tinygo:file_ops_test --test_output=errors
-
-        # Run integration tests if available
-        if bazel query //testdata:integration_test_suite &>/dev/null; then
-          bazel test //testdata:integration_test_suite --test_output=errors
-        else
-          echo "Integration test suite not yet implemented"
-        fi
-
-        # Run testdata tests if available
-        if bazel query //testdata:all &>/dev/null; then
-          bazel test //testdata:all --test_output=errors
-        fi
-
-        # Run Rust tests if available
-        if bazel query //rust:all &>/dev/null; then
-          bazel test //rust:all --test_output=errors
-        else
-          echo "Rust components not yet implemented"
-        fi
-
-    - name: Performance Benchmarks
+    - name: Embedding layout matches the v0.2.2 AOT asset
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ORACLE: ${{ runner.temp }}/oracle-v0.2.2
       run: |
-        # Run basic performance tests if available
-        if bazel query //testdata:performance_basic_test &>/dev/null; then
-          bazel test //testdata:performance_basic_test --test_output=summary
-        else
-          echo "Basic performance tests not yet implemented"
-        fi
+        mkdir -p "$ORACLE"
+        gh release download v0.2.2 --repo "$GITHUB_REPOSITORY" --clobber -p 'file_ops_component*' --dir "$ORACLE"
+        (cd "$ORACLE" && sha256sum -c file_ops_component.wasm.sha256 file_ops_component_aot.wasm.sha256)
+        KAPSEL_FILEOPS_ORACLE_DIR="$ORACLE" cargo test --locked -p kapsel-aot-embed --test embed -- --ignored
 
-        # Run full performance comparison if available  
-        if bazel query //testdata:performance_comparison_test &>/dev/null; then
-          bazel test //testdata:performance_comparison_test --test_output=summary
-        else
-          echo "Advanced benchmarks not yet implemented"
-        fi
+    - name: Equivalence of the AOT-embedded component
+      env:
+        GH_TOKEN: ${{ github.token }}
+        KAPSEL_FILEOPS_ORACLE_DIR: ${{ runner.temp }}/oracle-v0.2.2
+      run: |
+        KAPSEL_FILEOPS_WASM="$RUNNER_TEMP/file_ops_component_aot.wasm" \
+          cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture
 
-  # Code quality and security checks
+    - name: Precompiled code runs
+      run: |
+        T="$RUNNER_TEMP/aot-run"
+        mkdir -p "$T/src"
+        echo hello > "$T/src/a.txt"
+        printf '%s' '{"workspace_dir":"/w/ws","operations":[{"type":"copy_file","src_path":"/w/src/a.txt","dest_path":"a.txt"}]}' > "$T/c.json"
+        cargo run --locked --quiet -p kapsel-aot-embed -- extract "$RUNNER_TEMP/file_ops_component_aot.wasm" linux-x64 "$RUNNER_TEMP/linux-x64.cwasm"
+        wasmtime run --allow-precompiled --dir "$T::/w" "$RUNNER_TEMP/linux-x64.cwasm" /w/c.json
+        test "$(cat "$T/ws/a.txt")" = hello
+
+  # Code quality checks
   quality-gate:
     name: Quality & Security Gate
-    # Stays on hosted: Bazel (buildifier + bazel run targets) is not installed on smithy.
+    # Stays on hosted, as before; moving it to smithy is a separate change.
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        toolchain: ${{ env.RUST_VERSION }}
-        components: clippy, rustfmt
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
+        components: clippy
 
-    - name: Go Code Quality
+    - name: Clippy (workspace)
+      # Fails on clippy errors. Warnings do not fail yet: `-D warnings` fails
+      # today in kapsel-check (3 findings), outside this change.
+      run: cargo clippy --locked --workspace --all-targets
+
+    - name: Clippy (component, wasm32-wasip2)
+      run: cargo clippy --locked -p kapsel-fileops -p kapsel-config --target wasm32-wasip2 --release
+
+    - name: Every crate takes the workspace license
       run: |
-        # Format check
-        cd tinygo && gofmt -d -e .
-
-        # Vet check
-        cd tinygo && go vet ./...
-
-        # Security scan
-        if command -v gosec &> /dev/null; then
-          cd tinygo && gosec ./...
-        fi
-
-    - name: Rust Code Quality
-      run: |
-        # Format check if Rust code exists
-        if bazel query //rust:rustfmt_check &>/dev/null; then
-          bazel run //rust:rustfmt_check
-        else
-          echo "Rust format check skipped - no Rust targets"
-        fi
-
-        # Clippy check if Rust code exists
-        if bazel query //rust:clippy_check &>/dev/null; then
-          bazel run //rust:clippy_check
-        else  
-          echo "Rust clippy check skipped - no Rust targets"
-        fi
-
-    - name: Buildifier Check
-      run: |
-        # Install buildifier if Bazel target is not available
-        if ! bazel query //:buildifier &>/dev/null; then
-          go install github.com/bazelbuild/buildtools/buildifier@latest
-          buildifier --lint=warn --mode=check $(find . -name "*.bzl" -o -name "BUILD" -o -name "BUILD.bazel")
-        else
-          # Use bazel to run buildifier (it's already a dependency)
-          bazel run //:buildifier -- --lint=warn --mode=check $(find . -name "*.bzl" -o -name "BUILD" -o -name "BUILD.bazel")
-        fi
-
-    - name: License Check
-      run: |
-        # Ensure all source files have proper license headers
-        find . -name "*.go" -o -name "*.rs" | xargs grep -L "Licensed under" || echo "Some files missing license headers"
-
-  # Release creation and artifact publishing
-  release:
-    name: Create Release
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-24.04' }}
-    needs: [tinygo-component, integration-test, quality-gate]  # rust-component disabled
-    if: github.event_name == 'release' && github.event.action == 'published'
-    permissions:
-      contents: write  # Required to upload release assets
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-    - name: Download All Build Artifacts
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-      with:
-        path: artifacts/
-
-    - name: Prepare Release Assets
-      run: |
-        mkdir -p release/
-
-        # Package TinyGo components
-        for os in ubuntu-24.04 macos-latest windows-latest; do
-          if [ -d "artifacts/tinygo-component-$os" ]; then
-            tar -czf "release/file-ops-tinygo-$os.tar.gz" -C "artifacts/tinygo-component-$os" .
+        status=0
+        for m in crates/*/Cargo.toml; do
+          if ! grep -qx 'license.workspace = true' "$m"; then
+            echo "::error file=$m::missing 'license.workspace = true'"
+            status=1
           fi
         done
+        grep -qx 'license = "Apache-2.0"' Cargo.toml || { echo "::error file=Cargo.toml::workspace license is not Apache-2.0"; status=1; }
+        test -f LICENSE || { echo "::error::LICENSE missing"; status=1; }
+        exit $status
 
-        # Package Rust components
-        for os in ubuntu-24.04 macos-latest windows-latest; do
-          if [ -d "artifacts/rust-component-$os" ]; then
-            tar -czf "release/file-ops-rust-$os.tar.gz" -C "artifacts/rust-component-$os" .
-          fi
-        done
-
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-      with:
-        files: release/*
-
-  # Performance monitoring and metrics
-  performance-monitor:
-    name: Performance Monitoring
-    # Stays on hosted: Bazel is not installed on smithy.
-    runs-on: ubuntu-24.04
-    needs: [integration-test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Run Performance Tests
+    - name: No Go or Python sources (REQ-KS-041, REQ-KS-064)
       run: |
-        # Performance regression testing
-        bazel run //testdata:performance_tests --test_output=summary || echo "Performance tests not implemented yet"
-
-    - name: Collect Metrics
-      run: |
-        echo "Performance monitoring would collect and store metrics here"
-        # Future: Integration with performance monitoring systems
+        found=$(git ls-files '*.go' '*.py')
+        if [ -n "$found" ]; then
+          echo "::error::Go or Python sources in the tree:"
+          echo "$found"
+          exit 1
+        fi

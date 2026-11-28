@@ -8,8 +8,8 @@ version: 2
 # minor-patch group. Majors stay ungrouped, one PR each, so a breaking change is
 # read on its own. Security updates ignore the schedule and the limit.
 #
-# No cargo entry: the repository has no Cargo.toml (the old entry pointed at
-# /rust, which does not exist).
+# The cargo entry covers the workspace at the root (Cargo.toml, Cargo.lock).
+# The gomod entry went with tinygo/ (v0.3.0, REQ-KS-041).
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -32,9 +32,8 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: gomod
-    directories:
-      - /tinygo
+  - package-ecosystem: cargo
+    directory: /
     schedule:
       interval: monthly
       time: "02:00"
@@ -43,11 +42,11 @@ updates:
     cooldown:
       default-days: 7
     commit-message:
-      prefix: "go"
+      prefix: "cargo"
       include: "scope"
     labels:
       - "dependencies"
-      - "go"
+      - "rust"
       - "automated"
     groups:
       minor-patch:

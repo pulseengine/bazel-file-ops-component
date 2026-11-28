@@ -1,7 +1,7 @@
 # JSON config and CLI reference
 
-This describes `file_ops_component.wasm` as released in v0.2.0. The source is
-`tinygo/json_bridge.go` and `tinygo/main.go`. `--help` is not recognised: like any unknown
+This describes `file_ops_component.wasm` as released in v0.2.0; the Rust component of v0.3.0 behaves the same on the equivalence corpus (`testdata/kapsel/fileops/`), apart from the differences its cases allowlist with a reason (REQ-KS-041). The source is
+`crates/kapsel-config` and `crates/kapsel-fileops` (before v0.3.0, `tinygo/json_bridge.go` and `tinygo/main.go`). `--help` is not recognised: like any unknown
 first argument, it prints the usage and exits 1. This page is the reference.
 
 ## Running it
@@ -49,7 +49,7 @@ config file. Otherwise the first argument is a subcommand (below).
 | `append_to_file` | `path` (relative), `content` | creates the file if missing |
 | `run_command` | `command`, `args`, optional `work_dir`, optional `output_file` | runs the command with its arguments as an argv (no shell); `output_file` captures stdout |
 
-`GetJsonSchema` in `tinygo/json_bridge.go` holds the JSON schema for this format.
+`crates/kapsel-config/src/lib.rs` holds the config types. The removed TinyGo source also held a JSON schema (`GetJsonSchema`); the Rust source has none.
 
 ## Subcommands
 
@@ -62,7 +62,7 @@ file_ops prepare_workspace --config <workspace_config>
 ```
 
 `prepare_workspace` takes a workspace config (`WorkspaceConfig` in
-`tinygo/workspace.go`): a work directory plus lists of sources, headers and
+`crates/kapsel-config`): a work directory plus lists of sources, headers and
 dependencies, each a file spec with a source and an optional destination.
 
 ## WIT interfaces
@@ -70,5 +70,5 @@ dependencies, each a file spec with a source and an optional destination.
 `wit/file-operations.wit` (`bazel:file-ops@1.0.0`) declares the
 `file-operations`, `json-batch-operations`, `workspace-management` and
 `security-operations` interfaces. The shipped component is built as a
-`wasi:cli/command` (`tinygo/BUILD.bazel`) and does not export them. They are a
+`wasi:cli/command` (`crates/kapsel-fileops`) and does not export them. They are a
 design record, not a callable API.
