@@ -12,10 +12,11 @@
 //! an error (exit 1), never a silent `null`.
 //!
 //! Edits change the edited node and nothing else (DD-KS-020, the notary's
-//! interlineation rule): JSON keeps key order and the file's indentation;
+//! interlineation rule): JSON is spliced by byte range (`jsonedit.rs`);
 //! YAML is spliced into the lossless rivet-yaml CST, so comments, quoting
 //! and layout outside the node stay byte for byte; TOML goes through
-//! toml_edit and keeps the old value's comments. Every YAML and TOML edit is
+//! toml_edit and keeps the old value's comments and number text. A YAML
+//! number, boolean or flow VALUE is written as typed. Every edit is
 //! read back and compared with the intended document before the file is
 //! replaced (the lab notebook's countersignature); a mismatch leaves the file
 //! untouched.
@@ -31,7 +32,7 @@ pub enum Step {
     Each,
 }
 
-fn show_steps(steps: &[Step]) -> String {
+pub(super) fn show_steps(steps: &[Step]) -> String {
     if steps.is_empty() {
         return ".".to_string();
     }
@@ -147,7 +148,7 @@ fn quoted(c: &[char]) -> Result<(String, usize), String> {
     Err("unterminated quoted key".to_string())
 }
 
-fn norm_index(i: i64, len: usize) -> Option<usize> {
+pub(super) fn norm_index(i: i64, len: usize) -> Option<usize> {
     let len = len as i64;
     let j = if i < 0 { len + i } else { i };
     (0..len).contains(&j).then_some(j as usize)
@@ -155,15 +156,15 @@ fn norm_index(i: i64, len: usize) -> Option<usize> {
 
 // ---- shared command shape ----------------------------------------------------
 
-struct Cmd {
-    sub: String,
-    path: Vec<Step>,
-    rest: Vec<String>,
-    opts: XParsed,
+pub(super) struct Cmd {
+    pub sub: String,
+    pub path: Vec<Step>,
+    pub rest: Vec<String>,
+    pub opts: XParsed,
 }
 
 /// `TOOL SUB ...`: parses flags, the subcommand and its PATH (all but merge).
-fn command(ctx: &mut Ctx, a: &[String], subs: &[&str]) -> Result<Cmd, i32> {
+pub(super) fn command(ctx: &mut Ctx, a: &[String], subs: &[&str]) -> Result<Cmd, i32> {
     let usage = |ctx: &mut Ctx, why: &str| {
         let n = ctx.name.clone();
         let forms: Vec<String> = subs
@@ -172,7 +173,7 @@ fn command(ctx: &mut Ctx, a: &[String], subs: &[&str]) -> Result<Cmd, i32> {
                 "get" => format!("{n} get PATH [FILE]"),
                 "set" => format!("{n} set PATH VALUE FILE"),
                 "del" => format!("{n} del PATH FILE"),
-                _ => format!("{n} merge FILE OTHER"),
+                _ => format!("{n} merge FILE OTHER (rewrites FILE in a normal layout)"),
             })
             .collect();
         ctx.msg(&format!("{why}; usage: {}", forms.join(" | ")));
@@ -229,7 +230,7 @@ fn command(ctx: &mut Ctx, a: &[String], subs: &[&str]) -> Result<Cmd, i32> {
 }
 
 /// The text of `get`'s input: FILE, or stdin when FILE is omitted.
-fn get_input(ctx: &mut Ctx, rest: &[String]) -> Option<String> {
+pub(super) fn get_input(ctx: &mut Ctx, rest: &[String]) -> Option<String> {
     let data = match rest.first() {
         Some(f) => ctx.read_input(f)?,
         None => ctx.stdin_all(),
@@ -245,7 +246,7 @@ fn get_input(ctx: &mut Ctx, rest: &[String]) -> Option<String> {
 }
 
 /// FILE for an edit, as UTF-8 text.
-fn edit_input(ctx: &mut Ctx, file: &str) -> Option<(std::path::PathBuf, String)> {
+pub(super) fn edit_input(ctx: &mut Ctx, file: &str) -> Option<(std::path::PathBuf, String)> {
     let (path, data) = ctx.edit_target(file)?;
     match String::from_utf8(data) {
         Ok(s) => Some((path, s)),
@@ -253,301 +254,6 @@ fn edit_input(ctx: &mut Ctx, file: &str) -> Option<(std::path::PathBuf, String)>
             ctx.msg(&format!("{file}: not UTF-8 text"));
             None
         }
-    }
-}
-
-// ---- json --------------------------------------------------------------------
-
-use serde_json::Value as J;
-
-fn j_get<'a>(v: &'a J, steps: &[Step], done: &[Step], out: &mut Vec<&'a J>) -> Result<(), String> {
-    let Some((st, rest)) = steps.split_first() else {
-        out.push(v);
-        return Ok(());
-    };
-    let here = || show_steps(done);
-    let mut next_done = done.to_vec();
-    next_done.push(st.clone());
-    match (st, v) {
-        (Step::Key(k), J::Object(m)) => match m.get(k) {
-            Some(c) => j_get(c, rest, &next_done, out),
-            None => Err(format!("{}: no such key", show_steps(&next_done))),
-        },
-        (Step::Index(i), J::Array(a)) => match norm_index(*i, a.len()) {
-            Some(j) => j_get(&a[j], rest, &next_done, out),
-            None => Err(format!(
-                "{}: index out of range (length {})",
-                show_steps(&next_done),
-                a.len()
-            )),
-        },
-        (Step::Each, J::Array(a)) => {
-            for c in a {
-                j_get(c, rest, &next_done, out)?;
-            }
-            Ok(())
-        }
-        (Step::Each, J::Object(m)) => {
-            for c in m.values() {
-                j_get(c, rest, &next_done, out)?;
-            }
-            Ok(())
-        }
-        (st, v) => Err(format!(
-            "{}: {} cannot be indexed with {}",
-            here(),
-            j_kind(v),
-            show_steps(std::slice::from_ref(st))
-        )),
-    }
-}
-
-fn j_kind(v: &J) -> &'static str {
-    match v {
-        J::Null => "null",
-        J::Bool(_) => "a boolean",
-        J::Number(_) => "a number",
-        J::String(_) => "a string",
-        J::Array(_) => "an array",
-        J::Object(_) => "an object",
-    }
-}
-
-/// Sets `steps` in `v`, creating missing object keys (and appending at
-/// index = length).
-fn j_set(v: &mut J, steps: &[Step], new: J, done: &mut Vec<Step>) -> Result<(), String> {
-    let Some((st, rest)) = steps.split_first() else {
-        *v = new;
-        return Ok(());
-    };
-    let here = show_steps(done);
-    done.push(st.clone());
-    if v.is_null() && matches!(st, Step::Key(_)) {
-        *v = J::Object(serde_json::Map::new());
-    }
-    match (st, v) {
-        (Step::Key(k), J::Object(m)) => {
-            let slot = m.entry(k.clone()).or_insert(J::Null);
-            j_set(slot, rest, new, done)
-        }
-        (Step::Index(i), J::Array(a)) => {
-            if *i == a.len() as i64 {
-                a.push(J::Null);
-            }
-            match norm_index(*i, a.len()) {
-                Some(j) => j_set(&mut a[j], rest, new, done),
-                None => Err(format!(
-                    "{}: index out of range (length {}; set at the length appends)",
-                    show_steps(done),
-                    a.len()
-                )),
-            }
-        }
-        (st, v) => Err(format!(
-            "{here}: {} cannot be indexed with {}",
-            j_kind(v),
-            show_steps(std::slice::from_ref(st))
-        )),
-    }
-}
-
-fn j_del(v: &mut J, steps: &[Step], done: &mut Vec<Step>) -> Result<(), String> {
-    let Some((st, rest)) = steps.split_first() else {
-        return Err("cannot delete the whole document".to_string());
-    };
-    let here = show_steps(done);
-    done.push(st.clone());
-    match (st, v) {
-        (Step::Key(k), J::Object(m)) => {
-            if rest.is_empty() {
-                match m.shift_remove(k) {
-                    Some(_) => Ok(()),
-                    None => Err(format!("{}: no such key", show_steps(done))),
-                }
-            } else {
-                match m.get_mut(k) {
-                    Some(c) => j_del(c, rest, done),
-                    None => Err(format!("{}: no such key", show_steps(done))),
-                }
-            }
-        }
-        (Step::Index(i), J::Array(a)) => match norm_index(*i, a.len()) {
-            Some(j) if rest.is_empty() => {
-                a.remove(j);
-                Ok(())
-            }
-            Some(j) => j_del(&mut a[j], rest, done),
-            None => Err(format!(
-                "{}: index out of range (length {})",
-                show_steps(done),
-                a.len()
-            )),
-        },
-        (st, v) => Err(format!(
-            "{here}: {} cannot be indexed with {}",
-            j_kind(v),
-            show_steps(std::slice::from_ref(st))
-        )),
-    }
-}
-
-/// Deep merge: objects merge key by key (OTHER wins), anything else is replaced.
-fn j_merge(a: &mut J, b: J) {
-    match (a, b) {
-        (J::Object(am), J::Object(bm)) => {
-            for (k, bv) in bm {
-                match am.get_mut(&k) {
-                    Some(av) => j_merge(av, bv),
-                    None => {
-                        am.insert(k, bv);
-                    }
-                }
-            }
-        }
-        (a, b) => *a = b,
-    }
-}
-
-/// The layout of a JSON file: its indent (None = one line) and whether it
-/// ends with a newline.
-fn j_style(src: &str) -> (Option<String>, bool) {
-    let body = src.trim_end();
-    let indent = body.find('\n').map(|i| {
-        let ws: String = body[i + 1..]
-            .chars()
-            .take_while(|c| *c == ' ' || *c == '\t')
-            .collect();
-        if ws.is_empty() { "  ".to_string() } else { ws }
-    });
-    (indent, src.ends_with('\n'))
-}
-
-fn j_write(v: &J, indent: Option<&str>) -> String {
-    match indent {
-        None => serde_json::to_string(v).unwrap_or_default(),
-        Some(ind) => {
-            let mut buf = Vec::new();
-            let fmt = serde_json::ser::PrettyFormatter::with_indent(ind.as_bytes());
-            let mut ser = serde_json::Serializer::with_formatter(&mut buf, fmt);
-            let _ = serde::Serialize::serialize(v, &mut ser);
-            String::from_utf8(buf).unwrap_or_default()
-        }
-    }
-}
-
-fn j_parse(ctx: &mut Ctx, what: &str, text: &str) -> Option<J> {
-    match serde_json::from_str::<J>(text) {
-        Ok(v) => Some(v),
-        Err(e) => {
-            ctx.msg(&format!("{what}: invalid JSON: {e}"));
-            None
-        }
-    }
-}
-
-pub fn json(ctx: &mut Ctx, a: &[String]) -> i32 {
-    let cmd = match command(ctx, a, &["get", "set", "del", "merge"]) {
-        Ok(c) => c,
-        Err(st) => return st,
-    };
-    let compact = cmd.opts.has("-c") || cmd.opts.has("-cr") || cmd.opts.has("-rc");
-    let raw = cmd.opts.has("-r") || cmd.opts.has("-cr") || cmd.opts.has("-rc");
-    if cmd.sub != "get" && (compact || raw) {
-        ctx.msg("-c and -r apply to get; an edit keeps the file's layout");
-        return 2;
-    }
-    match cmd.sub.as_str() {
-        "get" => {
-            let Some(text) = get_input(ctx, &cmd.rest) else {
-                return 1;
-            };
-            let what = cmd.rest.first().cloned().unwrap_or_else(|| "-".into());
-            let Some(doc) = j_parse(ctx, &what, &text) else {
-                return 1;
-            };
-            let mut found = Vec::new();
-            if let Err(e) = j_get(&doc, &cmd.path, &[], &mut found) {
-                ctx.msg(&e);
-                return 1;
-            }
-            let mut out = String::new();
-            for v in found {
-                match v {
-                    J::String(s) if raw => out.push_str(s),
-                    _ if compact => out.push_str(&j_write(v, None)),
-                    _ => out.push_str(&j_write(v, Some("  "))),
-                }
-                out.push('\n');
-            }
-            ctx.puts(&out);
-            0
-        }
-        "set" | "del" | "merge" => {
-            let file = if cmd.sub == "merge" {
-                cmd.rest[0].clone()
-            } else {
-                cmd.rest.last().cloned().unwrap_or_default()
-            };
-            // Read everything first: nothing is written unless all of it parses.
-            let new = if cmd.sub == "set" {
-                let v = &cmd.rest[0];
-                if cmd.opts.has("--str") {
-                    Some(J::String(v.clone()))
-                } else {
-                    match serde_json::from_str::<J>(v) {
-                        Ok(j) => Some(j),
-                        Err(e) => {
-                            ctx.msg(&format!(
-                                "VALUE '{v}' is not JSON ({e}); use --str to set it as a string"
-                            ));
-                            return 2;
-                        }
-                    }
-                }
-            } else {
-                None
-            };
-            let other = if cmd.sub == "merge" {
-                let o = cmd.rest[1].clone();
-                let Some(d) = ctx.read_input(&o) else {
-                    return 1;
-                };
-                let Some(j) = j_parse(ctx, &o, &String::from_utf8_lossy(&d)) else {
-                    return 1;
-                };
-                Some(j)
-            } else {
-                None
-            };
-            let Some((path, text)) = edit_input(ctx, &file) else {
-                return 1;
-            };
-            let Some(mut doc) = j_parse(ctx, &file, &text) else {
-                return 1;
-            };
-            let res = match (new, other) {
-                (Some(n), _) => j_set(&mut doc, &cmd.path, n, &mut Vec::new()),
-                (None, Some(o)) => {
-                    j_merge(&mut doc, o);
-                    Ok(())
-                }
-                (None, None) => j_del(&mut doc, &cmd.path, &mut Vec::new()),
-            };
-            if let Err(e) = res {
-                ctx.msg(&format!("{file}: {e}; file unchanged"));
-                return 1;
-            }
-            let (indent, nl) = j_style(&text);
-            let mut out = j_write(&doc, indent.as_deref());
-            if nl {
-                out.push('\n');
-            }
-            if out == text {
-                return 0;
-            }
-            ctx.commit(&file, &path, out.as_bytes())
-        }
-        _ => 2,
     }
 }
 
@@ -825,7 +531,7 @@ fn entry_key(entry: &SyntaxNode) -> Option<String> {
     Some(rivet_yaml::cst_text::unquote_scalar(tok.kind, &tok.text))
 }
 
-fn line_start(src: &str, at: usize) -> usize {
+pub(super) fn line_start(src: &str, at: usize) -> usize {
     src[..at].rfind('\n').map_or(0, |i| i + 1)
 }
 
@@ -1004,7 +710,24 @@ fn y_block_entry(key: &str, v: &Y, indent: usize) -> String {
     }
 }
 
-fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<Splice, String> {
+fn y_set_splice(
+    src: &str,
+    root: &SyntaxNode,
+    steps: &[Step],
+    v: &Y,
+    lit: Option<&str>,
+) -> Result<Splice, String> {
+    // The VALUE as typed (`1.10` stays `1.10`) where it lands whole.
+    let flow = |x: &Y| match lit {
+        Some(l) if x == v => l.to_string(),
+        _ => y_flow(x),
+    };
+    let entry = |k: &str, x: &Y, indent: usize| match lit {
+        Some(l) if x == v && !matches!(x, Y::Mapping(m) if !m.is_empty()) => {
+            format!("{}: {l}", y_scalar(k))
+        }
+        _ => y_block_entry(k, x, indent),
+    };
     match y_locate(root, steps)? {
         Found::Here {
             container,
@@ -1015,13 +738,13 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
             Content::Scalar(s, e) => Ok(Splice {
                 start: s,
                 end: e,
-                text: y_flow(v),
+                text: flow(v),
             }),
             Content::Empty => match colon_end {
                 Some(c) => Ok(Splice {
                     start: c,
                     end: c,
-                    text: format!(" {}", y_flow(v)),
+                    text: format!(" {}", flow(v)),
                 }),
                 None => {
                     // An empty sequence item `-`, or an empty document.
@@ -1034,7 +757,7 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
                     Ok(Splice {
                         start: at,
                         end: at,
-                        text: format!("{pre}{}", y_flow(v)),
+                        text: format!("{pre}{}", flow(v)),
                     })
                 }
             },
@@ -1065,7 +788,7 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
                 Ok(Splice {
                     start,
                     end: sig_end(&n),
-                    text: format!("{pre}{}", y_flow(v)),
+                    text: format!("{pre}{}", flow(v)),
                 })
             }
         },
@@ -1081,7 +804,7 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
                     if !src.is_empty() && !src.ends_with('\n') {
                         text.push('\n');
                     }
-                    text.push_str(&y_block_entry(k, &inner, 0));
+                    text.push_str(&entry(k, &inner, 0));
                     text.push('\n');
                     Ok(Splice {
                         start: src.len(),
@@ -1099,11 +822,7 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
                     Ok(Splice {
                         start: at,
                         end: at,
-                        text: format!(
-                            "\n{}{}",
-                            " ".repeat(indent),
-                            y_block_entry(k, &inner, indent)
-                        ),
+                        text: format!("\n{}{}", " ".repeat(indent), entry(k, &inner, indent)),
                     })
                 }
             }
@@ -1119,7 +838,7 @@ fn y_set_splice(src: &str, root: &SyntaxNode, steps: &[Step], v: &Y) -> Result<S
             Ok(Splice {
                 start: at,
                 end: at,
-                text: format!("\n{}- {}", " ".repeat(indent), y_flow(&inner)),
+                text: format!("\n{}- {}", " ".repeat(indent), flow(&inner)),
             })
         }
     }
@@ -1142,7 +861,7 @@ fn y_del_splice(src: &str, root: &SyntaxNode, steps: &[Step]) -> Result<Splice, 
                 } else {
                     Y::Sequence(Vec::new())
                 };
-                return y_set_splice(src, root, &steps[..steps.len() - 1], &empty);
+                return y_set_splice(src, root, &steps[..steps.len() - 1], &empty, None);
             }
             let ms = usize::from(m.text_range().start());
             let ls = line_start(src, ms);
@@ -1275,8 +994,21 @@ pub fn yaml(ctx: &mut Ctx, a: &[String]) -> i32 {
         return 1;
     }
     let root = SyntaxNode::new_root(green);
+    // A number, boolean or flow collection is written as typed, so `1.10`
+    // does not become `1.1`; the read-back below still checks it.
+    let lit = match &new {
+        Some(Y::Number(_) | Y::Bool(_) | Y::Sequence(_) | Y::Mapping(_))
+            if !cmd.opts.has("--str") =>
+        {
+            let t = cmd.rest[0].trim();
+            (!t.contains('\n')
+                && (matches!(new, Some(Y::Number(_) | Y::Bool(_))) || t.starts_with(['[', '{'])))
+            .then_some(t)
+        }
+        _ => None,
+    };
     let splice = match &new {
-        Some(v) => y_set_splice(&text, &root, &cmd.path, v),
+        Some(v) => y_set_splice(&text, &root, &cmd.path, v, lit),
         None => y_del_splice(&text, &root, &cmd.path),
     };
     let splice = match splice {

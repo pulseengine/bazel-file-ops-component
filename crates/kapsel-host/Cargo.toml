@@ -10,13 +10,12 @@ repository.workspace = true
 kapsel-plan.workspace = true
 wasmtime = { version = "50", default-features = false, features = ["runtime", "cranelift", "component-model", "std"] }
 regex = "1"
-# REQ-KS-063: json/yaml/toml built-ins. `preserve_order` keeps a JSON file's
-# key order across `json set`.
-serde_json = { workspace = true, features = ["preserve_order"] }
+# REQ-KS-063: decodes and encodes JSON strings for `json`, whose reader is
+# kapsel's own lossless one (builtins/jsonedit.rs).
+serde_json.workspace = true
 # DD-KS-020: lossless YAML CST, pinned by the same rivet tag as kapsel-scan
 # (DD-KS-014); `yaml set` and `yaml del` splice its node ranges.
 rivet-yaml = { git = "https://github.com/pulseengine/rivet", tag = "v0.43.3" }
-serde.workspace = true
 toml_edit = "0.25"
 sha2.workspace = true
 
