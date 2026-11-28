@@ -419,7 +419,7 @@ artifacts:
   - id: DD-KS-020
     type: design-decision
     title: "Edits change the named place only, are checked before they land, and land whole"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How edit, json, yaml and toml change a file (REQ-KS-063, FEAT-KS-022)."
     fields:

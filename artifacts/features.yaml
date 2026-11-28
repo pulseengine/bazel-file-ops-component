@@ -57,7 +57,7 @@ artifacts:
   - id: FEAT-KS-011
     type: feature
     title: "Workflow scanner report (Phase 0)"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "A report of what kapsel would refuse or need in every workflow, produced offline."
     fields:
