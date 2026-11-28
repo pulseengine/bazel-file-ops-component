@@ -51,3 +51,17 @@ jobs:
 
     - name: Clippy
       run: cargo clippy --locked --workspace --all-targets
+
+    # ordeal re-solves every committed proof query (crates/kapsel-compile/proofs/)
+    # and re-checks each certificate; the certificates are the artifact.
+    - name: Compiler proofs (ordeal)
+      env:
+        KAPSEL_PROOF_OUT: ${{ runner.temp }}/proofs
+      run: cargo test --locked -p kapsel-compile --test proofs -- --nocapture
+
+    - name: Upload proof certificates
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: kapsel-compile-proofs
+        path: ${{ runner.temp }}/proofs
+        if-no-files-found: error

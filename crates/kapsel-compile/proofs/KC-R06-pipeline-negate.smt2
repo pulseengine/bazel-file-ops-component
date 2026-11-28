@@ -1,0 +1,25 @@
+; kapsel-compile status-logic obligation KC-R06 pipeline-negate (`! p`: status = (status == 0))
+; fixture: testdata/kapsel/compile/not.plan.json
+; implementation: 2 paths through the wasm `run` that compile_core emits; specification: 2 paths of the POSIX semantics
+; inputs: cK_I = result of the I-th run of host call site K, nK_I = expand-list count; each site runs at most 3 times
+; unsat: no host results make the two traces (call, expand-list, set-status, scope-push, scope-pop, return) differ
+(set-logic QF_BV)
+(declare-const c0_0 (_ BitVec 32))
+(assert (or
+  (and
+  (not (bvult c0_0 (_ bv256 32)))
+  (not (bvult c0_0 (_ bv256 32)))
+  (not (= (bvsub c0_0 (_ bv256 32)) (bvsub c0_0 (_ bv256 32)))))
+  (and
+  (not (bvult c0_0 (_ bv256 32)))
+  (bvult c0_0 (_ bv256 32)))
+  (and
+  (bvult c0_0 (_ bv256 32))
+  (not (bvult c0_0 (_ bv256 32))))
+  (and
+  (bvult c0_0 (_ bv256 32))
+  (bvult c0_0 (_ bv256 32))
+  (or
+  (not (= (ite (= c0_0 (_ bv0 32)) (_ bv1 32) (_ bv0 32)) (ite (= c0_0 (_ bv0 32)) (_ bv1 32) (_ bv0 32))))
+  (not (= (ite (= c0_0 (_ bv0 32)) (_ bv1 32) (_ bv0 32)) (ite (= c0_0 (_ bv0 32)) (_ bv1 32) (_ bv0 32))))))))
+(check-sat)

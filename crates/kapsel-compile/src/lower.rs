@@ -16,11 +16,9 @@ use wasm_encoder::{
     MemoryType, Module, TypeSection, ValType,
 };
 
+use crate::layout::*;
 use crate::rule::*;
-use crate::{CompileError, DATA_BASE, HOST_INTERFACE, Rule, code};
-
-/// Address of the `expand-list` return area (two u32s).
-pub(crate) const RET_AREA: u32 = 8;
+use crate::{CompileError, HOST_INTERFACE, Rule, code};
 
 // Core function indices: the imports in order, then `run`.
 pub(crate) const F_PIPE: u32 = 0;
@@ -46,17 +44,6 @@ pub(crate) const IMPORTS: [&str; 8] = [
 /// wasmparser's limit on locals per function.
 const MAX_LOCALS: u32 = 50_000;
 
-// Canonical ABI layouts of the WIT types (all align 4):
-//   part (variant, u8 discriminant, payload at 4): 16 bytes
-//     lit/var: string @4, quoted @12; glob: string @4; captured: pipe @4, quoted @8
-//   word = list<part>: 8 bytes (ptr, len)
-//   tuple<string, word>: 16 bytes
-//   redirect: fd @0, op (u8) @4, target @8, target-fd @16: 20 bytes
-pub(crate) const PART_SIZE: u32 = 16;
-pub(crate) const WORD_SIZE: u32 = 8;
-pub(crate) const ASSIGN_SIZE: u32 = 16;
-pub(crate) const REDIRECT_SIZE: u32 = 20;
-
 /// Target of a `2>&1`-style redirect: the fd lives in `target-fd`.
 static EMPTY_WORD: PWord = PWord { parts: Vec::new() };
 
@@ -72,6 +59,14 @@ pub(crate) fn lower(plan: &Plan) -> Result<(Vec<u8>, Vec<&'static str>), Compile
             "plan",
             None,
             format!("needs {} locals, the limit is {MAX_LOCALS}", cx.locals),
+        ));
+    }
+    if let Some(n) = cx.data.too_long {
+        return Err(CompileError::new(
+            code::LIMIT,
+            "plan",
+            None,
+            format!("a list of {n} elements exceeds the limit of {MAX_LIST}"),
         ));
     }
     if cx.data.overflow {
@@ -198,17 +193,30 @@ struct Data {
     bytes: Vec<u8>,
     strings: BTreeMap<String, u32>,
     overflow: bool,
+    /// The longest list over [`MAX_LIST`] elements, if any.
+    too_long: Option<usize>,
 }
 
 impl Data {
-    fn alloc(&mut self, size: u32, align: u32) -> u32 {
-        let start = self.bytes.len().next_multiple_of(align as usize);
-        let end = start + size as usize;
-        if end as u64 + DATA_BASE as u64 > u32::MAX as u64 {
+    /// A list of `n` elements of `stride` bytes, 4-aligned. Lists longer than
+    /// [`MAX_LIST`] are declined (KC-003); below it `stride * n` cannot wrap.
+    fn alloc_list(&mut self, n: usize, stride: u32) -> u32 {
+        if n > MAX_LIST as usize {
+            self.too_long = Some(self.too_long.unwrap_or(0).max(n));
             self.overflow = true;
             return 0;
         }
-        self.bytes.resize(end, 0);
+        self.alloc(stride * n as u32, 4)
+    }
+
+    fn alloc(&mut self, size: u32, align: u32) -> u32 {
+        let start = align_up(self.bytes.len() as u64, align as u64);
+        let end = start + size as u64;
+        if DATA_BASE as u64 + end > MAX_END {
+            self.overflow = true;
+            return 0;
+        }
+        self.bytes.resize(end as usize, 0);
         DATA_BASE + start as u32
     }
 
@@ -296,8 +304,9 @@ impl Cx {
 
     /// Lays out a word; `$(...)` parts are pushed onto `caps` in order.
     fn word<'a>(&mut self, w: &'a PWord, caps: &mut Vec<Capture<'a>>) -> (u32, u32) {
-        let n = w.parts.len() as u32;
-        let base = self.data.alloc(PART_SIZE * n, 4);
+        let n = w.parts.len();
+        let base = self.data.alloc_list(n, PART_SIZE);
+        let n = n as u32;
         for (i, p) in w.parts.iter().enumerate() {
             let at = base + PART_SIZE * i as u32;
             let rule = select_part(p);
@@ -306,21 +315,24 @@ impl Cx {
                 PPart::Lit { text, quoted } | PPart::Var { name: text, quoted } => {
                     let disc = if rule == PART_LIT { 0 } else { 1 };
                     let (sp, sl) = self.data.string(text);
-                    self.data.put_u8(at, disc);
-                    self.data.put_u32(at + 4, sp);
-                    self.data.put_u32(at + 8, sl);
-                    self.data.put_u8(at + 12, *quoted as u8);
+                    self.data.put_u8(at + PART_DISC, disc);
+                    self.data.put_u32(at + PART_STR_PTR, sp);
+                    self.data.put_u32(at + PART_STR_LEN, sl);
+                    self.data.put_u8(at + PART_QUOTED, *quoted as u8);
                 }
                 PPart::Glob { pattern } => {
                     let (sp, sl) = self.data.string(pattern);
-                    self.data.put_u8(at, 2);
-                    self.data.put_u32(at + 4, sp);
-                    self.data.put_u32(at + 8, sl);
+                    self.data.put_u8(at + PART_DISC, 2);
+                    self.data.put_u32(at + PART_STR_PTR, sp);
+                    self.data.put_u32(at + PART_STR_LEN, sl);
                 }
                 PPart::Capture { body, quoted } => {
-                    self.data.put_u8(at, 3);
-                    self.data.put_u8(at + 8, *quoted as u8);
-                    caps.push(Capture { slot: at + 4, body });
+                    self.data.put_u8(at + PART_DISC, 3);
+                    self.data.put_u8(at + PART_CAP_QUOTED, *quoted as u8);
+                    caps.push(Capture {
+                        slot: at + PART_CAP_PIPE,
+                        body,
+                    });
                 }
             }
         }
@@ -328,13 +340,14 @@ impl Cx {
     }
 
     fn word_list<'a>(&mut self, ws: &'a [PWord], caps: &mut Vec<Capture<'a>>) -> (u32, u32) {
-        let n = ws.len() as u32;
-        let base = self.data.alloc(WORD_SIZE * n, 4);
+        let n = ws.len();
+        let base = self.data.alloc_list(n, WORD_SIZE);
+        let n = n as u32;
         for (i, w) in ws.iter().enumerate() {
             let (p, l) = self.word(w, caps);
             let at = base + WORD_SIZE * i as u32;
-            self.data.put_u32(at, p);
-            self.data.put_u32(at + 4, l);
+            self.data.put_u32(at + LIST_PTR, p);
+            self.data.put_u32(at + LIST_LEN, l);
         }
         (base, n)
     }
@@ -345,8 +358,9 @@ impl Cx {
         span: Option<Span>,
         caps: &mut Vec<Capture<'a>>,
     ) -> Result<(u32, u32), CompileError> {
-        let n = rs.len() as u32;
-        let base = self.data.alloc(REDIRECT_SIZE * n, 4);
+        let n = rs.len();
+        let base = self.data.alloc_list(n, REDIRECT_SIZE);
+        let n = n as u32;
         for (i, r) in rs.iter().enumerate() {
             let rule = select_redirect(r, span)?;
             self.fire(rule);
@@ -356,11 +370,11 @@ impl Cx {
                 PRedirectTarget::Heredoc { body } => (self.word(body, caps), 0),
                 PRedirectTarget::Fd { fd } => (self.word(&EMPTY_WORD, caps), *fd),
             };
-            self.data.put_u32(at, r.fd);
-            self.data.put_u8(at + 4, redirect_op_index(&r.op));
-            self.data.put_u32(at + 8, wp);
-            self.data.put_u32(at + 12, wl);
-            self.data.put_u32(at + 16, target_fd);
+            self.data.put_u32(at + REDIR_FD, r.fd);
+            self.data.put_u8(at + REDIR_OP, redirect_op_index(&r.op));
+            self.data.put_u32(at + REDIR_TARGET_PTR, wp);
+            self.data.put_u32(at + REDIR_TARGET_LEN, wl);
+            self.data.put_u32(at + REDIR_TARGET_FD, target_fd);
         }
         Ok((base, n))
     }
@@ -370,16 +384,17 @@ impl Cx {
         asg: &'a [(String, PWord)],
         caps: &mut Vec<Capture<'a>>,
     ) -> (u32, u32) {
-        let n = asg.len() as u32;
-        let base = self.data.alloc(ASSIGN_SIZE * n, 4);
+        let n = asg.len();
+        let base = self.data.alloc_list(n, ASSIGN_SIZE);
+        let n = n as u32;
         for (i, (name, w)) in asg.iter().enumerate() {
             let at = base + ASSIGN_SIZE * i as u32;
             let (np, nl) = self.data.string(name);
             let (wp, wl) = self.word(w, caps);
-            self.data.put_u32(at, np);
-            self.data.put_u32(at + 4, nl);
-            self.data.put_u32(at + 8, wp);
-            self.data.put_u32(at + 12, wl);
+            self.data.put_u32(at + ASSIGN_NAME_PTR, np);
+            self.data.put_u32(at + ASSIGN_NAME_LEN, nl);
+            self.data.put_u32(at + ASSIGN_WORD_PTR, wp);
+            self.data.put_u32(at + ASSIGN_WORD_LEN, wl);
         }
         (base, n)
     }
@@ -694,7 +709,7 @@ impl Cx {
         let total = DATA_BASE as u64 + self.data.bytes.len() as u64;
         let mut memory = MemorySection::new();
         memory.memory(MemoryType {
-            minimum: total.div_ceil(65536).max(1),
+            minimum: pages_for(total),
             maximum: None,
             memory64: false,
             shared: false,

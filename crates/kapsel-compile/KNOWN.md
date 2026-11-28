@@ -47,8 +47,9 @@ Construct `while`. Test `kd8_while_empty_condition`.
 ## Other failure codes
 
 - `KC-002 plan-schema`: `schema` is not `kapsel.plan.v0`. Test `kc002_wrong_schema`.
-- `KC-003 limit-exceeded`: more than 50 000 locals, or argument data beyond a 32-bit memory.
-  Test `kc003_too_many_locals`.
+- `KC-003 limit-exceeded`: more than 50 000 locals, argument data beyond a 32-bit memory, or a list
+  (argv, parts of a word, assignments, redirects, loop items) longer than 65 536 elements.
+  Tests `kc003_too_many_locals`, `kc003_list_too_long`.
 - `KC-900 validator-mismatch`: the translation validator's skeleton of the component differs
   from the plan's. Tests `kc900_*`.
 - `KC-901 encoder-failure`: wit-parser or wit-component failed. Not reachable from a core

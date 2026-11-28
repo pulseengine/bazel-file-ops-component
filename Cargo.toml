@@ -22,3 +22,16 @@ annotate-snippets = "0.12.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+
+# ordeal re-checks the kapsel-compile proof certificates in `cargo test` and solves
+# the obligations under KAPSEL_BLESS=1; an
+# unoptimised search is about 7x slower (layout-bounds: 1.90 s vs 0.26 s), so the
+# ordeal crates are optimised in dev and test builds.
+[profile.dev.package.ordeal]
+opt-level = 3
+
+[profile.dev.package.ordeal-lrat]
+opt-level = 3
+
+[profile.dev.package.ordeal-cert]
+opt-level = 3

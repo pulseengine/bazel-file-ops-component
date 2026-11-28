@@ -103,6 +103,19 @@ jobs:
         cat file_ops_component.wasm.sha256
         cat file_ops_component_aot.wasm.sha256
 
+    - name: Generate compiler proof bundle (blocks the release)
+      # ordeal solves every committed proof query of kapsel-compile and
+      # re-checks each certificate; a stale or unproven query fails the job.
+      env:
+        KAPSEL_PROOF_OUT: ${{ runner.temp }}/proofs/kapsel-compile-proofs
+      run: |
+        cargo test --locked -p kapsel-compile --test proofs -- --nocapture
+        tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+          -C "$RUNNER_TEMP/proofs" -cf - kapsel-compile-proofs \
+          | gzip -n > kapsel-compile-proofs.tar.gz
+        sha256sum kapsel-compile-proofs.tar.gz > kapsel-compile-proofs.tar.gz.sha256
+        cat kapsel-compile-proofs.tar.gz.sha256
+
     - name: Log in to Container Registry
       uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
       with:
@@ -185,6 +198,12 @@ jobs:
           cosign sign --yes "${REF}"
         done
 
+    - name: Sign compiler proof bundle with Cosign
+      run: |
+        cosign sign-blob --yes \
+          --bundle kapsel-compile-proofs.tar.gz.sigstore.json \
+          kapsel-compile-proofs.tar.gz
+
     - name: Generate SLSA Provenance
       run: |
         # Create provenance attestation
@@ -247,6 +266,17 @@ jobs:
             "${REF}" > /dev/null
         done
 
+    - name: Verify compiler proof bundle signature
+      run: |
+        # Fails the release unless the bundle was signed by this repository's
+        # release workflow (same anchored identity as the OCI verification).
+        IDENTITY="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@"
+        cosign verify-blob \
+          --bundle kapsel-compile-proofs.tar.gz.sigstore.json \
+          --certificate-identity-regexp="${IDENTITY}" \
+          --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+          kapsel-compile-proofs.tar.gz
+
     - name: Upload Release Assets
       uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
       with:
@@ -255,6 +285,9 @@ jobs:
           file_ops_component.wasm.sha256
           file_ops_component_aot.wasm
           file_ops_component_aot.wasm.sha256
+          kapsel-compile-proofs.tar.gz
+          kapsel-compile-proofs.tar.gz.sha256
+          kapsel-compile-proofs.tar.gz.sigstore.json
         tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
 
     - name: Create Release Summary
