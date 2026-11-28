@@ -489,7 +489,7 @@ impl Shell {
             if let Err((class, operand, msg)) =
                 self.apply_redirect(r, &mut stdin_r, &mut out, &mut err)
             {
-                let _ = writeln!(err, "{msg}");
+                err_line(&mut err, &msg);
                 let help = help_for(class, &args[0], operand.as_deref(), None);
                 self.pending_errors.push(RunError {
                     site: self.site,
@@ -657,6 +657,16 @@ impl Shell {
         }
         Ok(())
     }
+}
+
+/// Writes one diagnostic line (`name: operand: reason`, a grant refusal, a
+/// failed redirect) to a built-in's stderr, with control characters escaped
+/// as the rendered diagnostics escape them ([`kapsel_diag::escape_controls`]),
+/// so an operand or path holding ESC cannot drive the terminal. Every
+/// diagnostic line the host writes goes through here; data a built-in writes
+/// (to stdout, or to stderr by redirection) never does.
+pub fn err_line(err: &mut impl Write, line: &str) {
+    let _ = writeln!(err, "{}", kapsel_diag::escape_controls(line));
 }
 
 /// `strerror`-style text for an io error, as GNU tools print it.

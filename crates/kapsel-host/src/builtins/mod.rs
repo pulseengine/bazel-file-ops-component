@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use crate::grants;
 use crate::runerr::{ErrorClass, RunError, help_for};
-use crate::shell::{Shell, Sink, errstr};
+use crate::shell::{Shell, Sink, err_line, errstr};
 
 mod basic;
 mod data;
@@ -65,7 +65,7 @@ impl Ctx<'_> {
     /// `name: text` on stderr, recorded as a run error of `class`.
     pub fn fail(&mut self, class: ErrorClass, operand: Option<&str>, text: &str) {
         let line = format!("{}: {}", self.name, text);
-        let _ = writeln!(self.err, "{line}");
+        err_line(&mut self.err, &line);
         self.record(class, operand, line);
     }
 
@@ -82,14 +82,14 @@ impl Ctx<'_> {
     /// `kapsel: operand: reason` on stderr, recorded as `class`.
     pub fn deny_msg_text(&mut self, operand: &str, class: ErrorClass, reason: &str) {
         let line = format!("kapsel: {operand}: {reason}");
-        let _ = writeln!(self.err, "{line}");
+        err_line(&mut self.err, &line);
         self.record(class, Some(operand), line);
     }
 
     /// A ready `kapsel: path: reason` grant refusal line (from a tree copy):
     /// printed, and recorded by its reason.
     pub fn kapsel_line(&mut self, line: &str) {
-        let _ = writeln!(self.err, "{line}");
+        err_line(&mut self.err, line);
         let rest = line.strip_prefix("kapsel: ").unwrap_or(line);
         let (operand, reason) = rest.rsplit_once(": ").unwrap_or((rest, ""));
         let class = if reason == grants::GrantErr::Outside.reason() {
@@ -102,7 +102,7 @@ impl Ctx<'_> {
 
     pub fn deny_msg(&mut self, operand: &str, why: grants::GrantErr) {
         let line = format!("kapsel: {operand}: {}", why.reason());
-        let _ = writeln!(self.err, "{line}");
+        err_line(&mut self.err, &line);
         let class = match why {
             grants::GrantErr::Outside => ErrorClass::Grants,
             grants::GrantErr::Symlink | grants::GrantErr::Loop => ErrorClass::Symlink,
@@ -595,7 +595,7 @@ impl Ctx<'_> {
     /// names the position it marks.
     pub fn regex_fail(&mut self, pattern: &str, text: &str, full: Option<&str>) {
         let line = format!("{}: {}", self.name, text);
-        let _ = writeln!(self.err, "{line}");
+        err_line(&mut self.err, &line);
         let help = match full.and_then(crate::runerr::regex_position) {
             Some(at) => format!(
                 "the pattern `{pattern}` fails at {at} (counted in the pattern as kapsel's \
