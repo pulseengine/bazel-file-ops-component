@@ -23,22 +23,27 @@
   {"name": "type-error-first-wins", "config_text": "{\"workspace_dir\":[\"{W}\"],\"operations\":5}"},
   {
     "name": "unknown-fields-ignored",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"version\":2,\"meta\":{\"a\":[1,{\"b\":null}]},\"operations\":[{\"type\":\"write_file\",\"path\":\"a.txt\",\"content\":\"x\",\"mode\":\"0644\",\"src_paths\":[\"ignored\"]}]}"
   },
   {
     "name": "keys-match-case-insensitively",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"WORKSPACE_DIR\":\"{W}/ws\",\"Operations\":[{\"TYPE\":\"write_file\",\"Path\":\"w.txt\",\"CONTENT\":\"c\"}]}"
   },
   {
     "name": "keys-fold-long-s",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"mkdir\",\"path\":\"a\"}],\"workſpace_dir\":\"{W}/ws-long-s\"}"
   },
   {
     "name": "keys-fold-kelvin-sign",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"mkdir\",\"path\":\"a\"}],\"worKspace_dir\":\"{W}/ws-kelvin\"}"
   },
   {
     "name": "keys-fold-dotless-i-does-not-match",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"mkdir\",\"path\":\"a\"}],\"workspace_dır\":\"{W}/ws-dotless\"}"
   },
   {
@@ -47,24 +52,28 @@
   },
   {
     "name": "keys-fold-underscore-is-exact",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"write_file\",\"path\":\"a\",\"content\":\"c\",\"OUTPUT-FILE\":5,\"Output_File\":\"o\"}]}"
   },
   {
     "name": "duplicate-keys-last-wins-and-arrays-merge",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/a\",\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"write_file\",\"path\":\"one\",\"content\":\"1\"},{\"type\":\"mkdir\",\"path\":\"two\"}],\"operations\":[{\"path\":\"merged\"}]}"
   },
   {
     "name": "duplicate-arrays-reuse-elements-past-len",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"mkdir\",\"path\":\"a\"},{\"type\":\"mkdir\",\"path\":\"b\"}],\"operations\":[{\"path\":\"c\"}],\"operations\":[{},{}]}"
   },
   {"name": "operations-null", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":null}"},
   {"name": "operations-missing", "config_text": "{\"workspace_dir\":\"{W}/ws\"}"},
   {"name": "operation-null-element", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[null]}"},
   {"name": "operation-empty-object", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{}]}"},
-  {"name": "field-null-keeps-value", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"write_file\",\"path\":\"p.txt\",\"path\":null,\"content\":\"k\"}]}"},
+  {"name": "field-null-keeps-value", "allow": {"same": "fixed-v0.2.2-same-path"}, "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"write_file\",\"path\":\"p.txt\",\"path\":null,\"content\":\"k\"}]}"},
   {"name": "workspace-dir-null", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[],\"workspace_dir\":null}"},
   {
     "name": "string-escapes",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config_text": "{\"workspace_dir\":\"{W}/w\\u0073\",\"operations\":[{\"type\":\"write_file\",\"path\":\"e\\u00e9\\ud83d\\ude00\\ud800x.txt\",\"content\":\"\\\"q\\\" \\\\ \\/ \\b\\f\\n\\r\\t\"}]}"
   },
   {"name": "deep-nesting-in-unknown-field", "config_text": "{\"workspace_dir\":\"{W}/ws\",\"x\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],\"operations\":[]}"}

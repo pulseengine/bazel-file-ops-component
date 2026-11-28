@@ -1,6 +1,7 @@
 [
   {
     "name": "source-dotdot-through-missing-directory",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TinyGo cleans paths lexically before the system call",
     "tree": {"files": {"src/a.txt": "hi\n"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/nonexist/../src/a.txt", "dest_path": "c1"}]}
@@ -12,32 +13,38 @@
   },
   {
     "name": "source-dot-after-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"src/a.txt": "hi\n"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src/a.txt/.", "output_file": "c3"}]}
   },
   {
     "name": "source-double-slashes",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"src/a.txt": "hi\n"}},
     "config": {"workspace_dir": "{W}//ws/", "operations": [{"type": "copy_file", "src_path": "{W}/src//./a.txt", "dest_path": "c4"}]}
   },
   {
     "name": "source-dotdot-after-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"src/a.txt": "hi\n"}, "dirs": ["src/sub"], "symlinks": {"src/sl": "sub"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src/sl/../a.txt", "dest_path": "c5"}]}
   },
   {
     "name": "copy-directory-from-directory-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TinyGo's os.Stat does not follow a final symlink",
     "tree": {"files": {"dirtarget/x.txt": "x"}, "symlinks": {"dlink": "dirtarget"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/dlink", "dest_path": "d1"}]}
   },
   {
     "name": "copy-file-from-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"src/a.txt": "hi\n"}, "symlinks": {"flink": "src/a.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/flink", "dest_path": "f1"}]}
   },
   {
     "name": "move-symlink-inside-workspace",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"ws/t.txt": "t"}, "symlinks": {"ws/l": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/l", "dest_path": "m/l2"}]}
   },
@@ -50,7 +57,8 @@
     "name": "cli-directory-symlink-argument",
     "tree": {"dirs": ["dirtarget"], "symlinks": {"dlink": "dirtarget"}},
     "args": ["{W}/dlink"],
-    "allow": {"*": "The TinyGo component takes a symlink to a directory for a config file and crashes reading it (panic: slice out of range in os.ReadFile, exit 134); the Rust component reports an error and exits 1."},
+    "note": "The TinyGo component takes a symlink to a directory for a config file and crashes reading it (panic: slice out of range in os.ReadFile, exit 134); the Rust component reports an error and exits 1.",
+    "allow": {"*": "oracle-crash"},
     "expect_rust": {"code": 1, "stderr_contains": "Error reading config file"}
   },
   {
@@ -85,6 +93,7 @@
   },
   {
     "name": "prepare-workspace-high-level-and-generic",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"a.h": "h"}},
     "config_name": "pw.json",
     "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":4,\"security_config\":{\"level\":1,\"allowed_dirs\":[\"/nowhere\"]},\"headers\":[{\"source\":\"{W}/a.h\",\"destination\":null}]}",

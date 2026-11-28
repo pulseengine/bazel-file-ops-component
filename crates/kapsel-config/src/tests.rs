@@ -284,3 +284,47 @@ fn serde_model_round_trips() {
     );
     assert_eq!(parse_json_config(s.as_bytes()).unwrap(), c);
 }
+
+/// concatenate_files takes `src_paths` as an alias of `sources` (owner,
+/// 2026-11-28); TinyGo ignores the field and fails with "requires sources".
+#[test]
+fn src_paths_alias() {
+    let c = parse_json_config(
+        br#"{"workspace_dir":"/w","operations":[{"type":"concatenate_files","src_paths":["/a","/b"],"dest_path":"o"}]}"#,
+    )
+    .unwrap();
+    assert_eq!(c.operations[0].concat_sources(), ["/a", "/b"]);
+    assert_eq!(validate(&c), Ok(()));
+
+    let both = cfg(
+        "/w",
+        vec![Operation {
+            sources: vec!["/a".into()],
+            src_paths: vec!["/b".into()],
+            dest_path: "o".into(),
+            ..op("concatenate_files")
+        }],
+    );
+    assert_eq!(
+        validate(&both).unwrap_err(),
+        "operation 0: concatenate_files takes sources or src_paths, not both"
+    );
+
+    let rel = cfg(
+        "/w",
+        vec![Operation {
+            src_paths: vec!["a".into()],
+            dest_path: "o".into(),
+            ..op("concatenate_files")
+        }],
+    );
+    assert_eq!(
+        validate(&rel).unwrap_err(),
+        "operation 0: source 0 must be absolute: a"
+    );
+
+    assert_eq!(
+        parse_json_config(br#"{"operations":[{"src_paths":"x"}]}"#).unwrap_err(),
+        "json: cannot unmarshal string into Go struct field Operation.operations.src_paths of type []string"
+    );
+}
