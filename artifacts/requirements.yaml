@@ -62,9 +62,8 @@ artifacts:
     title: "Created directories are 0750 and files 0640, and gosec blocks"
     status: verified
     release: v0.2.1
-    description: >
-      gosec runs blocking in the required checks with tinygo/gosec.json setting the G302/G306
-      threshold to 0640; each #nosec states its reason.
+    description: "gosec runs blocking in the required checks with tinygo/gosec.json setting the G302/G306 threshold to 0640; each #nosec states its reason. Historical (v0.2.1): this applied to the TinyGo component. Its Go sources, tinygo/gosec.json and the gosec step were removed in v0.3.0 (#144), so its gosec verification record is historical. The Rust component sets no file modes (wasip2 has no mode argument; the host decides), and the fileops equivalence test (crates/kapsel-fileops/tests/equivalence.rs) shows only that modes equal the v0.2.2 artifact's under wasmtime. No current test asserts 0750 or 0640."
+    tags: [historical]
     fields:
       priority: should
       category: non-functional
@@ -75,7 +74,7 @@ artifacts:
   - id: REQ-KS-010
     type: requirement
     title: "The parser accepts a defined POSIX subset and refuses everything else with a reason"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The subset is pipes, redirection, && and ||, ;, quoting, environment variables, globs,
@@ -91,7 +90,7 @@ artifacts:
   - id: REQ-KS-011
     type: requirement
     title: "Analysis is separate from execution"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: >
       A check stage parses a command, applies the grammar and the policy, and names the grants,
@@ -106,7 +105,7 @@ artifacts:
   - id: REQ-KS-012
     type: requirement
     title: "Constructs that destroy the error signal are refused"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
@@ -136,7 +135,7 @@ artifacts:
   - id: REQ-KS-014
     type: requirement
     title: "kapsel takes a command with -c or from a script file, with defined exit codes"
-    status: proposed
+    status: implemented
     release: v0.3.0
     description: >
       `kapsel check` and `kapsel run` accept `-c <command>` and a script-file argument (GitHub
@@ -164,7 +163,7 @@ artifacts:
   - id: REQ-KS-016
     type: requirement
     title: "Every refusal rule has a planted script and a planted control"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The refusal corpus is a plant pack in this repository: each rule has a script that must be
@@ -177,7 +176,7 @@ artifacts:
   - id: REQ-KS-017
     type: requirement
     title: "JSON-config mode accepts a relative workspace_dir and fails on an unknown operation"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       rules_wasm_component writes workspace_dir "." with execroot-relative paths (#776). kapsel
@@ -194,7 +193,7 @@ artifacts:
   - id: REQ-KS-018
     type: requirement
     title: "Rust components follow the fleet exit-code rule"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: >
       Rust 1.100 or later pinned, std::process::exit on WASI, and every exit code asserted
@@ -208,7 +207,7 @@ artifacts:
   - id: REQ-KS-019
     type: requirement
     title: "Interactive mode compiles and runs each line, and the session state persists"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: >
       With no command and no script, kapsel reads lines from a terminal. Each complete line goes
@@ -228,7 +227,7 @@ artifacts:
   - id: REQ-KS-060
     type: requirement
     title: "Every refusal, warning and run error says what is wrong, where, and what to do"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Diagnostics are rendered rustc-style: rule id, file:line:col, the source line with the span
@@ -245,7 +244,7 @@ artifacts:
   - id: REQ-KS-061
     type: requirement
     title: "Commands that repeat an earlier command with a small difference are analysed together"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       A salsa database holds every command of a script or session. The analysis compares command
@@ -261,7 +260,7 @@ artifacts:
   - id: REQ-KS-062
     type: requirement
     title: "Real mistakes from CI and agent sessions form a regression corpus"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: >
       testdata/kapsel/errors/ holds minimized, scrubbed cases from CI failures and failed agent
@@ -270,7 +269,7 @@ artifacts:
       text or log is committed.
     fields:
       priority: must
-      category: verification
+      category: non-functional
       verification-criteria: "Fails if a corpus case's outcome differs from its expect line, or a committed case contains a home path, hostname, user name or token."
       upstream-ref: "kapsel#140"
 
@@ -297,7 +296,7 @@ artifacts:
   - id: REQ-KS-064
     type: requirement
     title: "The repository has no Python, and no Go once the JSON-config mode is Rust"
-    status: approved
+    status: implemented
     release: v0.3.0
     description: >
       scripts/check_selfhosted_fork_guard.py becomes the first rule of kapsel's workflow scanner
@@ -332,7 +331,7 @@ artifacts:
   - id: REQ-KS-021
     type: requirement
     title: "Compiled modules are signed with sigil, attest both input hashes, and are cached by the normalized one"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Every compiled module is signed with sigil (wsc) and carries a transformation attestation
@@ -351,7 +350,7 @@ artifacts:
   - id: REQ-KS-022
     type: requirement
     title: "The executor runs only plans the check stage produced"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       There is no path from a command line to execution that skips the check stage.
@@ -392,7 +391,7 @@ artifacts:
   - id: REQ-KS-025
     type: requirement
     title: "The most-used commands are built in"
-    status: proposed
+    status: implemented
     release: v0.3.0
     description: >
       First batch, ranked by measured agent use: cat, echo, printf, head, tail, wc, ls, mkdir,
@@ -526,7 +525,7 @@ artifacts:
   - id: REQ-KS-041
     type: requirement
     title: "The Rust implementation replaces the TinyGo JSON-config component after an equivalence test"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The existing JSON configs are the oracle: the Rust implementation produces the same files,
