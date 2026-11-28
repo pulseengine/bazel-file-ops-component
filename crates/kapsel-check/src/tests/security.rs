@@ -180,6 +180,7 @@ fn error_corpus_matches_expectations() {
     names.sort();
     assert_eq!(names.len(), 25, "corpus size changed: {names:?}");
     let (mut skipped, mut run_errors, mut tested) = (0, 0, 0);
+    let mut wrong = Vec::new();
     for name in &names {
         let src = std::fs::read_to_string(dir.join(name)).unwrap();
         let expect = src
@@ -188,55 +189,131 @@ fn error_corpus_matches_expectations() {
             .unwrap()
             .strip_prefix("# expect: ")
             .unwrap_or_else(|| panic!("{name}: no expect line"));
-        let mut words = expect.split_whitespace();
-        let kind = words.next().unwrap().trim_end_matches(';');
         if SKIP.contains(&name.as_str()) {
             skipped += 1;
             continue;
         }
-        if kind == "run-error" {
+        let want = parse_expect(expect).unwrap_or_else(|e| panic!("{name}: {e}"));
+        if want.run_error {
             run_errors += 1;
-            continue;
         }
         tested += 1;
         let out = run(&src);
-        match kind {
-            "refuse" => {
-                let rule = words.next().unwrap();
-                assert!(
-                    matches!(out, CheckOutcome::Refused(_)),
-                    "{name}: should refuse"
-                );
-                assert!(
-                    findings(&out)
-                        .iter()
-                        .any(|f| f.rule == rule && f.severity == Severity::Refuse),
-                    "{name}: want refuse {rule}, got {:?}",
-                    findings(&out)
-                );
-            }
-            "warn" => {
-                let rule = words.next().unwrap();
-                assert!(
-                    findings(&out)
-                        .iter()
-                        .any(|f| f.rule == rule && f.severity == Severity::Warn),
-                    "{name}: want warn {rule}, got {:?}",
-                    findings(&out)
-                );
-            }
-            "plan" => assert!(
-                matches!(out, CheckOutcome::Plan(_)),
-                "{name}: should plan, got {:?}",
-                findings(&out)
-            ),
-            other => panic!("{name}: unknown expectation {other}"),
+        if let Err(e) = want.matches(&out) {
+            wrong.push(format!("{name}: {e}"));
         }
     }
+    assert!(
+        wrong.is_empty(),
+        "expect lines that differ:\n{}",
+        wrong.join("\n")
+    );
     assert_eq!(skipped, SKIP.len());
     assert_eq!(skipped, 0, "skip list changed");
     assert_eq!(run_errors, 3, "run-error cases changed");
-    assert_eq!(tested, 22);
+    assert_eq!(tested, 25);
+}
+
+/// A parsed `# expect:` line: the full check outcome of an error-corpus case
+/// (format in testdata/kapsel/errors/README.md).
+#[derive(Debug)]
+struct Expect {
+    refused: bool,
+    run_error: bool,
+    findings: std::collections::BTreeSet<(String, String)>,
+}
+
+fn parse_expect(line: &str) -> Result<Expect, String> {
+    let mut e = Expect {
+        refused: false,
+        run_error: false,
+        findings: Default::default(),
+    };
+    // A run error is a plan with no findings; its message may hold anything.
+    if line.starts_with("run-error exit ") && line.contains(" | ") {
+        e.run_error = true;
+        return Ok(e);
+    }
+    let mut plan = false;
+    for clause in line.split(';').map(str::trim) {
+        let words: Vec<&str> = clause.split_whitespace().collect();
+        match words.as_slice() {
+            ["plan"] => plan = true,
+            ["note", ..] => {}
+            [sev @ ("refuse" | "warn"), rule] if rule.starts_with("KS-") => {
+                e.refused |= *sev == "refuse";
+                e.findings.insert((sev.to_string(), rule.to_string()));
+            }
+            _ => {
+                return Err(format!(
+                    "bad clause {clause:?}: use `plan`, `refuse KS-Rnnn`, `warn KS-Rnnn`, \
+                     `note TEXT` or `run-error exit N | MESSAGE`, separated by `;`"
+                ));
+            }
+        }
+    }
+    if plan && e.refused {
+        return Err("`plan` and `refuse` contradict each other".into());
+    }
+    if !plan && e.findings.is_empty() {
+        return Err("the line states no outcome".into());
+    }
+    Ok(e)
+}
+
+impl Expect {
+    /// Ok when the outcome is exactly the stated one: refused or a plan, and
+    /// the set of (severity, rule) pairs equal to the stated set.
+    fn matches(&self, out: &CheckOutcome) -> Result<(), String> {
+        let got: std::collections::BTreeSet<(String, String)> = findings(out)
+            .iter()
+            .map(|f| {
+                let sev = match f.severity {
+                    Severity::Refuse => "refuse",
+                    Severity::Warn => "warn",
+                };
+                (sev.to_string(), f.rule.clone())
+            })
+            .collect();
+        let refused = matches!(out, CheckOutcome::Refused(_));
+        if refused != self.refused || got != self.findings {
+            return Err(format!(
+                "want refused={} {:?}, got refused={refused} {got:?}",
+                self.refused, self.findings
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn the_expect_matcher_requires_the_full_outcome() {
+    // Case 001: bazel is not a built-in, so it is refused (KS-R009) as well as
+    // warned about (KS-R011). The pre-review line `warn KS-R011` passed.
+    let src = "bazel build //x || echo \"failed\"";
+    let out = run(src);
+    for loose in ["warn KS-R011", "refuse KS-R009", "plan"] {
+        let e = parse_expect(loose).unwrap();
+        assert!(e.matches(&out).is_err(), "{loose:?} must not match");
+    }
+    assert!(
+        parse_expect("refuse KS-R009; warn KS-R011")
+            .unwrap()
+            .matches(&out)
+            .is_ok()
+    );
+    for bad in [
+        "refuse KS-R000 param-operator",
+        "plan; refuse KS-R001",
+        "note only",
+        "",
+    ] {
+        assert!(parse_expect(bad).is_err(), "{bad:?} must be rejected");
+    }
+    // A run error must check clean.
+    let e = parse_expect("run-error exit 2 | x").unwrap();
+    assert!(e.matches(&run("cat a")).is_ok());
+    assert!(e.matches(&run("cat a 2>/dev/null")).is_err());
 }
 
 #[test]
