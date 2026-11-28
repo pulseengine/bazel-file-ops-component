@@ -677,3 +677,21 @@ pub fn xsplit<'a>(table: &[XFlag], args: &'a [PWord], spans: &[Span]) -> Split<'
     }
     sp
 }
+
+/// Every flag spelling the check stage understands for built-in `tool`
+/// (`-n`, `--count`, `--allow-none`), from the same tables the analysis
+/// uses. Empty when the tool has no flag table. For tab completion.
+pub fn flag_names(tool: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(s) = spec_for(tool) {
+        out.extend(s.sb.chars().chain(s.sv.chars()).map(|c| format!("-{c}")));
+        out.extend(s.lb.iter().map(|l| format!("--{l}")));
+        out.extend(s.lv.iter().map(|(l, _)| format!("--{l}")));
+    }
+    if let Some(t) = xflags_for(tool) {
+        out.extend(t.iter().map(|(f, _)| (*f).to_string()));
+    }
+    out.sort();
+    out.dedup();
+    out
+}

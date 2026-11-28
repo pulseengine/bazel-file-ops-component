@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 mod args;
 mod status;
-pub use args::{XFlag, XVal, xflags_for as builtin_xflags};
+pub use args::{XFlag, XVal, flag_names as builtin_flag_names, xflags_for as builtin_xflags};
 use args::{leading_literal, rm_danger, sed_in_place, spec_for, split_args, xflags_for, xsplit};
 
 pub use kapsel_plan::BUILTINS;

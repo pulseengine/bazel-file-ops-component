@@ -7,6 +7,8 @@
 //! out of `front_end` (parse + check). There is no other call to
 //! `Session::run_component` in this crate.
 
+mod editor;
+
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 
@@ -430,10 +432,24 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
     let stdin = std::io::stdin();
     let mut last = 0;
     let mut analysis = Analysis::new();
+    // A line editor only on a terminal; every other input keeps the plain reader below.
+    let mut ed = editor::Editor::new();
     loop {
         let mut buf = String::new();
         let mut prompt = "kapsel$ ";
         loop {
+            if let Some(e) = ed.as_mut() {
+                match e.read() {
+                    editor::Read::Line(l) => buf = l,
+                    editor::Read::Interrupted => continue,
+                    editor::Read::Eof => return last,
+                    editor::Read::Unavailable => {
+                        ed = None;
+                        continue;
+                    }
+                }
+                break;
+            }
             eprint!("{prompt}");
             let _ = std::io::stderr().flush();
             let mut line = String::new();
