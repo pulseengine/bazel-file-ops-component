@@ -1300,11 +1300,14 @@ pub fn toml(ctx: &mut Ctx, a: &[String]) -> i32 {
     }
     let out = doc.to_string();
     // Read back: the file parses and the path holds the new value.
-    let back = super::readback_text(&out).parse::<DocumentMut>().ok().and_then(|d| {
-        let mut got = Vec::new();
-        t_get(d.as_item(), &cmd.path, &[], &mut got).ok()?;
-        got.pop()
-    });
+    let back = super::readback_text(&out)
+        .parse::<DocumentMut>()
+        .ok()
+        .and_then(|d| {
+            let mut got = Vec::new();
+            t_get(d.as_item(), &cmd.path, &[], &mut got).ok()?;
+            got.pop()
+        });
     let want = match shown.parse::<TV>() {
         Ok(TV::String(s)) => s.value().clone(),
         _ => shown,
