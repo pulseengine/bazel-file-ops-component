@@ -16,8 +16,13 @@
 //! - `relative`: `--dir <T>::. --dir <T>::/c`, a relative `workspace_dir`
 //!   (REQ-KS-017) with the config read from `/c`.
 //!
-//! A case may allowlist a difference for a layout, with the reason. An
-//! allowlisted case that agrees fails the test, so the list stays true.
+//! A case may allowlist a difference for a layout by naming one of the
+//! classes in `CLASSES`; the report counts each class. An allowlisted case
+//! that agrees fails the test, so the list stays true. The two classes for
+//! the fixed v0.2.2 same-path bug carry their own check: the Rust run must
+//! equal the oracle's run of the same case under `--dir T::/w`, where the
+//! oracle's walk works, and an escape must also keep the oracle's
+//! same-path exit code and files.
 //!
 //! Run it after building the component:
 //!   cargo build -p kapsel-fileops --target wasm32-wasip2 --release
@@ -338,6 +343,98 @@ fn load_corpus() -> Vec<(String, Value)> {
     cases
 }
 
+const FIXED_SAME_PATH: &str = "fixed-v0.2.2-same-path";
+const FIXED_SAME_PATH_REFUSAL: &str = "fixed-v0.2.2-same-path-refusal";
+
+/// The allowlist classes a case may name for a layout, with the reason.
+const CLASSES: &[(&str, &str)] = &[
+    (
+        "req-ks-017",
+        "REQ-KS-017: a relative workspace_dir is accepted; TinyGo refuses it before running",
+    ),
+    (
+        FIXED_SAME_PATH,
+        "fixed v0.2.2 bug: in-workspace write under same-path preopen (owner 2026-11-28); \
+         checked to equal the oracle's run of the same case under --dir T::/w",
+    ),
+    (
+        FIXED_SAME_PATH_REFUSAL,
+        "fixed v0.2.2 bug, escape still refused: v0.2.2 refused at its broken first check, the \
+         fix refuses at the rule that applies; checked to give the oracle's same-path exit code \
+         and files, and to equal the oracle's run under --dir T::/w",
+    ),
+    (
+        "src-paths-alias",
+        "src_paths alias (owner 2026-11-28): TinyGo ignores src_paths and fails with \
+         \"requires sources\"; giving both is an error naming both fields",
+    ),
+    (
+        "oracle-crash",
+        "the TinyGo component crashes (panic: slice out of range in os.ReadFile, exit 134); \
+         the Rust component reports an error and exits 1",
+    ),
+];
+
+/// Replace the guest root `root` with `<T>` where it stands as a whole path
+/// prefix ("/w" in "/w/ws" or "/w:", not in "/ws").
+fn rebase(s: &str, root: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find(root) {
+        let after = &rest[i + root.len()..];
+        let boundary = after
+            .chars()
+            .next()
+            .is_none_or(|c| !(c.is_alphanumeric() || c == '_' || c == '-' || c == '.'));
+        out.push_str(&rest[..i]);
+        out.push_str(if boundary { "<T>" } else { root });
+        rest = after;
+    }
+    out.push_str(rest);
+    out
+}
+
+fn rebase_run(r: &Run, root: &str) -> Run {
+    Run {
+        code: r.code,
+        stdout: rebase(&r.stdout, root),
+        stderr: rebase(&r.stderr, root),
+        files: r
+            .files
+            .iter()
+            .map(|(k, v)| (k.clone(), rebase(v, root)))
+            .collect(),
+    }
+}
+
+/// A fixed same-path run must do exactly what the oracle does with the same
+/// case when the tree is a top-level guest directory, where v0.2.2's walk
+/// works: same files, output and exit code, escapes refused alike.
+fn check_fixed_same_path(
+    oracle: &Path,
+    case: &Value,
+    scratch: &Path,
+    name: &str,
+    t_same: &Path,
+    rust_same: &Run,
+) -> Option<String> {
+    let t = scratch.join(name.replace('/', "-")).join("cross-rooted");
+    let l = layout("rooted", &t);
+    let mut reference = rebase_run(&run_one(oracle, case, &t, &l), "/w");
+    let _ = fs::remove_dir_all(&t);
+    let mut ours = rebase_run(rust_same, &t_same.display().to_string());
+    // The config file holds each layout's own paths; it is input, not output.
+    let config = case["config_name"].as_str().unwrap_or("config.json");
+    reference.files.remove(config);
+    ours.files.remove(config);
+    (ours != reference).then(|| {
+        format!(
+            "fixed same-path run differs from the oracle's rooted run\n{}",
+            describe_diff(&reference, &ours)
+        )
+    })
+}
+
 #[test]
 #[ignore = "needs wasmtime, gh (or KAPSEL_FILEOPS_ORACLE_DIR) and the wasm32-wasip2 build"]
 fn rust_component_matches_tinygo_oracle() {
@@ -350,6 +447,7 @@ fn rust_component_matches_tinygo_oracle() {
 
     let (mut runs, mut agree, mut allowed) = (0, 0, 0);
     let mut per_layout: BTreeMap<&str, (u32, u32, u32)> = BTreeMap::new();
+    let mut per_class: BTreeMap<&str, u32> = BTreeMap::new();
     let mut failures = Vec::new();
     let mut allow_lines = Vec::new();
     for (name, case) in &cases {
@@ -366,21 +464,51 @@ fn rust_component_matches_tinygo_oracle() {
             runs += 1;
             let entry = per_layout.entry(l.name).or_default();
             entry.0 += 1;
-            let reason = case["allow"][ln.as_str()]
+            let class = case["allow"][ln.as_str()]
                 .as_str()
-                .or_else(|| case["allow"]["*"].as_str());
+                .or_else(|| case["allow"]["*"].as_str())
+                .map(|id| {
+                    CLASSES
+                        .iter()
+                        .find(|(c, _)| *c == id)
+                        .unwrap_or_else(|| panic!("{name}: unknown allowlist class {id}"))
+                });
             for bad in check_expectations(case, &b) {
                 failures.push(format!("{name} [{ln}]: {bad}"));
             }
-            match (a == b, reason) {
+            if let Some((id, _)) = class
+                && (*id == FIXED_SAME_PATH || *id == FIXED_SAME_PATH_REFUSAL)
+            {
+                if ln != "same" {
+                    failures.push(format!(
+                        "{name} [{ln}]: {id} applies to the same layout only"
+                    ));
+                }
+                if let Some(bad) = check_fixed_same_path(&oracle, case, &scratch, name, &t, &b) {
+                    failures.push(format!("{name} [{ln}]: {bad}"));
+                }
+                if *id == FIXED_SAME_PATH_REFUSAL
+                    && (a.code != b.code || a.code == 0 || a.files != b.files)
+                {
+                    failures.push(format!(
+                        "{name} [{ln}]: an escape must stay refused with the oracle's exit code and files\n{}",
+                        describe_diff(&a, &b)
+                    ));
+                }
+            }
+            match (a == b, class) {
                 (true, None) => {
                     agree += 1;
                     entry.1 += 1;
                 }
-                (false, Some(r)) => {
+                (false, Some((id, reason))) => {
                     allowed += 1;
                     entry.2 += 1;
-                    allow_lines.push(format!("  {name} [{ln}]: {r}\n{}", describe_diff(&a, &b)));
+                    *per_class.entry(id).or_default() += 1;
+                    allow_lines.push(format!(
+                        "  [{id}] {name} [{ln}]: {reason}\n{}",
+                        describe_diff(&a, &b)
+                    ));
                 }
                 (true, Some(_)) => {
                     failures.push(format!("{name} [{ln}]: allowlisted but the outputs agree"))
@@ -399,6 +527,12 @@ fn rust_component_matches_tinygo_oracle() {
     );
     for (l, (n, a, al)) in &per_layout {
         report += &format!("  layout {l}: {n} runs, {a} agree, {al} allowlisted\n");
+    }
+    for (id, reason) in CLASSES {
+        report += &format!(
+            "  class {id}: {} runs ({reason})\n",
+            per_class.get(id).copied().unwrap_or(0)
+        );
     }
     report += "allowlisted differences:\n";
     for l in &allow_lines {

@@ -37,12 +37,14 @@
   },
   {
     "name": "move-source-outside-workspace",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "from": "TestJsonMoveSourceStaysInWorkspace (outside)",
     "tree": {"files": {"outside.txt": "keep"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/outside.txt", "dest_path": "moved.txt"}]}
   },
   {
     "name": "move-source-inside-workspace",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestJsonMoveSourceStaysInWorkspace (inside)",
     "config": {"workspace_dir": "{W}/ws", "operations": [
       {"type": "write_file", "path": "in.txt", "content": "x"},
@@ -57,6 +59,7 @@
   },
   {
     "name": "run-command-output-in-parent",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestJsonRunCommandBounds: wit_bindgen.bzl writes ../<out>",
     "config": {"workspace_dir": "{W}/out/ws", "operations": [
       {"type": "run_command", "command": "echo", "args": ["ok"], "work_dir": ".", "output_file": "../bindings.txt"}
@@ -64,6 +67,7 @@
   },
   {
     "name": "run-command-output-two-levels-up",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "from": "TestJsonRunCommandBounds",
     "config": {"workspace_dir": "{W}/out/ws", "operations": [
       {"type": "run_command", "command": "echo", "args": ["x"], "output_file": "../../escape.txt"}
@@ -78,6 +82,7 @@
   },
   {
     "name": "move-source-symlink-then-dotdot",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "from": "TestMoveSourceSymlinkDotDotRefused",
     "tree": {"dirs": ["ws", "outside/deep"], "files": {"outside/x": "victim"}, "symlinks": {"ws/link": "../outside/deep"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/link/../x", "dest_path": "stolen"}]}
@@ -94,6 +99,7 @@
   },
   {
     "name": "directory-copy-into-existing-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "from": "TestCopyIntoExistingSymlinkRefused",
     "tree": {"dirs": ["ws", "outside"], "files": {"src/sub/evil.txt": "x"}, "symlinks": {"ws/sub": "../outside"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/src", "dest_path": "."}]}
@@ -112,42 +118,50 @@
   },
   {
     "name": "write-through-inside-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "from": "refuseSymlink on its own: the link resolves inside the workspace",
     "tree": {"files": {"ws/t.txt": "keep"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "l.txt", "content": "x"}]}
   },
   {
     "name": "append-through-inside-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"files": {"ws/t.txt": "keep"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "append_to_file", "path": "l.txt", "content": "x"}]}
   },
   {
     "name": "copy-onto-inside-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"files": {"ws/t.txt": "keep", "src.txt": "new"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src.txt", "dest_path": "l.txt"}]}
   },
   {
     "name": "concatenate-onto-inside-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"files": {"ws/t.txt": "keep", "src.txt": "new"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": ["{W}/src.txt"], "dest_path": "l.txt"}]}
   },
   {
     "name": "read-file-output-onto-inside-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"files": {"ws/t.txt": "keep", "src.txt": "new"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src.txt", "output_file": "l.txt"}]}
   },
   {
     "name": "move-onto-inside-file-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"files": {"ws/t.txt": "keep", "ws/m.txt": "move"}, "symlinks": {"ws/l.txt": "t.txt"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/m.txt", "dest_path": "l.txt"}]}
   },
   {
     "name": "mkdir-on-inside-directory-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"dirs": ["ws/real"], "symlinks": {"ws/alias": "real"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "alias"}]}
   },
   {
     "name": "copy-directory-onto-inside-directory-symlink",
+    "allow": {"same": "fixed-v0.2.2-same-path-refusal"},
     "tree": {"dirs": ["ws/real"], "files": {"src/a.txt": "a"}, "symlinks": {"ws/alias": "real"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/src", "dest_path": "alias"}]}
   },
@@ -185,12 +199,14 @@
   },
   {
     "name": "write-below-symlink-inside-workspace",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TinyGo's os.Stat reports a symlink to a directory as not a directory, so MkdirAll fails on it",
     "tree": {"dirs": ["ws/real"], "symlinks": {"ws/alias": "real"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "alias/f.txt", "content": "x"}]}
   },
   {
     "name": "name-with-dots-is-not-traversal",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestIsWithin: a..b",
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "a..b"}, {"type": "write_file", "path": "a..b/f", "content": "y"}]}
   },

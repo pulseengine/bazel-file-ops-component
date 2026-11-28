@@ -32,7 +32,17 @@ fn abs(p: &str) -> String {
 }
 
 /// Go's `filepath.EvalSymlinks` (its `walkSymlinks`), one component at a
-/// time with `lstat` and `readlink`.
+/// time with `lstat` and `readlink`, with one change from the TinyGo
+/// component: the walk starts at the preopen root the path lives under.
+///
+/// The guest cannot look up the directories above a preopen (`/ws` under
+/// `--dir /ws::/ws` has no visible `/`), and TinyGo v0.2.2 treated that as an
+/// error, so every destination was refused. Here the leading components
+/// that cannot be looked up, before the first one that can, are taken as
+/// plain directories: they are outside the sandbox and no guest symlink can
+/// sit there. From the first visible component on, every lookup error is an
+/// error, as before. An absolute symlink target starts the walk again from
+/// `/` with the same rule.
 pub fn eval_symlinks(path: &str) -> io::Result<String> {
     let mut path = path.to_string();
     let mut vol_len = if path.starts_with('/') { 1 } else { 0 };
@@ -40,6 +50,8 @@ pub fn eval_symlinks(path: &str) -> io::Result<String> {
     let mut dest = vol.clone();
     let mut links = 0;
     let mut start = vol_len;
+    // Relative paths start inside the `.` preopen.
+    let mut inside = vol_len == 0;
     while start < path.len() {
         let b = path.as_bytes();
         while start < b.len() && b[start] == b'/' {
@@ -72,7 +84,18 @@ pub fn eval_symlinks(path: &str) -> io::Result<String> {
             dest.push('/');
         }
         dest.push_str(comp);
-        let md = crate::gofs::lstat(&dest)?;
+        let md = match crate::gofs::lstat(&dest) {
+            Ok(md) => {
+                inside = true;
+                md
+            }
+            // Above the preopen root: a plain directory to the guest.
+            Err(_) if !inside => {
+                start = end;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
         if !md.file_type().is_symlink() {
             if !md.is_dir() && end < path.len() {
                 return Err(io::Error::new(
@@ -94,6 +117,7 @@ pub fn eval_symlinks(path: &str) -> io::Result<String> {
             vol = "/".to_string();
             vol_len = 1;
             start = 1;
+            inside = false;
         } else {
             match dest.rfind('/').filter(|r| *r >= vol_len) {
                 Some(r) => dest.truncate(r),
