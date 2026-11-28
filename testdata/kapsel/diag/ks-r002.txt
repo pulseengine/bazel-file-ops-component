@@ -1,0 +1,14 @@
+# kapsel-diag golden `ks-r002`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+grep foo a.txt 2>/dev/null
+--- output
+warning[KS-R002]: `2>/dev/null` hides why `grep` failed, and nothing handles its failure
+ --> -c:1:16
+  |
+1 | grep foo a.txt 2>/dev/null
+  |                ^^^^^^^^^^^
+  |
+  = help: keep stderr, or handle the status: `grep foo a.txt 2>/dev/null || echo "no match" >&2`
+
+warning: 1 warning emitted

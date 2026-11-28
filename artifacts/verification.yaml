@@ -82,3 +82,37 @@ artifacts:
     links:
       - type: verifies
         target: FEAT-KS-001
+
+  - id: VER-KS-007
+    type: verification
+    title: "The Rust component matches the TinyGo v0.2.2 artifact on the equivalence corpus"
+    status: approved
+    release: v0.3.0
+    description: >
+      Every case in testdata/kapsel/fileops runs under wasmtime with the sha256-pinned v0.2.2
+      file_ops_component.wasm and with the Rust build; files, stdout, stderr and exit codes must
+      agree, or the case allowlists the difference with its reason.
+    fields:
+      method: automated-test
+      test-location: crates/kapsel-fileops/tests/equivalence.rs
+      test-name: "rust_component_matches_tinygo_oracle (--ignored), run by the required Component Build & Test jobs, by Integration Testing on the AOT-embedded build and by release.yml on both assets before publishing"
+    links:
+      - type: verifies
+        target: REQ-KS-041
+
+  - id: VER-KS-008
+    type: verification
+    title: "No Go or Python sources in the tree"
+    status: approved
+    release: v0.3.0
+    description: >
+      The required Quality & Security Gate fails if `git ls-files '*.go' '*.py'` lists anything.
+    fields:
+      method: automated-test
+      test-location: .github/workflows/ci.yml
+      test-name: "Quality & Security Gate: No Go or Python sources"
+    links:
+      - type: verifies
+        target: REQ-KS-064
+      - type: verifies
+        target: REQ-KS-041

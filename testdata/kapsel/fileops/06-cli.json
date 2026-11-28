@@ -1,0 +1,79 @@
+[
+  {"name": "no-arguments", "args": []},
+  {"name": "help-is-unknown", "args": ["--help"]},
+  {"name": "unknown-subcommand", "args": ["nonexist_op"]},
+  {"name": "config-file-missing", "args": ["{W}/missing.json"]},
+  {"name": "non-json-path-that-does-not-exist", "args": ["{W}/missing"]},
+  {"name": "directory-argument", "tree": {"dirs": ["d"]}, "args": ["{W}/d"]},
+  {
+    "name": "config-without-json-extension",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "config_name": "cfg",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "a"}]},
+    "args": ["{W}/cfg"]
+  },
+  {"name": "non-json-file-argument", "tree": {"files": {"a.txt": "hi\n"}}, "args": ["{W}/a.txt"]},
+  {
+    "name": "process-json-config-subcommand",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "a", "content": "b"}]},
+    "args": ["process_json_config", "--config", "{W}/config.json"]
+  },
+  {"name": "process-json-config-missing-arg", "args": ["process_json_config"]},
+  {"name": "process-json-config-wrong-flag", "args": ["process_json_config", "--cfg", "x"]},
+  {"name": "create-directory", "args": ["create_directory", "--path", "{W}/new/dir"]},
+  {"name": "create-directory-dotdot", "tree": {"dirs": ["ws"]}, "args": ["create_directory", "--path", "{W}/ws/../x"]},
+  {"name": "create-directory-missing-arg", "args": ["create_directory"]},
+  {"name": "create-directory-over-file", "tree": {"files": {"f": "x"}}, "args": ["create_directory", "--path", "{W}/f"]},
+  {"name": "copy-file", "tree": {"files": {"src/a.txt": "hi\n"}}, "args": ["copy_file", "--src", "{W}/src/a.txt", "--dest", "{W}/cp/b.txt"]},
+  {"name": "copy-file-missing-source", "args": ["copy_file", "--src", "{W}/nope", "--dest", "{W}/x"]},
+  {"name": "copy-file-missing-dest-value", "args": ["copy_file", "--src", "{W}/a", "--dest"]},
+  {"name": "copy-file-unknown-flag", "args": ["copy_file", "--bad", "x", "--dest", "y"]},
+  {"name": "copy-file-dest-flag-only", "args": ["copy_file", "--dest", "x", "--dest", "y"]},
+  {"name": "copy-file-traversal-source", "args": ["copy_file", "--src", "../x", "--dest", "{W}/y"]},
+  {
+    "name": "copy-directory",
+    "tree": {"files": {"src/a.txt": "a", "src/s/b.txt": "b"}},
+    "args": ["copy_directory", "--src", "{W}/src", "--dest", "{W}/cpd"]
+  },
+  {"name": "copy-directory-missing-source", "args": ["copy_directory", "--src", "{W}/nope", "--dest", "{W}/x"]},
+  {
+    "name": "prepare-workspace",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"src/a.c": "int a;\n", "inc/foundation/types.h": "typedef int t;\n", "deps/d.h": "d\n", "bind/b.h": "b\n"}},
+    "config_name": "pw.json",
+    "config": {"work_dir": "{W}/pw", "workspace_type": 2,
+      "sources": [{"source": "{W}/src/a.c"}],
+      "headers": [{"source": "{W}/inc/foundation/types.h", "preserve_structure": true}],
+      "dependencies": [{"source": "{W}/deps/d.h", "destination": "third_party/d.h"}],
+      "bindings_dir": "{W}/bind"},
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-strict",
+    "tree": {"files": {"src/a.c": "int a;\n"}},
+    "config_name": "pw.json",
+    "config": {"work_dir": "{W}/pw", "sources": [{"source": "{W}/src/a.c"}], "security_config": {"level": 2}},
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-destination-escape",
+    "from": "TestPrepareWorkspaceDestinationStaysInWorkDir",
+    "tree": {"files": {"a.h": "x"}},
+    "config_name": "pw.json",
+    "config": {"work_dir": "{W}/ws", "sources": [{"source": "{W}/a.h", "destination": "../../escape.h"}]},
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-type-error",
+    "config_name": "pw.json",
+    "config_text": "{\"work_dir\":\"{W}/pw\",\"workspace_type\":1.5}",
+    "args": ["prepare_workspace", "--config", "{W}/pw.json"]
+  },
+  {
+    "name": "prepare-workspace-not-json",
+    "tree": {"files": {"a.txt": "hi\n"}},
+    "args": ["prepare_workspace", "--config", "{W}/a.txt"]
+  },
+  {"name": "prepare-workspace-missing-config", "args": ["prepare_workspace", "--config", "{W}/nope.json"]}
+]

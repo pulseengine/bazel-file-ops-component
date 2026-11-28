@@ -1,0 +1,142 @@
+{
+  "items": [
+    {
+      "first": {
+        "negated": false,
+        "commands": [
+          {
+            "kind": "simple",
+            "assignments": [],
+            "words": [
+              {
+                "parts": [
+                  {
+                    "kind": "literal",
+                    "text": "true"
+                  }
+                ],
+                "span": {
+                  "start": 0,
+                  "end": 4
+                }
+              }
+            ],
+            "redirects": [],
+            "span": {
+              "start": 0,
+              "end": 4
+            }
+          }
+        ],
+        "span": {
+          "start": 0,
+          "end": 4
+        }
+      },
+      "rest": [
+        [
+          "and",
+          {
+            "negated": false,
+            "commands": [
+              {
+                "kind": "simple",
+                "assignments": [],
+                "words": [
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "echo"
+                      }
+                    ],
+                    "span": {
+                      "start": 10,
+                      "end": 14
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "yes"
+                      }
+                    ],
+                    "span": {
+                      "start": 15,
+                      "end": 18
+                    }
+                  }
+                ],
+                "redirects": [],
+                "span": {
+                  "start": 10,
+                  "end": 18
+                }
+              }
+            ],
+            "span": {
+              "start": 10,
+              "end": 18
+            }
+          }
+        ],
+        [
+          "or",
+          {
+            "negated": false,
+            "commands": [
+              {
+                "kind": "simple",
+                "assignments": [],
+                "words": [
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "echo"
+                      }
+                    ],
+                    "span": {
+                      "start": 24,
+                      "end": 28
+                    }
+                  },
+                  {
+                    "parts": [
+                      {
+                        "kind": "literal",
+                        "text": "no"
+                      }
+                    ],
+                    "span": {
+                      "start": 29,
+                      "end": 31
+                    }
+                  }
+                ],
+                "redirects": [],
+                "span": {
+                  "start": 24,
+                  "end": 31
+                }
+              }
+            ],
+            "span": {
+              "start": 24,
+              "end": 31
+            }
+          }
+        ]
+      ],
+      "span": {
+        "start": 0,
+        "end": 31
+      }
+    }
+  ],
+  "span": {
+    "start": 0,
+    "end": 31
+  }
+}

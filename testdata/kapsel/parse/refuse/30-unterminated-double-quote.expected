@@ -1,0 +1,4 @@
+error[syntax] 5..6 "\""
+  message: syntax: unterminated double quote
+  expected: "
+  help: add the closing " ; write \" for a quote inside

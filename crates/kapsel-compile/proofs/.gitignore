@@ -1,0 +1,3 @@
+# ordeal-cert/v5 bundles are not committed: tests/proofs.rs writes them to
+# $KAPSEL_PROOF_OUT (CI artifact, signed release asset). See README.md.
+*.cert.json

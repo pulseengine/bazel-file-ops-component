@@ -1,0 +1,3 @@
+error[array-assignment] 0..11 "arr=(a b c)"
+  message: array-assignment: array assignment `name=(...)` is not in kapsel's shell subset
+  help: use a space-separated string and a `for` loop

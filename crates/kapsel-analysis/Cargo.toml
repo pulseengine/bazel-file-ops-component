@@ -1,0 +1,19 @@
+[package]
+name = "kapsel-analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Similar-command analysis for kapsel: command shapes and the KS-S rules"
+
+[features]
+# A small fixture parser for tests; cross-checked against kapsel-syntax.
+testkit = []
+
+[dependencies]
+kapsel-ast.workspace = true
+kapsel-plan.workspace = true
+
+[dev-dependencies]
+kapsel-syntax.workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "kapsel-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "kapsel"
+path = "src/main.rs"
+
+[dependencies]
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true
+kapsel-seal = { path = "../kapsel-seal" }
+kapsel-host.workspace = true
+kapsel-plan.workspace = true
+kapsel-db = { path = "../kapsel-db" }
+kapsel-diag = { path = "../kapsel-diag" }
+salsa.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2"
+tempfile = "3"

@@ -6,6 +6,3 @@ vendor/
 bazel-*/
 # Planted bad inputs: these must fail scans by design (ci-controls.toml).
 ci-controls/
-# Go tests: they exec the component binary under test and decode its JSON
-# output into interface{} by design, and are not shipped.
-*_test.go

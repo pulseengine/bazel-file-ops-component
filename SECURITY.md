@@ -1,100 +1,83 @@
 # Security Model
 
-## Component Signing
+## Release signing
 
-This project implements dual-layer cryptographic signing for WebAssembly components:
+Each release publishes `file_ops_component.wasm` and
+`file_ops_component_aot.wasm` as GitHub release assets with sha256 files, and
+as OCI artifacts at `ghcr.io/pulseengine/kapsel:<tag>` and `:<tag>-aot`. The
+pre-rename path `ghcr.io/pulseengine/bazel-file-ops-component` receives the
+same artifacts through v0.3.x.
 
-### Layer 1: Component Signing (wasmsign2)
+- **OCI signing (Cosign)**: Sigstore keyless signing with GitHub OIDC, plus a
+  SLSA provenance attestation, for every published reference on both paths.
+  The release job verifies both before it uploads the assets and fails if
+  either is missing (`.github/workflows/release.yml`).
+- **Component signing (wasmsign2)**: not done. The component itself carries no
+  embedded signature.
 
-- **Algorithm**: EdDSA with Ed25519 keys
-- **Signature Type**: Embedded in WebAssembly component
-- **Verification**: Built-in component signature verification
-- **Key Format**: Compact format optimized for WebAssembly
+## Verification
 
-### Layer 2: OCI Signing (Cosign)
-
-- **Algorithm**: Sigstore keyless signing with GitHub OIDC
-- **Signature Type**: Detached OCI manifest signatures
-- **Verification**: Cosign transparency log verification
-- **Identity**: Tied to GitHub repository and workflow
-
-## Verification Process
-
-### Verify OCI Container Signature
+### Release asset
 
 ```bash
-# Install cosign
-go install github.com/sigstore/cosign/v2/cmd/cosign@latest
-
-# Verify container signature
-cosign verify --certificate-identity-regexp='.*' \
-  --certificate-oidc-issuer-regexp='.*' \
-  ghcr.io/pulseengine/bazel-file-ops-component/tinygo-signed:latest
+gh release download <tag> --repo pulseengine/kapsel -p 'file_ops_component*'
+shasum -a 256 -c file_ops_component.wasm.sha256
 ```
 
-### Verify WebAssembly Component Signature
+### OCI signature and provenance
 
 ```bash
-# Install wasmsign2 (requires rules_wasm_component)
-bazel run @rules_wasm_component//toolchains:wasmsign2 -- --version
-
-# Extract component and verification key
-docker run --rm -v $(pwd):/output \
-  ghcr.io/pulseengine/bazel-file-ops-component/tinygo-signed:latest \
-  cp /component.wasm /verification-key.pub /output/
-
-# Verify component signature
-bazel run @rules_wasm_component//toolchains:wasmsign2 -- \
-  verify component.wasm --key verification-key.pub
+IDENTITY='^https://github\.com/pulseengine/kapsel/\.github/workflows/release\.yml@'
+cosign verify \
+  --certificate-identity-regexp="$IDENTITY" \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  ghcr.io/pulseengine/kapsel:<tag>
+cosign verify-attestation --type slsaprovenance \
+  --certificate-identity-regexp="$IDENTITY" \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  ghcr.io/pulseengine/kapsel:<tag>
 ```
 
 ## Security Properties
 
 ### Supply Chain Security
 
-- **Identity Verification**: GitHub OIDC provides cryptographic proof of origin
-- **Transparency**: All signatures recorded in public transparency logs
-- **Non-Repudiation**: Signatures cannot be forged or denied
-- **Integrity**: Any tampering invalidates signatures
+- **Identity Verification**: GitHub OIDC ties each signature to this
+  repository's release workflow
+- **Transparency**: All signatures are recorded in the public Sigstore log
+- **Integrity**: Any change to a signed artifact invalidates its signature
+- **Dependencies**: `cargo audit` and `cargo deny` gate every pull request
+  (`.github/workflows/security.yml`, `deny.toml`)
 
 ### Runtime Security
 
 - **Sandboxing**: WebAssembly provides memory isolation
-- **Capability-Based Security**: WASI preview 2 capability model
-- **Path Restrictions**: Wasmtime preopen directories limit filesystem access
-- **Component Model**: Strict interface boundaries
+- **Capability-Based Security**: the WASI preview 2 capability model
+- **Path Restrictions**: the component opens only the directories the runtime
+  preopens, such as `--dir` in wasmtime
 
 ## Trust Model
 
-### Trusted Components
-
-1. **GitHub Repository**: `github.com/pulseengine/bazel-file-ops-component`
-2. **GitHub Workflow**: Automated signing in CI/CD pipeline
-3. **Sigstore Infrastructure**: Public key infrastructure and transparency logs
-4. **rules_wasm_component**: Signing toolchain and verification tools
-
-### Trust Verification
-
-1. Verify GitHub repository authenticity
-2. Check workflow identity in transparency logs
-3. Validate component signatures before use
-4. Use pinned component digests in production
+1. **GitHub Repository**: `github.com/pulseengine/kapsel`
+2. **GitHub Workflow**: `.github/workflows/release.yml` builds, signs and
+   verifies every release
+3. **Sigstore Infrastructure**: keyless certificates and the transparency log
 
 ## Security Recommendations
 
 ### For Users
 
-- **Always verify signatures** before using components in production
-- **Pin specific component digests** rather than using latest tags
-- **Use signed variants** (`tinygo-signed`) for production workloads
-- **Monitor transparency logs** for unexpected signing events
+- **Verify signatures** before using components in production
+- **Pin specific digests or tags** rather than `latest`
+- **Load AOT code only with the matching wasmtime**: the `aot-*` sections of
+  `file_ops_component_aot.wasm` are wasmtime-precompiled code and load only in
+  the version that compiled them (50.0.3 from v0.3.0)
 
 ### For Contributors
 
 - **Never commit private keys** to the repository
 - **Use signed commits** for security-critical changes
 - **Report security issues** privately to maintainers
-- **Follow secure coding practices** in component implementations
 
 ## Reporting Security Issues
 
@@ -109,6 +92,5 @@ Please report security vulnerabilities privately:
 Security updates will be:
 
 - Released as patch versions
-- Documented in CHANGELOG.md
 - Announced through GitHub Security Advisories
-- Signed with updated signatures
+- Signed like every other release

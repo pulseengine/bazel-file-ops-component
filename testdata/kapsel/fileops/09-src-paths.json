@@ -1,0 +1,65 @@
+[
+  {
+    "name": "src-paths-alias",
+    "from": "rules_wasm_component file_ops_actions.bzl: concatenate_files (src_paths, dest_path)",
+    "tree": {"files": {"a.txt": "a\n", "b.txt": "b\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "concatenate_files", "src_paths": ["{W}/a.txt", "{W}/b.txt"], "dest_path": "out/ab.txt"}
+    ]},
+    "allow": {"*": "src-paths-alias"},
+    "expect_rust": {"code": 0, "exists": ["ws/out/ab.txt"]}
+  },
+  {
+    "name": "src-paths-and-sources-both-given",
+    "tree": {"files": {"a.txt": "a\n", "b.txt": "b\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "concatenate_files", "sources": ["{W}/a.txt"], "src_paths": ["{W}/b.txt"], "dest_path": "ab.txt"}
+    ]},
+    "allow": {"*": "src-paths-alias"},
+    "expect_rust": {"code": 1, "absent": ["ws"], "stderr_contains": "operation 0: concatenate_files takes sources or src_paths, not both"}
+  },
+  {
+    "name": "src-paths-relative-under-absolute-workspace",
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "concatenate_files", "src_paths": ["a.txt"], "dest_path": "o.txt"}
+    ]},
+    "allow": {"*": "src-paths-alias"},
+    "expect_rust": {"code": 1, "stderr_contains": "source 0 must be absolute: a.txt"}
+  },
+  {
+    "name": "src-paths-destination-escape",
+    "tree": {"files": {"a.txt": "a\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "concatenate_files", "src_paths": ["{W}/a.txt"], "dest_path": "../escape.txt"}
+    ]},
+    "allow": {"*": "src-paths-alias"},
+    "expect_rust": {"code": 1, "absent": ["escape.txt"], "stderr_contains": "resolves outside"}
+  },
+  {
+    "name": "src-paths-type-error",
+    "config_text": "{\"workspace_dir\":\"{W}/ws\",\"operations\":[{\"type\":\"concatenate_files\",\"src_paths\":\"{W}/a.txt\",\"dest_path\":\"o\"}]}",
+    "allow": {"*": "src-paths-alias"},
+    "expect_rust": {"code": 1, "stderr_contains": "Go struct field Operation.operations.src_paths of type []string"}
+  },
+  {
+    "name": "src-paths-empty-and-no-sources",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "src_paths": [], "dest_path": "o"}]}
+  },
+  {
+    "name": "src-paths-on-another-operation-is-ignored",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "w.txt", "content": "x", "src_paths": ["{W}/ignored"]}]}
+  },
+  {
+    "name": "src-paths-execroot-relative",
+    "from": "file_ops_actions.bzl writes workspace_dir \".\" with src_paths of File.path values",
+    "layouts": ["relative"],
+    "tree": {"files": {"bazel-out/bin/a.txt": "a\n", "bazel-out/bin/b.txt": "b\n"}},
+    "config": {"workspace_dir": ".", "operations": [
+      {"type": "concatenate_files", "src_paths": ["bazel-out/bin/a.txt", "bazel-out/bin/b.txt"], "dest_path": "bazel-out/bin/ab.txt"}
+    ]},
+    "note": "TinyGo refuses workspace_dir \".\" before it would reach src_paths.",
+    "allow": {"relative": "req-ks-017"},
+    "expect_rust": {"code": 0, "exists": ["bazel-out/bin/ab.txt"]}
+  }
+]

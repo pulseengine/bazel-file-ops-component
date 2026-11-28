@@ -1,0 +1,4 @@
+error[syntax] 4..6 "1x"
+  message: syntax: expected a variable name after `for`, found `1x`
+  expected: name
+  help: a loop variable is letters, digits and _, not starting with a digit

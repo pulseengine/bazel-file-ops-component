@@ -23,31 +23,31 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        # Scanner tooling only: gosec v2.30.0 requires go >= 1.26. The module
-        # itself stays at go 1.22.0 (tinygo/go.mod); other jobs keep 1.23.
-        go-version: '1.26.11'
-        cache-dependency-path: tinygo/go.sum
+        toolchain: "1.100.0"
 
-    - name: Run Gosec Security Scanner (Go)
-      # Blocking: any finding fails the step. tinygo/gosec.json sets the file
-      # mode threshold for G302 and G306 to 0640 (owner decision 2026-11-26);
-      # each #nosec in the code carries its reason. Until 2026-11-26 this step
-      # installed github.com/securecodewarrior/gosec, a path that no longer
-      # resolves, and continue-on-error hid the failure.
+    - name: Install cargo-audit (only if the runner's copy is older than 0.22.2)
+      # Same rule as pulseengine/rivet: 0.22.2 parses CVSS 4.0 advisories
+      # (RUSTSEC-2026-0037), older copies reject them.
       run: |
-        go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
-        cd tinygo
-        gosec -conf gosec.json -fmt sarif -out ../go-results.sarif -stdout -verbose text ./...
+        set -euo pipefail
+        have=$(cargo audit --version 2>/dev/null | awk '{print $2}' || true)
+        if [ -n "$have" ] && [ "$(printf '%s\n' 0.22.2 "$have" | sort -V | head -1)" = 0.22.2 ]; then
+          echo "using preinstalled cargo-audit $have"
+        else
+          echo "cargo-audit '${have:-none}' is older than 0.22.2; installing 0.22.2"
+          cargo install cargo-audit --locked --version 0.22.2
+        fi
 
-    - name: Upload Gosec Results to GitHub Security Tab
-      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
-      if: always() && hashFiles('go-results.sarif') != ''
-      with:
-        sarif_file: go-results.sarif
-        category: go-security
+    - name: Run cargo audit (Rust, blocking)
+      # Replaced gosec with tinygo/ in v0.3.0 (REQ-KS-041): the component is
+      # Rust now. Any RustSec vulnerability in Cargo.lock fails the step. No
+      # --ignore list; an accepted advisory is recorded in deny.toml with its
+      # reason first. --db: a fresh advisory-db clone per job, so a shared
+      # ~/.cargo/advisory-db on a self-hosted runner cannot break the run.
+      run: cargo audit --db "$RUNNER_TEMP/advisory-db"
 
     - name: Trivy gate (CRITICAL and HIGH with a fix available)
       # Blocking. The SARIF step below cannot gate: in SARIF mode trivy-action
@@ -110,31 +110,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
+        toolchain: "1.100.0"
 
-    - name: Go Dependency Check
-      # Blocking. tinygo/go.mod has no requirements today, so nancy audits 0
-      # modules; it starts to bite when the first dependency is added.
+    - name: Install cargo-deny 0.20.2
+      # The version pulseengine/rivet verified its policy on. A runner copy of
+      # a different version is replaced, so the gate behaves the same
+      # everywhere.
       run: |
-        go install github.com/sonatype-nexus-community/nancy@v1.0.52  # last release supporting Go 1.23
-        cd tinygo
-        go list -json -m all | nancy sleuth
+        set -euo pipefail
+        have=$(cargo deny --version 2>/dev/null | awk '{print $2}' || true)
+        if [ "$have" = 0.20.2 ]; then
+          echo "using preinstalled cargo-deny $have"
+        else
+          cargo install cargo-deny --locked --version 0.20.2
+        fi
 
-    - name: License Compliance Check
-      run: |
-        # Install and run go-licenses tool
-        echo "Installing go-licenses tool..."
-        go install github.com/google/go-licenses@v1.6.0
-
-        # Check for license compliance in dependencies
-        echo "Scanning Go module licenses..."
-        cd tinygo && go-licenses csv ./... > ../go-licenses.csv || echo "License scan completed with warnings"
-
-        echo "Dependency license scan completed"
+    - name: Rust dependency check (advisories, bans, licenses, sources)
+      # Blocking. Replaced nancy and go-licenses with tinygo/ in v0.3.0.
+      # deny.toml: the license allowlist, git sources (rivet, rowan) and any
+      # accepted advisory with its reason.
+      run: cargo deny check advisories bans licenses sources
 
   # Automated dependency updates
   dependency-update:
@@ -148,60 +146,24 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
-
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        toolchain: "1.82.0"
-
-    - name: Update Go Dependencies
-      run: |
-        cd tinygo
-
-        # Update go.mod
-        go get -u ./...
-        go mod tidy
-        go mod verify
-
-        # Check if there are changes
-        if git diff --quiet go.mod go.sum; then
-          echo "No Go dependency updates available"
-        else
-          echo "GO_DEPS_UPDATED=true" >> $GITHUB_ENV
-        fi
+        toolchain: "1.100.0"
 
     - name: Update Rust Dependencies
       run: |
-        if [ -d "rust" ] && [ -f "rust/Cargo.toml" ]; then
-          cd rust
+        # Cargo.lock at the workspace root, within the Cargo.toml constraints
+        cargo update
 
-          # Update Cargo.toml with latest compatible versions
-          cargo update
-
-          # Check if there are changes
-          if git diff --quiet Cargo.lock; then
-            echo "No Rust dependency updates available"
-          else
-            echo "RUST_DEPS_UPDATED=true" >> $GITHUB_ENV
-          fi
+        if git diff --quiet Cargo.lock; then
+          echo "No Rust dependency updates available"
         else
-          echo "Rust directory not found - skipping Rust dependency updates"
+          echo "RUST_DEPS_UPDATED=true" >> "$GITHUB_ENV"
         fi
 
-    - name: Update Bazel Dependencies
-      run: |
-        # Check MODULE.bazel for updates (manual review needed)
-        echo "Bazel MODULE.bazel dependencies should be updated manually"
-        echo "Check for newer versions of:"
-        grep -E "bazel_dep|use_extension" MODULE.bazel || true
-
     - name: Create Pull Request for Dependency Updates
-      if: env.GO_DEPS_UPDATED == 'true' || env.RUST_DEPS_UPDATED == 'true'
+      if: env.RUST_DEPS_UPDATED == 'true'
       uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -212,12 +174,10 @@ jobs:
 
           This PR contains automated dependency updates:
 
-          ${{ env.GO_DEPS_UPDATED == 'true' && '✅ Go dependencies updated' || '➖ No Go dependency updates' }}
-          ${{ env.RUST_DEPS_UPDATED == 'true' && '✅ Rust dependencies updated' || '➖ No Rust dependency updates' }}
+          ✅ Rust dependencies updated (Cargo.lock)
 
           ### Changes Made
-          - Updated go.mod and go.sum (if applicable)
-          - Updated Cargo.lock (if applicable)
+          - Updated Cargo.lock
           - All updates use compatible version constraints
 
           ### Testing
@@ -243,12 +203,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
 
     - name: Run SBOM Generation
       run: |
@@ -302,8 +256,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
+      with:
+        toolchain: "1.100.0"
+
     - name: Check no fork PR reaches a self-hosted runner
-      run: python3 scripts/check_selfhosted_fork_guard.py
+      run: cargo run --locked --quiet -p kapsel-scan -- --rule fork-guard
 
     - name: Check Security Policy
       run: |

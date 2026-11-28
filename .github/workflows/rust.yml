@@ -1,0 +1,67 @@
+name: Rust workspace
+
+# The kapsel shell (crates/). Advisory until it has run beside the required
+# checks for one release; then its job names go into required-contexts.txt.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  workspace:
+    name: Rust workspace tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
+      with:
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
+        components: clippy
+
+    - name: Keep kapsel's key and cache outside the workspace
+      run: echo "KAPSEL_HOME=$RUNNER_TEMP/kapsel-home" >> "$GITHUB_ENV"
+
+    - name: Build
+      run: cargo build --locked --workspace
+
+    - name: Test
+      run: cargo test --locked --workspace --no-fail-fast
+
+    # On Linux the dash comparison is authoritative: GNU coreutils behave as
+    # REQ-KS-025 specifies, so any mismatch fails the job.
+    - name: Corpus agrees with dash
+      run: cargo test --locked -p kapsel-corpus -- --nocapture
+
+    - name: Clippy
+      run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+    # ordeal re-solves every committed proof query (crates/kapsel-compile/proofs/)
+    # and re-checks each certificate; the certificates are the artifact.
+    - name: Compiler proofs (ordeal)
+      env:
+        KAPSEL_PROOF_OUT: ${{ runner.temp }}/proofs
+      run: cargo test --locked -p kapsel-compile --test proofs -- --nocapture
+
+    - name: Upload proof certificates
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: kapsel-compile-proofs
+        path: ${{ runner.temp }}/proofs
+        if-no-files-found: error

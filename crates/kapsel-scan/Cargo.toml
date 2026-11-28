@@ -1,0 +1,20 @@
+[package]
+name = "kapsel-scan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Offline scanner for a repository's GitHub workflows (REQ-KS-015)"
+
+[[bin]]
+name = "kapsel-scan"
+path = "src/main.rs"
+
+[dependencies]
+# DD-KS-014: pinned by rivet git tag (rivet#1099: not on crates.io yet).
+rivet-yaml = { git = "https://github.com/pulseengine/rivet", tag = "v0.43.3" }
+serde_json.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true

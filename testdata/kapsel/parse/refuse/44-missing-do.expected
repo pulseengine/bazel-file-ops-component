@@ -1,0 +1,3 @@
+error[syntax] 14..18 "echo"
+  message: syntax: expected `do` to continue `for`, found `echo`
+  expected: do

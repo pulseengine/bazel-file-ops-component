@@ -1,0 +1,95 @@
+[
+  {
+    "name": "process-json-config",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestProcessJsonConfig (tinygo/json_bridge_test.go)",
+    "tree": {"files": {"src/main.cpp": "int main() { return 0; }"}},
+    "config": {"workspace_dir": "{W}/workspace", "operations": [
+      {"type": "mkdir", "path": "include"},
+      {"type": "copy_file", "src_path": "{W}/src/main.cpp", "dest_path": "main.cpp"}
+    ]}
+  },
+  {
+    "name": "copy-directory-contents",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestJsonConfigCopyDirectoryContents",
+    "tree": {"files": {"headers/header1.h": "#pragma once\n// Header 1", "headers/header2.h": "#pragma once\n// Header 2"}},
+    "config": {"workspace_dir": "{W}/workspace", "operations": [
+      {"type": "copy_directory_contents", "src_path": "{W}/headers", "dest_path": "include"}
+    ]}
+  },
+  {
+    "name": "run-command-echo-output-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestJsonConfigRunCommand",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [
+      {"type": "run_command", "command": "echo", "args": ["Hello, World!"], "output_file": "output.txt"}
+    ]}
+  },
+  {
+    "name": "validate-valid-config",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestValidateJsonConfig: valid config (the source does not exist)",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [
+      {"type": "mkdir", "path": "include"},
+      {"type": "copy_file", "src_path": "/absolute/src", "dest_path": "relative/dest"}
+    ]}
+  },
+  {
+    "name": "validate-empty-workspace-dir",
+    "from": "TestValidateJsonConfig: empty workspace dir",
+    "config": {"workspace_dir": "", "operations": [{"type": "mkdir", "path": "test"}]}
+  },
+  {
+    "name": "validate-relative-workspace-dir",
+    "from": "TestValidateJsonConfig: relative workspace dir",
+    "config": {"workspace_dir": "relative/path", "operations": [{"type": "mkdir", "path": "test"}]},
+    "note": "REQ-KS-017: a relative workspace_dir is accepted; TinyGo refuses it before running. Without a '.' preopen the Rust run then fails creating it.",
+    "allow": {"*": "req-ks-017"},
+    "expect_rust": {"code": 1, "stderr_contains": "failed to create workspace directory"}
+  },
+  {
+    "name": "validate-copy-file-missing-src",
+    "from": "TestValidateJsonConfig: copy_file missing src_path",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [{"type": "copy_file", "dest_path": "dest"}]}
+  },
+  {
+    "name": "validate-copy-file-absolute-dest",
+    "from": "TestValidateJsonConfig: copy_file absolute dest_path",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [{"type": "copy_file", "src_path": "/absolute/src", "dest_path": "/absolute/dest"}]}
+  },
+  {
+    "name": "validate-mkdir-absolute-path",
+    "from": "TestValidateJsonConfig: mkdir absolute path",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [{"type": "mkdir", "path": "/absolute/path"}]}
+  },
+  {
+    "name": "validate-unknown-operation",
+    "from": "TestValidateJsonConfig: unknown operation type",
+    "config": {"workspace_dir": "{W}/workspace", "operations": [{"type": "unknown_operation"}]}
+  },
+  {
+    "name": "sample-workspace-config-verbatim",
+    "from": "testdata/sample_workspace_config.json, unchanged (paths outside every preopen)",
+    "config": {"workspace_dir": "/tmp/test_workspace", "operations": [
+      {"type": "mkdir", "path": "src"},
+      {"type": "mkdir", "path": "include"},
+      {"type": "copy_file", "src_path": "/test/source/main.cpp", "dest_path": "src/main.cpp"},
+      {"type": "copy_file", "src_path": "/test/headers/types.h", "dest_path": "include/types.h"},
+      {"type": "copy_directory_contents", "src_path": "/test/libs", "dest_path": "lib"}
+    ]}
+  },
+  {
+    "name": "sample-workspace-config-rebased",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "testdata/sample_workspace_config.json with its paths under the tree",
+    "tree": {"files": {"test/source/main.cpp": "int main(){}\n", "test/headers/types.h": "typedef int t;\n", "test/libs/a/liba.c": "a\n", "test/libs/b.c": "b\n"}},
+    "config": {"workspace_dir": "{W}/tmp/test_workspace", "operations": [
+      {"type": "mkdir", "path": "src"},
+      {"type": "mkdir", "path": "include"},
+      {"type": "copy_file", "src_path": "{W}/test/source/main.cpp", "dest_path": "src/main.cpp"},
+      {"type": "copy_file", "src_path": "{W}/test/headers/types.h", "dest_path": "include/types.h"},
+      {"type": "copy_directory_contents", "src_path": "{W}/test/libs", "dest_path": "lib"}
+    ]}
+  }
+]

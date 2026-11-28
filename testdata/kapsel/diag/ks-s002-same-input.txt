@@ -1,0 +1,18 @@
+# kapsel-diag golden `ks-s002-same-input`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+cat nums.txt | sort -n > sorted.txt
+cat nums.txt | sort > top.txt
+--- output
+warning[KS-S002]: inconsistent flags for `sort`: the same input is processed with no flags here and `-n` earlier
+ --> script.sh:2:16
+  |
+1 | cat nums.txt | sort -n > sorted.txt
+  |                ------- `sort` with `-n` here
+2 | cat nums.txt | sort > top.txt
+  |                ^^^^
+  |
+  = note: only here: no flags; only there: `-n`
+  = help: if both should give the same result, write `sort -n` in both places; if they differ on purpose, make that visible with different outputs or a comment
+
+warning: 1 warning emitted

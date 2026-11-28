@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R013",
+    "severity": "warn",
+    "message": "an unquoted expansion as an operand of `[`: an empty value removes the operand and the test fails with a syntax error, a value with spaces splits it",
+    "span": {
+      "start": 6,
+      "end": 8
+    },
+    "excerpt": "$n",
+    "help": "quote the operand: `[ \"$n\" -eq 0 ]`",
+    "notes": [
+      "`[ $n -eq 0 ]` with an empty `n` becomes `[ -eq 0 ]`, a syntax error that reads as false"
+    ]
+  }
+]

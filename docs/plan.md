@@ -18,13 +18,21 @@ rules_wasm_component, are in [kapsel#140](https://github.com/pulseengine/kapsel/
 | Release | Theme | Scope (rivet IDs) |
 |---|---|---|
 | v0.2.1, v0.2.2 | Path confinement of the JSON-config mode (shipped) | REQ-KS-001 to 005 |
-| v0.3.0 | **check**: understand a command before anything runs | REQ-KS-010 to 018 |
-| v0.4.0 | **compile and run**: a checked command becomes a WASM module | REQ-KS-020 to 026 |
+| v0.3.0 | **first shell**: check a command, compile it to a WASM component and run it | REQ-KS-010 to 019, 020, 022, 025 |
+| v0.4.0 | **sealed and composed**: cache, grants from zwinger, the `command` WIT, kiln | REQ-KS-021, 023, 024, 026 |
 | v0.5.0 | **native**: allowlisted native tools, git through the broker, kapsel in CI | REQ-KS-030 to 035 |
 | v1.0.0 | **protected**: every kapsel step earns the word | REQ-KS-040, 041 |
 | backlog | gale and synth, Bazel under kapsel, the second batch of built-ins | REQ-KS-050 to 052 |
 
-### v0.3.0: check
+### v0.3.0: first shell
+Owner decision 2026-11-27: every line, script and `-c` command is compiled and run from the first release, so the compiler, the executor and the first built-ins moved here from v0.4.0. The working plan for the slice is [first-shell.md](first-shell.md).
+- **Architecture as in spar and rivet** (DD-KS-018): rowan (the Miri-sound fork) and salsa 0.28.5; parse, check, compile and the analysis are tracked queries.
+- **Error reporting** (REQ-KS-060): rustc-style diagnostics with help and notes, `kapsel explain`, golden-tested.
+- **Similar commands** (REQ-KS-061): retries without change, inconsistent flags, near-miss paths (KS-S001 to S005).
+- **Error corpus** (REQ-KS-062): real CI failures and agent mistakes, each with its expected outcome.
+- **Compiler after synth** (DD-KS-019): decline loudly, a translation validator on every compile, pinned fixtures.
+- **Compiler** (REQ-KS-020, DD-KS-005), **executor** (REQ-KS-022) and **built-ins** (REQ-KS-025), against `wit/kapsel-shell.wit`.
+- **Interactive mode** (REQ-KS-019): each line is checked, compiled and run; the session persists.
 - **Parser** (REQ-KS-010, DD-KS-002): a POSIX subset on rowan, with everything else refused.
 - **Check stage** (REQ-KS-011, DD-KS-003): returns a plan or a refusal and runs nothing.
 - **Harmful constructs** (REQ-KS-012, DD-KS-004): refused or warned, each with a planted test.
@@ -37,11 +45,10 @@ rules_wasm_component, are in [kapsel#140](https://github.com/pulseengine/kapsel/
 
 **Stretch target:** kapsel check classifies every `run:` block in every pulseengine workflow with no parser crash, and every refusal rule has a planted script and control. The measure is the scanner report's crash count and the plant pack's rule coverage.
 
-### v0.4.0: compile and run
-- **Compiler** (REQ-KS-020, DD-KS-005): plan to component; the same plan gives a byte-identical module.
+### v0.4.0: sealed and composed
 - **Cache** (REQ-KS-021): keyed and signed; grants never compiled in.
 - **Executor and host** (REQ-KS-022, REQ-KS-023, DD-KS-007): ZWINGER_GRANTS, identity preopens, exit 78.
-- **The `command` WIT** (REQ-KS-024, DD-KS-006) and the first built-ins (REQ-KS-025).
+- **The `command` WIT** (REQ-KS-024, DD-KS-006): built-ins move out of the host into composed components.
 - **Differential wasmtime and kiln** over a pinned corpus (REQ-KS-026, DD-KS-015).
 
 **Stretch target:** zero wasmtime/kiln disagreements on the whole corpus, and a cached `kapsel run` of a corpus pipeline starts in under 5 ms at p50. The measure is the differential job's mismatch count and a hyperfine run on the release build.

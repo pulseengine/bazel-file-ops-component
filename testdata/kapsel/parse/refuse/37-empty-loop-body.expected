@@ -1,0 +1,3 @@
+error[syntax] 12..14 "do"
+  message: syntax: a loop body needs at least one command between `do` and `done`
+  expected: command

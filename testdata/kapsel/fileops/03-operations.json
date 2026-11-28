@@ -1,0 +1,135 @@
+[
+  {
+    "name": "every-operation-in-one-batch",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"src/a.txt": "hi\n", "src/sub/b.txt": "bee\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "read_file", "path": "{W}/src/a.txt", "output_file": "copy.txt"},
+      {"type": "read_file", "path": "{W}/src/a.txt"},
+      {"type": "append_to_file", "path": "ap.txt", "content": "1"},
+      {"type": "append_to_file", "path": "ap.txt", "content": "2"},
+      {"type": "concatenate_files", "sources": ["{W}/src/a.txt", "{W}/src/sub/b.txt"], "dest_path": "cat.txt"},
+      {"type": "copy_directory_contents", "src_path": "{W}/src", "dest_path": "d"},
+      {"type": "move_path", "src_path": "{W}/ws/cat.txt", "dest_path": "m/cat2.txt"},
+      {"type": "mkdir", "path": "e/f"},
+      {"type": "write_file", "path": "w/x.txt", "content": "written"},
+      {"type": "copy_file", "src_path": "{W}/src/a.txt", "dest_path": "c/a.txt"}
+    ]}
+  },
+  {
+    "name": "write-file-overwrites",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestWriteFile",
+    "tree": {"files": {"ws/output.txt": "Test content\nSecond line"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "output.txt", "content": "Overwritten content"}]}
+  },
+  {
+    "name": "write-file-creates-parent",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestWriteFileCreatesParentDir",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "subdir/output.txt", "content": "Test content"}]}
+  },
+  {
+    "name": "append-creates-then-appends",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestAppendToFile",
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "append_to_file", "path": "append.txt", "content": "First line\n"},
+      {"type": "append_to_file", "path": "append.txt", "content": "Second line\n"}
+    ]}
+  },
+  {
+    "name": "concatenate-three-files",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestConcatenateFiles",
+    "tree": {"files": {"file1.txt": "Content from file 1\n", "file2.txt": "Content from file 2\n", "file3.txt": "Content from file 3\n"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [
+      {"type": "concatenate_files", "sources": ["{W}/file1.txt", "{W}/file2.txt", "{W}/file3.txt"], "dest_path": "concatenated.txt"}
+    ]}
+  },
+  {
+    "name": "concatenate-empty-sources",
+    "from": "TestConcatenateFilesEmptySources",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": [], "dest_path": "output.txt"}]}
+  },
+  {
+    "name": "move-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestMovePath",
+    "tree": {"files": {"ws/source.txt": "Test content for move"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/source.txt", "dest_path": "destination.txt"}]}
+  },
+  {
+    "name": "move-directory",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestMovePathDirectory",
+    "tree": {"files": {"ws/sourcedir/test.txt": "test"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/sourcedir", "dest_path": "destdir"}]}
+  },
+  {
+    "name": "move-file-onto-existing-directory",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"ws/f.txt": "f"}, "dirs": ["ws/d"]},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/f.txt", "dest_path": "d"}]}
+  },
+  {
+    "name": "copy-file-to-subdirectory",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestCopyFileToSubdirectory",
+    "tree": {"files": {"source.txt": "test content"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/source.txt", "dest_path": "subdir/dest.txt"}]}
+  },
+  {
+    "name": "copy-directory-recursive",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestCopyDirectory",
+    "tree": {"files": {"source/file1.txt": "content1", "source/file2.txt": "content2", "source/subdir/file3.txt": "content3"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/source", "dest_path": "dest"}]}
+  },
+  {
+    "name": "copy-directory-into-workspace-root",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"source/a.txt": "a", "ws/existing.txt": "e"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/source", "dest_path": "."}]}
+  },
+  {
+    "name": "copy-directory-with-symlink-entry",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"source/a.txt": "a"}, "symlinks": {"source/link.txt": "a.txt"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/source", "dest_path": "dest"}]}
+  },
+  {
+    "name": "mkdir-nested",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestCreateNestedDirectory",
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "level1/level2/level3"}]}
+  },
+  {
+    "name": "mkdir-existing-is-fine",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"dirs": ["ws/inc"]},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "inc"}, {"type": "mkdir", "path": "./inc/./x/"}]}
+  },
+  {
+    "name": "read-file-to-output",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "from": "TestReadFile",
+    "tree": {"files": {"test.txt": "Hello, World!\nLine 2\nLine 3"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/test.txt", "output_file": "out/copy.txt"}]}
+  },
+  {
+    "name": "empty-operations",
+    "config": {"workspace_dir": "{W}/ws", "operations": []}
+  },
+  {
+    "name": "workspace-already-exists",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "tree": {"files": {"ws/keep.txt": "k"}},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "new.txt", "content": "n"}]}
+  },
+  {
+    "name": "unicode-content-and-names",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
+    "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": "déjà/ü.txt", "content": "grüße 😀\n"}]}
+  }
+]

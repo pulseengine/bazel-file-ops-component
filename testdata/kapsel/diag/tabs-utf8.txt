@@ -1,0 +1,16 @@
+# kapsel-diag golden `tabs-utf8`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+for f in a b; do
+	echo "héllo wörld $f" || :
+done
+--- output
+error[KS-R001]: `|| :` discards the exit status of `echo`
+ --> script.sh:2:24
+  |
+2 |     echo "héllo wörld $f" || :
+  |                           ^^^^
+  |
+  = help: remove `|| :`, or handle the failure: `echo ... || echo "echo failed" >&2`
+
+error: refused: 1 error

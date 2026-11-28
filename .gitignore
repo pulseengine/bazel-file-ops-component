@@ -26,3 +26,4 @@ bazel-*
 
 # Claude Code
 .claude/
+/target

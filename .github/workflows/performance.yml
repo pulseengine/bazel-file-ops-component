@@ -1,5 +1,8 @@
 name: Performance Monitoring
 
+# Benchmarks of the JSON-config component (crates/kapsel-fileops, Rust since
+# v0.3.0). Not a required check: results are reported, not gated.
+
 on:
   push:
     branches: [ main ]
@@ -17,18 +20,19 @@ on:
         type: choice
         options:
         - all
-        - tinygo-only
-        - rust-only
-        - comparison
+        - regular-only
+        - aot-only
 
 env:
-  USE_BAZEL_VERSION: "8.4.0"
+  CARGO_TERM_COLOR: never
+  # scripts/install-wasmtime.sh pins the binary and its sha256.
+  WASMTIME_VERSION: "50.0.3"
 
 jobs:
   # Performance benchmarking
   performance-benchmark:
     name: Performance Benchmark
-    # Stays on hosted: Bazel + sudo apt + macOS matrix; smithy has none of these.
+    # Stays on hosted: sudo dpkg/brew + macOS matrix; smithy has none of these.
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -41,249 +45,68 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
-      with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: "0.38.0"
-
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        toolchain: "1.82.0"
-        targets: wasm32-wasi
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
-    - name: Install Performance Tools
+    - name: Install wasmtime
+      run: scripts/install-wasmtime.sh
+
+    - name: Install hyperfine
       run: |
-        # Install hyperfine for benchmarking
         if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
-          curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+          curl -fsSLo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
           sudo dpkg -i hyperfine.deb
         elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
           brew install hyperfine
         fi
 
-        # Use wasmtime from Bazel toolchain (registered in MODULE.bazel)
-        # This ensures version consistency and reuses Bazel's cached download
-        echo "Extracting wasmtime from Bazel toolchain..."
-
-        # Get Bazel output base and wasmtime relative path
-        OUTPUT_BASE=$(bazel info output_base 2>/dev/null)
-        WASMTIME_REL=$(bazel cquery --output=files @wasmtime_toolchain//:wasmtime 2>/dev/null | head -1)
-        WASMTIME_PATH="$OUTPUT_BASE/$WASMTIME_REL"
-
-        if [ -f "$WASMTIME_PATH" ]; then
-          echo "Found wasmtime at: $WASMTIME_PATH"
-          sudo cp "$WASMTIME_PATH" /usr/local/bin/wasmtime
-          sudo chmod +x /usr/local/bin/wasmtime
-          wasmtime --version
-        else
-          echo "Error: Could not find wasmtime binary from Bazel at: $WASMTIME_PATH"
-          echo "Output base: $OUTPUT_BASE"
-          echo "Relative path: $WASMTIME_REL"
-          exit 1
-        fi
-
-    - name: Build All Components
+    - name: Build component and host AOT code
       run: |
-        # Build TinyGo component (regular version)
-        bazel build //tinygo:file_ops_component
-
-        # Get actual file path from bazel (not symlink)
-        COMPONENT_PATH=$(bazel cquery --output=files //tinygo:file_ops_component 2>/dev/null | head -1)
-        echo "COMPONENT_WASM=$COMPONENT_PATH" >> $GITHUB_ENV
-        echo "Built component at: $COMPONENT_PATH"
-
-        # Build platform-specific AOT precompiled component
-        if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
-          bazel build //tinygo:file_ops_aot_linux_x64
-          AOT_PATH=$(bazel cquery --output=files //tinygo:file_ops_aot_linux_x64 2>/dev/null | head -1)
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          bazel build //tinygo:file_ops_aot_darwin_arm64
-          AOT_PATH=$(bazel cquery --output=files //tinygo:file_ops_aot_darwin_arm64 2>/dev/null | head -1)
-        fi
-        echo "AOT_COMPONENT=$AOT_PATH" >> $GITHUB_ENV
-        echo "Built AOT component at: $AOT_PATH"
-
-        # Note: Rust implementation is not yet available
-        # Future: Add Rust component builds when implemented
+        cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+        COMPONENT_WASM="$PWD/target/wasm32-wasip2/release/kapsel-fileops.wasm"
+        AOT_COMPONENT="$RUNNER_TEMP/kapsel-fileops.cwasm"
+        wasmtime compile -O opt-level=2 -D debug-info=n "$COMPONENT_WASM" -o "$AOT_COMPONENT"
+        echo "COMPONENT_WASM=$COMPONENT_WASM" >> "$GITHUB_ENV"
+        echo "AOT_COMPONENT=$AOT_COMPONENT" >> "$GITHUB_ENV"
 
     - name: Create Performance Test Data
       run: |
         mkdir -p perf_test_data
-
-        # Create test files of various sizes
         dd if=/dev/zero of=perf_test_data/small.txt bs=1K count=1      # 1KB
         dd if=/dev/zero of=perf_test_data/medium.txt bs=1M count=1     # 1MB
         dd if=/dev/zero of=perf_test_data/large.txt bs=1M count=10     # 10MB
-
-        # Create directory with many small files
         mkdir -p perf_test_data/many_files
         for i in {1..100}; do
-          echo "File $i content" > perf_test_data/many_files/file_$i.txt
+          echo "File $i content" > "perf_test_data/many_files/file_$i.txt"
         done
 
-        # Create JSON batch operation test file
-        cat > perf_test_data/batch_ops.json <<EOF
-        {
-          "operations": [
-            {"operation": "copy_file", "source": "perf_test_data/small.txt", "destination": "perf_test_data/small_copy.txt"},
-            {"operation": "read_file", "source": "perf_test_data/medium.txt"},
-            {"operation": "create_directory", "destination": "perf_test_data/test_dir"},
-            {"operation": "list_directory", "source": "perf_test_data/many_files"}
-          ]
-        }
-        EOF
-
-    - name: Benchmark TinyGo Implementation
-      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'tinygo-only' || github.event.inputs.benchmark_type == ''
+    - name: Benchmark component
+      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'regular-only' || github.event.inputs.benchmark_type == ''
       run: |
-        echo "## TinyGo Performance Benchmarks" >> perf_results.md
-        echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
-        echo "|-----------|-----------|-------------|-------|" >> perf_results.md
+        D="$PWD"
+        CMD="wasmtime run --dir $D::$D $COMPONENT_WASM copy_file --src $D/perf_test_data/large.txt --dest $D/perf_test_data/wasm_copy.txt"
+        bash -c "$CMD"
+        hyperfine --export-json wasm_benchmark.json --warmup 3 "$CMD"
+        echo "## Component (${{ matrix.os }})" >> perf_results.md
+        echo "- copy_file 10 MB: $(jq -r '.results[0].mean' wasm_benchmark.json)s mean" >> perf_results.md
 
-        # WebAssembly runtime benchmark using the component
-        if command -v wasmtime &> /dev/null; then
-          # Test the command first to see if it works
-          echo "Testing WASM component execution..."
-          if wasmtime run --dir=. --dir=perf_test_data "$COMPONENT_WASM" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt; then
-            echo "✅ WASM component test passed, running benchmarks..."
-
-            # Run benchmark with proper error handling
-            hyperfine --export-json tinygo_wasm_benchmark.json \
-              --warmup 3 \
-              --show-output \
-              "wasmtime run --dir=. --dir=perf_test_data $COMPONENT_WASM copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_copy.txt" \
-              || echo "⚠️ Benchmark failed but continuing" >> perf_results.md
-
-            echo "✅ TinyGo component benchmarks completed" >> perf_results.md
-          else
-            echo "⚠️ WASM component test failed, skipping benchmarks" >> perf_results.md
-            echo "Component may not be compatible with the test arguments" >> perf_results.md
-          fi
-        else
-          echo "⚠️ wasmtime not available, skipping runtime benchmarks" >> perf_results.md
-        fi
-
-    - name: Benchmark TinyGo AOT Implementation
-      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'tinygo-only' || github.event.inputs.benchmark_type == ''
+    - name: Benchmark AOT code
+      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'aot-only' || github.event.inputs.benchmark_type == ''
       run: |
-        echo "" >> perf_results.md
-        echo "## TinyGo AOT Performance Benchmarks" >> perf_results.md
-        echo "| Operation | Time (ms) | Memory (MB) | Notes |" >> perf_results.md
-        echo "|-----------|-----------|-------------|-------|" >> perf_results.md
+        D="$PWD"
+        CMD="wasmtime run --allow-precompiled --dir $D::$D $AOT_COMPONENT copy_file --src $D/perf_test_data/large.txt --dest $D/perf_test_data/aot_copy.txt"
+        bash -c "$CMD"
+        hyperfine --export-json aot_benchmark.json --warmup 3 "$CMD"
+        echo "## AOT (${{ matrix.os }})" >> perf_results.md
+        echo "- copy_file 10 MB: $(jq -r '.results[0].mean' aot_benchmark.json)s mean" >> perf_results.md
 
-        # WebAssembly AOT runtime benchmark using path from build step
-        if command -v wasmtime &> /dev/null; then
-          # Test the AOT precompiled component first
-          echo "Testing AOT precompiled component execution..."
-          echo "AOT component path: $AOT_COMPONENT"
-          if wasmtime run --allow-precompiled --dir=. --dir=perf_test_data "$AOT_COMPONENT" copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt; then
-            echo "✅ AOT component test passed, running benchmarks..."
-
-            # Run benchmark comparing regular vs AOT
-            echo "### AOT vs Regular Comparison" >> perf_results.md
-
-            # Benchmark AOT precompiled component
-            hyperfine --export-json tinygo_aot_benchmark.json \
-              --warmup 3 \
-              --show-output \
-              "wasmtime run --allow-precompiled --dir=. --dir=perf_test_data $AOT_COMPONENT copy_file --src perf_test_data/small.txt --dest perf_test_data/wasm_aot_copy.txt" \
-              || echo "⚠️ AOT benchmark failed but continuing" >> perf_results.md
-
-            # Extract and compare results
-            if [ -f tinygo_wasm_benchmark.json ] && [ -f tinygo_aot_benchmark.json ]; then
-              REGULAR_TIME=$(jq -r '.results[0].mean' tinygo_wasm_benchmark.json 2>/dev/null || echo "N/A")
-              AOT_TIME=$(jq -r '.results[0].mean' tinygo_aot_benchmark.json 2>/dev/null || echo "N/A")
-
-              echo "- **Regular WASM**: ${REGULAR_TIME}s" >> perf_results.md
-              echo "- **AOT WASM**: ${AOT_TIME}s" >> perf_results.md
-
-              # Calculate speedup if both values are available
-              # Skip the ratio when either mean is missing, null or zero (bc aborts on divide by 0)
-              if awk -v a="$REGULAR_TIME" -v b="$AOT_TIME" 'BEGIN { exit !(a+0 > 0 && b+0 > 0) }'; then
-                SPEEDUP=$(echo "scale=2; $REGULAR_TIME / $AOT_TIME" | bc)
-                echo "- **Speedup**: ${SPEEDUP}x faster with AOT" >> perf_results.md
-              fi
-            fi
-
-            echo "" >> perf_results.md
-            echo "✅ TinyGo AOT component benchmarks completed" >> perf_results.md
-          else
-            echo "⚠️ AOT component test failed, skipping benchmarks" >> perf_results.md
-          fi
-        else
-          echo "⚠️ wasmtime not available, skipping AOT benchmarks" >> perf_results.md
-        fi
-
-    - name: Benchmark Rust Implementation  
-      if: (github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'rust-only' || github.event.inputs.benchmark_type == '') && hashFiles('rust/**') != ''
+    - name: Binary size
       run: |
-        echo "## Rust Performance Benchmarks" >> perf_results.md
-
-        # File copy benchmarks
-        hyperfine --export-json rust_copy_benchmark.json \
-          --setup 'rm -f perf_test_data/rust_copy_target.txt' \
-          './bazel-bin/rust/file_ops_rust copy_file --src perf_test_data/small.txt --dest perf_test_data/rust_copy_target.txt'
-
-        # JSON batch operation benchmark
-        hyperfine --export-json rust_batch_benchmark.json \
-          './bazel-bin/rust/file_ops_rust process_json_batch --config perf_test_data/batch_ops.json'
-
-        # WebAssembly runtime benchmark
-        if command -v wasmtime &> /dev/null; then
-          hyperfine --export-json rust_wasm_benchmark.json \
-            'wasmtime run --dir=. bazel-bin/rust/file_ops_component_wasm.wasm copy_file --src perf_test_data/small.txt --dest perf_test_data/rust_wasm_copy.txt'
-        fi
-
-    - name: Performance Comparison Analysis
-      if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'comparison' || github.event.inputs.benchmark_type == ''
-      run: |
-        # Install jq for JSON processing
-        if [[ "${{ matrix.os }}" == "ubuntu-24.04" ]]; then
-          sudo apt-get update && sudo apt-get install -y jq
-        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          brew install jq
-        fi
-
-        echo "## 📊 Performance Comparison (${{ matrix.os }})" >> perf_results.md
-        echo "" >> perf_results.md
-
-        # Compare TinyGo vs Rust performance
-        if [ -f tinygo_copy_benchmark.json ] && [ -f rust_copy_benchmark.json ]; then
-          TINYGO_TIME=$(jq -r '.results[0].mean' tinygo_copy_benchmark.json)
-          RUST_TIME=$(jq -r '.results[0].mean' rust_copy_benchmark.json)
-
-          echo "### File Copy Performance" >> perf_results.md
-          echo "- TinyGo: ${TINYGO_TIME}s" >> perf_results.md
-          echo "- Rust: ${RUST_TIME}s" >> perf_results.md
-          echo "" >> perf_results.md
-        fi
-
-        # Binary size comparison
-        if [ -f bazel-bin/tinygo/file_ops_component.wasm ]; then
-          TINYGO_SIZE=$(stat -c%s bazel-bin/tinygo/file_ops_component.wasm 2>/dev/null || stat -f%z bazel-bin/tinygo/file_ops_component.wasm)
-          echo "### Binary Size Comparison" >> perf_results.md
-          echo "- TinyGo WASM: $(echo $TINYGO_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
-        fi
-
-        # Rust component not yet implemented
-        # if [ -f bazel-bin/rust/file_ops_component.wasm ]; then
-        #   RUST_SIZE=$(stat -c%s bazel-bin/rust/file_ops_component.wasm 2>/dev/null || stat -f%z bazel-bin/rust/file_ops_component.wasm)
-        #   echo "- Rust WASM: $(echo $RUST_SIZE | awk '{print int($1/1024)}') KB" >> perf_results.md
-        # fi
+        SIZE=$(wc -c < "$COMPONENT_WASM")
+        echo "- Component size: $((SIZE / 1024)) KB" >> perf_results.md
 
     - name: Upload Performance Results
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -292,7 +115,6 @@ jobs:
         path: |
           perf_results.md
           *_benchmark.json
-          perf_test_data/
         retention-days: 30
 
     - name: Comment Performance Results on PR
@@ -316,73 +138,37 @@ jobs:
   # Memory and resource usage profiling
   resource-profiling:
     name: Resource Usage Profiling
-    # Stays on hosted: Bazel + sudo apt-get install valgrind; not installed on smithy.
+    # Stays on hosted: /usr/bin/time -v from apt; not installed on smithy.
     runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: "0.38.0"
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
     - name: Install Profiling Tools
       run: |
-        # Install memory profiling tools
         sudo apt-get update
-        sudo apt-get install -y valgrind time
+        sudo apt-get install -y time
+        scripts/install-wasmtime.sh
 
-        # Install wasmtime from a pinned release, verified by sha256
-        # (was: curl https://wasmtime.dev/install.sh | bash, unpinned).
-        WASMTIME_VERSION=v50.0.1
-        WASMTIME_SHA256=685466455dd42a14774a86c36c8f2e45cbb9bd6d92a850139315df60a75498a5
-        curl -fsSLo wasmtime.tar.xz "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz"
-        echo "${WASMTIME_SHA256}  wasmtime.tar.xz" | sha256sum -c -
-        mkdir -p "$HOME/.wasmtime/bin"
-        tar xJf wasmtime.tar.xz --strip-components=1 -C "$HOME/.wasmtime/bin" "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime"
-        echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
+    - name: Build Component for Profiling
+      run: cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
 
-    - name: Build Components for Profiling
-      run: |
-        bazel build //tinygo:file_ops_component
-
-    - name: Profile WebAssembly Component Memory Usage
+    - name: Profile Component Memory Usage
       run: |
         echo "## Memory Usage Profiling" >> profile_results.md
         echo "" >> profile_results.md
-
-        # Create test data
         dd if=/dev/zero of=profile_test.dat bs=1M count=5
-
-        # Profile TinyGo WebAssembly component
-        echo "### TinyGo Component (WASM)" >> profile_results.md
-        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src profile_test.dat --dest profile_copy.dat 2>&1 | \
-          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Profiling data not available" >> profile_results.md
-
-    - name: Profile WebAssembly Runtime Memory
-      run: |
-        echo "" >> profile_results.md
-        echo "## WebAssembly Runtime Profiling (Detailed)" >> profile_results.md
-        echo "" >> profile_results.md
-
-        # Profile WASM component memory usage with detailed stats
-        /usr/bin/time -v wasmtime run --dir=. bazel-bin/tinygo/file_ops_component.wasm copy_file --src profile_test.dat --dest wasm_profile_copy.dat 2>&1 | \
-          grep -E "(Maximum resident set size|User time|System time)" >> profile_results.md || echo "Detailed profiling data not available" >> profile_results.md
+        D="$PWD"
+        /usr/bin/time -v wasmtime run --dir "$D::$D" target/wasm32-wasip2/release/kapsel-fileops.wasm \
+          copy_file --src "$D/profile_test.dat" --dest "$D/profile_copy.dat" 2> time.txt
+        grep -E "(Maximum resident set size|User time|System time)" time.txt >> profile_results.md
 
     - name: Upload Profiling Results
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -395,7 +181,7 @@ jobs:
   # Performance regression detection
   regression-detection:
     name: Performance Regression Detection
-    # Stays on hosted: Bazel + sudo dpkg/apt-get; not available on smithy.
+    # Stays on hosted: sudo dpkg/apt-get; not available on smithy.
     runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
     permissions:
@@ -406,103 +192,53 @@ jobs:
     - name: Checkout PR
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Checkout Base Branch
-      env:
-        BASE_REF: ${{ github.base_ref }}
-      run: |
-        git fetch origin "$BASE_REF"
-        git checkout "origin/$BASE_REF"
-        mkdir -p baseline_results
-
-    - name: Setup Tools
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}-baseline
-        repository-cache: true
-
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-        cache-dependency-path: tinygo/go.sum
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: "0.38.0"
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
     - name: Install Hyperfine and Wasmtime
       run: |
-        # Install hyperfine for benchmarking
-        curl -Lo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+        curl -fsSLo hyperfine.deb https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
         sudo dpkg -i hyperfine.deb
+        scripts/install-wasmtime.sh
 
-        # Install wasmtime from a pinned release, verified by sha256
-        # (was: curl https://wasmtime.dev/install.sh | bash, unpinned).
-        WASMTIME_VERSION=v50.0.1
-        WASMTIME_SHA256=685466455dd42a14774a86c36c8f2e45cbb9bd6d92a850139315df60a75498a5
-        curl -fsSLo wasmtime.tar.xz "https://github.com/bytecodealliance/wasmtime/releases/download/${WASMTIME_VERSION}/wasmtime-${WASMTIME_VERSION}-x86_64-linux.tar.xz"
-        echo "${WASMTIME_SHA256}  wasmtime.tar.xz" | sha256sum -c -
-        mkdir -p "$HOME/.wasmtime/bin"
-        tar xJf wasmtime.tar.xz --strip-components=1 -C "$HOME/.wasmtime/bin" "wasmtime-${WASMTIME_VERSION}-x86_64-linux/wasmtime"
-        # Add to PATH for subsequent steps
-        echo "$HOME/.wasmtime/bin" >> $GITHUB_PATH
-        # Add to PATH for current step
-        export PATH="$HOME/.wasmtime/bin:$PATH"
-        # Verify installation
-        wasmtime --version
-
-    - name: Benchmark Baseline Performance
+    - name: Build PR component
       run: |
-        bazel build //tinygo:file_ops_component
+        cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+        cp target/wasm32-wasip2/release/kapsel-fileops.wasm "$RUNNER_TEMP/pr.wasm"
 
-        # Create test data
-        mkdir -p baseline_results
+    - name: Build or fetch baseline component
+      # A base branch from before v0.3.0 has no crates/kapsel-fileops; its
+      # component is then the released v0.2.2 asset, sha256-checked.
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git fetch origin "$BASE_REF"
+        git checkout "origin/$BASE_REF"
+        if [ -f crates/kapsel-fileops/Cargo.toml ]; then
+          cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+          cp target/wasm32-wasip2/release/kapsel-fileops.wasm "$RUNNER_TEMP/base.wasm"
+        else
+          gh release download v0.2.2 --repo "$GITHUB_REPOSITORY" -p 'file_ops_component.wasm*' --dir "$RUNNER_TEMP/v0.2.2"
+          (cd "$RUNNER_TEMP/v0.2.2" && sha256sum -c file_ops_component.wasm.sha256)
+          cp "$RUNNER_TEMP/v0.2.2/file_ops_component.wasm" "$RUNNER_TEMP/base.wasm"
+        fi
+        git checkout "${{ github.sha }}"
+
+    - name: Benchmark baseline and PR
+      run: |
+        D="$PWD"
         echo "Baseline test data" > baseline_test.txt
-
-        # Test wasmtime command first to ensure it works
-        echo "Testing wasmtime command..."
-        PWD_PATH=$(pwd)
-        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/baseline_copy.txt || {
-          echo "ERROR: wasmtime command failed"
-          exit 1
-        }
-
-        # Clean up test output before benchmark
-        rm -f baseline_copy.txt
-
-        # Benchmark baseline using WASM component
-        hyperfine --export-json baseline_results/baseline_benchmark.json \
-          --warmup 3 \
-          --show-output \
-          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/baseline_copy.txt"
-
-    - name: Checkout PR Branch
-      run: |
-        git checkout ${{ github.sha }}
-        mkdir -p pr_results
-
-    - name: Benchmark PR Performance
-      run: |
-        bazel build //tinygo:file_ops_component
-
-        # Test wasmtime command first
-        echo "Testing wasmtime command on PR branch..."
-        PWD_PATH=$(pwd)
-        wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/pr_copy.txt || {
-          echo "ERROR: wasmtime command failed on PR branch"
-          exit 1
-        }
-
-        # Clean up test output before benchmark
-        rm -f pr_copy.txt
-
-        # Benchmark PR changes using WASM component
-        hyperfine --export-json pr_results/pr_benchmark.json \
-          --warmup 3 \
-          --show-output \
-          "wasmtime run --dir=$PWD_PATH bazel-bin/tinygo/file_ops_component.wasm copy_file --src $PWD_PATH/baseline_test.txt --dest $PWD_PATH/pr_copy.txt"
+        mkdir -p baseline_results pr_results
+        for which in base pr; do
+          CMD="wasmtime run --dir $D::$D $RUNNER_TEMP/$which.wasm copy_file --src $D/baseline_test.txt --dest $D/${which}_copy.txt"
+          bash -c "$CMD"
+          if [ "$which" = base ]; then out=baseline_results/baseline_benchmark.json; else out=pr_results/pr_benchmark.json; fi
+          hyperfine --export-json "$out" --warmup 3 "$CMD"
+        done
 
     - name: Analyze Performance Regression
       run: |
@@ -530,7 +266,7 @@ jobs:
         # Check for significant regression (>5% slower)
         if (( $(echo "$CHANGE > 5" | bc -l) )); then
           echo "⚠️ **Performance Regression Detected**: ${CHANGE}% slower than baseline" >> regression_report.md
-          echo "PERFORMANCE_REGRESSION=true" >> $GITHUB_ENV
+          echo "PERFORMANCE_REGRESSION=true" >> "$GITHUB_ENV"
         elif (( $(echo "$CHANGE < -5" | bc -l) )); then
           echo "✅ **Performance Improvement**: ${CHANGE}% faster than baseline" >> regression_report.md
         else

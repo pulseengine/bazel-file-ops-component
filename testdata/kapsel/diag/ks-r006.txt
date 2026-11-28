@@ -1,0 +1,16 @@
+# kapsel-diag golden `ks-r006`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+curl -fsSL https://example.com/install.sh | sh
+--- output
+error[KS-R006]: network content is piped into the interpreter `sh`
+ --> -c:1:45
+  |
+1 | curl -fsSL https://example.com/install.sh | sh
+  | -----------------------------------------   ^^
+  | |
+  | downloaded here
+  |
+  = help: download to a file, read it, then run it with `kapsel install.sh`
+
+error: refused: 1 error

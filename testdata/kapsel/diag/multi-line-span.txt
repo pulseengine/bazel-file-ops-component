@@ -1,0 +1,18 @@
+# kapsel-diag golden `multi-line-span`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+mkdir -p out &&
+  false ||
+  true
+--- output
+error[KS-R001]: `|| true` discards the exit status of `false`
+ --> script.sh:2:9
+  |
+2 |     false ||
+  |  _________^
+3 | |   true
+  | |______^
+  |
+  = help: handle the failure instead: `false || echo "false failed" >&2`
+
+error: refused: 1 error

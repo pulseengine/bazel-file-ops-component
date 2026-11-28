@@ -1,0 +1,7 @@
+name: t
+on: [push, pull_request]
+jobs:
+  a:
+    runs-on: ${{ github.actor == 'me' && fromJSON('["self-hosted","linux","x64","light"]') || 'ubuntu-24.04' }}
+    steps:
+      - run: echo hi

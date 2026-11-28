@@ -1,0 +1,14 @@
+[package]
+name = "kapsel-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The JSON config of kapsel's file-operations mode, decoded as the TinyGo component decodes it"
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

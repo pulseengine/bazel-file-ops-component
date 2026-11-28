@@ -1,0 +1,79 @@
+// The interface between a compiled plan and the kapsel host (REQ-KS-020).
+//
+// The compiler (kapsel-compile) turns one checked plan into a component of
+// world `plan`. All control flow of the plan (`&&`, `||`, `;`, `!`, loops,
+// pipeline wiring) is compiled into the component; the host provides the
+// built-ins, expansion and session state. Grants are never compiled in: the
+// host enforces them on every call.
+//
+// v0.3 limits: pipeline stages run one after another, each reading the
+// previous stage's complete output from an in-memory pipe.
+
+package kapsel:shell@0.1.0;
+
+interface host {
+  record lit-part { text: string, quoted: bool }
+  record var-part { name: string, quoted: bool }
+  // `pipe` is a handle returned by `pipe()` that the captured body wrote to.
+  record captured-part { pipe: u32, quoted: bool }
+
+  variant part {
+    lit(lit-part),
+    var(var-part),
+    // fnmatch pattern, unquoted
+    glob(string),
+    captured(captured-part),
+  }
+
+  // One shell word; the host expands it (parameters, field splitting of
+  // unquoted expansions, globbing) when it is used.
+  type word = list<part>;
+
+  enum redirect-op { read, write, append, dup-out, dup-in, heredoc }
+
+  record redirect {
+    fd: u32,
+    op: redirect-op,
+    // Path for read/write/append, body for heredoc, empty for dup-*.
+    target: word,
+    // Source fd for dup-out/dup-in, 0 otherwise.
+    target-fd: u32,
+  }
+
+  // Creates an empty in-memory pipe. Handles are never 0.
+  pipe: func() -> u32;
+
+  // Runs one built-in. argv[0] names it. `stdin`/`stdout` are pipe handles;
+  // 0 means the session's own stream. Inside a capture, a pipeline stage or a
+  // loop whose output is redirected, the compiler passes the handle explicitly.
+  // Returns the exit status 0..=255, or 256 + n when the built-in was `exit n`
+  // (the component must then stop and return n).
+  call: func(argv: list<word>, assignments: list<tuple<string, word>>,
+             redirects: list<redirect>, stdin: u32, stdout: u32) -> u32;
+
+  // `NAME=value` with no command.
+  set-var: func(name: string, value: word);
+
+  // Sets `$?` (after `!`, and at the end of an and-or list).
+  set-status: func(status: u32);
+
+  // Expands words into a host-side list for `for`; returns (list, count).
+  expand-list: func(words: list<word>) -> tuple<u32, u32>;
+
+  // Sets `$name` to item `index` of `list`.
+  bind-item: func(name: string, %list: u32, index: u32);
+
+  // Subshell scope, as POSIX runs `$(...)` and each stage of a multi-stage
+  // pipeline in a subshell. Changes to variables, exported names, cwd and `$?`
+  // made between scope-push and the matching scope-pop are discarded at the
+  // pop. Scopes nest. Inside a scope, `exit n` (call returning 256 + n) ends
+  // only that scope: the compiler pops it and uses n as the scope's status.
+  scope-push: func();
+  scope-pop: func();
+}
+
+world plan {
+  import host;
+  // Runs the plan; returns its final exit status (0..=255).
+  export run: func() -> u32;
+}

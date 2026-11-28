@@ -1,0 +1,15 @@
+# kapsel-diag golden `ks-r000-backquote`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+echo "today is `date`"
+--- output
+error[KS-R000]: backquote command substitution is outside kapsel's subset
+ --> -c:1:16
+  |
+1 | echo "today is `date`"
+  |                ^^^^^^
+  |
+  = note: construct: backquote
+  = help: use $(date) instead of `date`
+
+error: refused: 1 error

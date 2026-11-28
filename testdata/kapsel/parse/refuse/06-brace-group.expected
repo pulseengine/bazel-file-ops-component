@@ -1,0 +1,3 @@
+error[brace-group] 0..19 "{ echo a; echo b; }"
+  message: brace-group: brace groups `{ ...; }` are not in kapsel's shell subset
+  help: write the commands without the braces and redirect each one

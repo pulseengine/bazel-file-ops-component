@@ -1,0 +1,3 @@
+error[compound-redirect] 31..39 "< in.txt"
+  message: compound-redirect: redirections on a whole loop are not in kapsel's shell subset yet
+  help: pipe into the loop (`cat file | while read l; do ...; done`) or redirect the commands inside it

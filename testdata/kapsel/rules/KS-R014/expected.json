@@ -1,0 +1,16 @@
+[
+  {
+    "rule": "KS-R014",
+    "severity": "warn",
+    "message": "`cd` is followed by more commands that run in the old directory if the `cd` fails",
+    "span": {
+      "start": 0,
+      "end": 8
+    },
+    "excerpt": "cd build",
+    "help": "chain with `&&`: `cd X && cmd`, so the next command only runs if the cd worked",
+    "notes": [
+      "`cd X; cmd` runs `cmd` in the old directory when the cd fails (3 measured in agent calls)"
+    ]
+  }
+]

@@ -1,0 +1,21 @@
+# kapsel-diag golden `ks-s005`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+mkdir -p results
+echo a > results/a.txt
+cat results/a.txt
+rm -r reslts
+--- output
+error[KS-S005]: `rm` targets `reslts`, which appears nowhere else, but `results` is used 3 times in this script
+ --> script.sh:4:7
+  |
+1 | mkdir -p results
+  |          ------- `results` is first used here
+...
+4 | rm -r reslts
+  |       ^^^^^^
+  |
+  = note: refused: the paths differ by 1 edit, and a typo in `rm` deletes or moves the wrong file
+  = help: did you mean `results`? if `reslts` is really the target, name it once more before the rm (e.g. `test -e reslts && rm ...`)
+
+error: refused: 1 error

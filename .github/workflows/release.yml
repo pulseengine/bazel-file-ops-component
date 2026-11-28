@@ -19,8 +19,13 @@ env:
 jobs:
   build-and-release:
     name: Build & Release WASM Component
-    # Stays on hosted: Bazel + sudo apt-get install build-essential; not available on smithy.
+    # Stays on hosted: id-token signing and the gh-fetched oracle, as before.
     runs-on: ubuntu-24.04
+    env:
+      CARGO_TERM_COLOR: never
+      # scripts/install-wasmtime.sh pins the binary and its sha256;
+      # scripts/build-aot.sh refuses any other version.
+      WASMTIME_VERSION: "50.0.3"
     permissions:
       contents: write
       packages: write
@@ -30,67 +35,66 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-    - name: Setup C++ Build Tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential gcc g++
-
-    - name: Setup Bazel
-      uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable (2026-10-16)
       with:
-        bazelisk-cache: true
-        disk-cache: ${{ github.workflow }}
-        repository-cache: true
+        toolchain: 1.100.0
+        targets: wasm32-wasip2
 
-    - name: Setup Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version: '1.23'
-
-    - name: Setup TinyGo
-      uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-      with:
-        tinygo-version: '0.38.0'
+    - name: Install wasmtime
+      run: scripts/install-wasmtime.sh
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
-    - name: Build TinyGo WASM Component
+    - name: Build WASM Component
       run: |
-        echo "Building TinyGo WebAssembly component..."
-        bazel build //tinygo:file_ops_component
-
-        # Copy to a predictable location
-        cp bazel-bin/tinygo/file_ops_component.wasm ./file_ops_component.wasm
-
-        # Verify it's a valid WebAssembly module
+        # The Rust JSON-config component (crates/kapsel-fileops), published
+        # under the asset name the TinyGo component had (REQ-KS-041).
+        cargo build --locked -p kapsel-fileops --target wasm32-wasip2 --release
+        cp target/wasm32-wasip2/release/kapsel-fileops.wasm ./file_ops_component.wasm
         file ./file_ops_component.wasm
         ls -lh ./file_ops_component.wasm
 
     - name: Build AOT-Embedded WASM Component
       run: |
-        echo "Building AOT-embedded WebAssembly component with multi-architecture support..."
-
-        # Build multi-architecture AOT compiled artifacts
-        echo "Compiling WASM to native code for multiple architectures..."
-        bazel build //tinygo:file_ops_aot_multi
-
-        # Build the component with embedded AOT artifacts
-        echo "Embedding AOT artifacts as custom sections..."
-        # Enable C++ toolchain resolution (requires cc_configure in MODULE.bazel)
-        bazel build //tinygo:file_ops_component_aot
-
-        # Copy to a predictable location
-        cp bazel-bin/tinygo/file_ops_component_aot.wasm ./file_ops_component_aot.wasm
-
-        # Verify it's a valid WebAssembly module
+        # wasmtime compile (opt-level=2, no debug info) for linux-x64,
+        # linux-arm64, darwin-x64, darwin-arm64, windows-x64 and portable
+        # (pulley64), each embedded as custom section aot-<name> after the
+        # header: the layout rules_wasm_component's wasm_embed_aot wrote up
+        # to v0.2.2 (kapsel-aot-embed's ignored test rebuilds that asset).
+        scripts/build-aot.sh file_ops_component.wasm file_ops_component_aot.wasm
         file ./file_ops_component_aot.wasm
         ls -lh ./file_ops_component_aot.wasm
 
-        # Show size comparison
         echo "Size comparison:"
         echo "  Regular WASM: $(ls -lh file_ops_component.wasm | awk '{print $5}')"
         echo "  AOT-embedded: $(ls -lh file_ops_component_aot.wasm | awk '{print $5}')"
+
+    - name: Equivalence with the TinyGo v0.2.2 artifact (blocks the release)
+      # Both assets run the whole corpus against the released v0.2.2
+      # component; the test downloads it with gh and refuses to run unless
+      # its sha256 matches the pinned value. A disagreement fails the job
+      # before anything is pushed, signed or uploaded.
+      env:
+        GH_TOKEN: ${{ github.token }}
+        KAPSEL_FILEOPS_ORACLE_DIR: ${{ runner.temp }}/oracle-v0.2.2
+      run: |
+        for asset in file_ops_component.wasm file_ops_component_aot.wasm; do
+          echo "Equivalence: ${asset}"
+          KAPSEL_FILEOPS_WASM="$PWD/${asset}" \
+            cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture
+        done
+
+    - name: Precompiled code runs (blocks the release)
+      run: |
+        T="$RUNNER_TEMP/aot-run"
+        mkdir -p "$T/src"
+        echo hello > "$T/src/a.txt"
+        printf '%s' '{"workspace_dir":"/w/ws","operations":[{"type":"copy_file","src_path":"/w/src/a.txt","dest_path":"a.txt"}]}' > "$T/c.json"
+        cargo run --locked --quiet -p kapsel-aot-embed -- extract file_ops_component_aot.wasm linux-x64 "$RUNNER_TEMP/linux-x64.cwasm"
+        wasmtime run --allow-precompiled --dir "$T::/w" "$RUNNER_TEMP/linux-x64.cwasm" /w/c.json
+        test "$(cat "$T/ws/a.txt")" = hello
 
     - name: Create SHA256 checksums
       run: |
@@ -98,6 +102,19 @@ jobs:
         sha256sum file_ops_component_aot.wasm > file_ops_component_aot.wasm.sha256
         cat file_ops_component.wasm.sha256
         cat file_ops_component_aot.wasm.sha256
+
+    - name: Generate compiler proof bundle (blocks the release)
+      # ordeal solves every committed proof query of kapsel-compile and
+      # re-checks each certificate; a stale or unproven query fails the job.
+      env:
+        KAPSEL_PROOF_OUT: ${{ runner.temp }}/proofs/kapsel-compile-proofs
+      run: |
+        cargo test --locked -p kapsel-compile --test proofs -- --nocapture
+        tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
+          -C "$RUNNER_TEMP/proofs" -cf - kapsel-compile-proofs \
+          | gzip -n > kapsel-compile-proofs.tar.gz
+        sha256sum kapsel-compile-proofs.tar.gz > kapsel-compile-proofs.tar.gz.sha256
+        cat kapsel-compile-proofs.tar.gz.sha256
 
     - name: Log in to Container Registry
       uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -181,6 +198,12 @@ jobs:
           cosign sign --yes "${REF}"
         done
 
+    - name: Sign compiler proof bundle with Cosign
+      run: |
+        cosign sign-blob --yes \
+          --bundle kapsel-compile-proofs.tar.gz.sigstore.json \
+          kapsel-compile-proofs.tar.gz
+
     - name: Generate SLSA Provenance
       run: |
         # Create provenance attestation
@@ -243,6 +266,17 @@ jobs:
             "${REF}" > /dev/null
         done
 
+    - name: Verify compiler proof bundle signature
+      run: |
+        # Fails the release unless the bundle was signed by this repository's
+        # release workflow (same anchored identity as the OCI verification).
+        IDENTITY="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/release\\.yml@"
+        cosign verify-blob \
+          --bundle kapsel-compile-proofs.tar.gz.sigstore.json \
+          --certificate-identity-regexp="${IDENTITY}" \
+          --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+          kapsel-compile-proofs.tar.gz
+
     - name: Upload Release Assets
       uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
       with:
@@ -251,6 +285,9 @@ jobs:
           file_ops_component.wasm.sha256
           file_ops_component_aot.wasm
           file_ops_component_aot.wasm.sha256
+          kapsel-compile-proofs.tar.gz
+          kapsel-compile-proofs.tar.gz.sha256
+          kapsel-compile-proofs.tar.gz.sigstore.json
         tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
 
     - name: Create Release Summary
@@ -279,7 +316,7 @@ jobs:
         echo "- **File**: \`file_ops_component_aot.wasm\` ($(ls -lh file_ops_component_aot.wasm | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
         echo "- **OCI Artifact**: \`${IMAGE_AOT_TAG}\`" >> $GITHUB_STEP_SUMMARY
         echo "- **OCI Artifact (latest)**: \`${IMAGE_AOT_LATEST}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Platforms**: Linux x64/ARM64, macOS x64/ARM64, Windows x64, Pulley64" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platforms**: Linux x64/ARM64, macOS x64/ARM64, Windows x64, Pulley64 (compiled by wasmtime ${WASMTIME_VERSION}; loads only in that version)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🔐 Security" >> $GITHUB_STEP_SUMMARY
         echo "- ✅ All OCI artifacts signed with Cosign (keyless OIDC)" >> $GITHUB_STEP_SUMMARY

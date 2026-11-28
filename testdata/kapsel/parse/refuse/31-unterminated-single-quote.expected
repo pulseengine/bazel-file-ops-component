@@ -1,0 +1,4 @@
+error[syntax] 5..6 "'"
+  message: syntax: unterminated single quote
+  expected: '
+  help: add the closing ' ; a single-quoted string cannot contain '

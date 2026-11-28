@@ -1,0 +1,19 @@
+# kapsel-diag golden `ks-s003`. Regenerate with KAPSEL_BLESS=1.
+# file: script.sh
+--- input
+mkdir -p out
+echo hi > out/a.txt
+cat out/a.text
+--- output
+warning[KS-S003]: `out/a.text` is read, but nothing before it writes or creates it
+ --> script.sh:3:5
+  |
+2 | echo hi > out/a.txt
+  |           --------- `out/a.txt` is written here
+3 | cat out/a.text
+  |     ^^^^^^^^^^
+  |
+  = note: the two paths differ by 1 edit; a read of a path the script never made usually fails or reads stale data
+  = help: did you mean out/a.txt?
+
+warning: 1 warning emitted

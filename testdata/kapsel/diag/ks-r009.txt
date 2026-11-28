@@ -1,0 +1,14 @@
+# kapsel-diag golden `ks-r009`. Regenerate with KAPSEL_BLESS=1.
+# file: -c
+--- input
+jq . a.json
+--- output
+error[KS-R009]: `jq` is not a kapsel built-in
+ --> -c:1:1
+  |
+1 | jq . a.json
+  | ^^
+  |
+  = help: use a built-in (grep, sed, cut), or run `jq` outside kapsel until native tools land in v0.5 (REQ-KS-030)
+
+error: refused: 1 error

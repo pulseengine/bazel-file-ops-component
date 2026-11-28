@@ -1,0 +1,11 @@
+name: t
+on: [push, pull_request]
+jobs:
+  a:
+    runs-on: &runner [self-hosted, linux]
+    steps:
+      - run: echo hi
+  b:
+    runs-on: *runner
+    steps:
+      - run: echo hi

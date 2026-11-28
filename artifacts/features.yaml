@@ -85,7 +85,7 @@ artifacts:
     type: feature
     title: "kapsel run: compile a checked command to WASM and run it"
     status: approved
-    release: v0.4.0
+    release: v0.3.0
     description: "Run a checked command as a compiled, cached WASM module under granted directories."
     fields:
       phase: phase-2
@@ -111,7 +111,7 @@ artifacts:
     type: feature
     title: "Built-in commands, first batch"
     status: approved
-    release: v0.4.0
+    release: v0.3.0
     description: "The most-used commands run inside kapsel without leaving the WASM sandbox."
     fields:
       phase: phase-2
