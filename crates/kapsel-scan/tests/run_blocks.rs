@@ -392,3 +392,54 @@ fn expression_text_does_not_change_the_verdict_or_the_positions() {
         }
     }
 }
+
+/// FEAT-KS-011: the pre-#143 `ci.yml`, byte-identical to the file at the first
+/// parent of the #143 merge. Its `|| echo` fallbacks are why KS-R011 exists.
+#[test]
+fn pre_143_ci_yml_reports_ks_r011_at_the_or_echo_lines() {
+    let rep = scan("pre-143");
+    let r011: Vec<(usize, usize, usize)> = rep
+        .blocks
+        .iter()
+        .flat_map(|b| {
+            b.findings
+                .iter()
+                .filter(|f| f.rule == "KS-R011")
+                .map(move |f| (b.line, f.line, f.col))
+        })
+        .collect();
+    // License Check (`find ... || echo "Some files missing license headers"`)
+    // and Performance Monitoring (`bazel run ... || echo "Performance tests
+    // not implemented yet"`): `(block line, finding line, column of ||)`.
+    assert_eq!(r011, vec![(342, 344, 78), (426, 428, 70)]);
+    let src = std::fs::read_to_string(
+        fixture("pre-143")
+            .join(".github")
+            .join("workflows")
+            .join("ci.yml"),
+    )
+    .unwrap();
+    let lines: Vec<&str> = src.lines().collect();
+    for (_, line, col) in &r011 {
+        assert!(
+            lines[line - 1][col - 1..].starts_with("|| echo"),
+            "line {line}"
+        );
+    }
+}
+
+/// FEAT-KS-011 criterion "finds the `|| echo` in ci.yml's Integration Testing
+/// step on the pre-fix revision" is NOT met by the scanner today: that step's
+/// block (YAML line 228) holds `if ...; then` and `&>`, which are outside the
+/// first shell, so the block is refused with KS-R000 before KS-R011, which
+/// needs a parsed command, can run. This pins that boundary. When `if` and
+/// `&>` enter the subset the block parses and this test must be replaced by
+/// an assertion of KS-R011 at lines 231 and 235.
+#[test]
+fn pre_143_integration_testing_step_is_refused_before_ks_r011_can_run() {
+    let rep = scan("pre-143");
+    let b = rep.blocks.iter().find(|b| b.line == 228).unwrap();
+    assert_eq!(b.class, Class::Refused);
+    assert!(b.findings.iter().all(|f| f.rule == "KS-R000"));
+    assert!(b.findings.iter().any(|f| f.line == 238), "{:?}", b.findings);
+}
