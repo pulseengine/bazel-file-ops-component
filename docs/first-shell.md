@@ -53,6 +53,10 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
 
 - **POSIX defaults:** no implicit `set -e`. The exit status of a script is the status of its
   last command.
+- **Assignments with a redirect and no command** (`X=1 > f`) set the variables, then perform
+  the redirect; the status is the redirect's. Known difference from dash: when the redirect
+  fails (`X=1 > /`), kapsel keeps `X` and exits 1, as bash does, while dash drops the
+  assignment and exits 2. POSIX leaves the order open; no corpus script depends on it.
 - **Pipelines run in order.** Each stage reads the previous stage's complete output from an
   in-memory pipe. `$?` of a pipeline is the last stage's status, as in POSIX without pipefail.
 - **Unknown commands are refused**, not run: native tools arrive in v0.5 (REQ-KS-030).
