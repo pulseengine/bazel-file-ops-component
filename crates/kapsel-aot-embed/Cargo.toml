@@ -1,0 +1,17 @@
+[package]
+name = "kapsel-aot-embed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Embeds wasmtime-precompiled code into a WASM component as aot-<name> custom sections, the layout of rules_wasm_component's wasm_embed_aot"
+
+[[bin]]
+name = "kapsel-aot-embed"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+sha2.workspace = true

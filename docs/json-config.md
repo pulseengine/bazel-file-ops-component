@@ -1,7 +1,7 @@
 # JSON config and CLI reference
 
 This describes `file_ops_component.wasm`. Up to v0.2.2 it is the TinyGo component
-(`tinygo/json_bridge.go`, `tinygo/main.go`). From v0.3.0 it is the Rust component
+(`tinygo/json_bridge.go`, `tinygo/main.go`, removed in v0.3.0). From v0.3.0 it is the Rust component
 `crates/kapsel-fileops` (config model in `crates/kapsel-config`), which keeps the same
 command line, output and exit codes. The differences are listed under
 [Changes in the Rust component](#changes-in-the-rust-component). `--help` is not
@@ -65,7 +65,7 @@ Every destination must resolve inside `workspace_dir` after symlinks are followe
 with a `..` component is refused, and nothing is written through an existing symlink.
 `run_command`'s `work_dir` and `output_file` may also lie in the parent of `workspace_dir`.
 
-`GetJsonSchema` in `tinygo/json_bridge.go` holds the JSON schema for the TinyGo format.
+The removed TinyGo source (`GetJsonSchema` in `tinygo/json_bridge.go`, up to v0.2.2) held a JSON schema for its format; the Rust source has none. The config types are in `crates/kapsel-config/src/lib.rs`.
 
 ## Changes in the Rust component
 
@@ -97,7 +97,7 @@ file_ops prepare_workspace --config <workspace_config>
 ```
 
 `prepare_workspace` takes a workspace config (`WorkspaceConfig` in
-`tinygo/workspace.go`): a work directory plus lists of sources, headers and
+`crates/kapsel-config`): a work directory plus lists of sources, headers and
 dependencies, each a file spec with a source and an optional destination.
 
 ## WIT interfaces
@@ -105,5 +105,5 @@ dependencies, each a file spec with a source and an optional destination.
 `wit/file-operations.wit` (`bazel:file-ops@1.0.0`) declares the
 `file-operations`, `json-batch-operations`, `workspace-management` and
 `security-operations` interfaces. The shipped component is built as a
-`wasi:cli/command` (`tinygo/BUILD.bazel`) and does not export them. They are a
+`wasi:cli/command` (`crates/kapsel-fileops`) and does not export them. They are a
 design record, not a callable API.

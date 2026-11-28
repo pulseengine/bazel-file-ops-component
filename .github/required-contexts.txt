@@ -1,6 +1,6 @@
 Quality & Security Gate
-TinyGo Component Build & Test (ubuntu-24.04)
-TinyGo Component Build & Test (macos-latest)
+Component Build & Test (ubuntu-24.04)
+Component Build & Test (macos-latest)
 Integration Testing
 Dependency Security Check
 Security Vulnerability Scan

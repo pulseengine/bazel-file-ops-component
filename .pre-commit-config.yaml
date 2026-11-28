@@ -1,28 +1,4 @@
 repos:
-  - repo: local
-    hooks:
-      # Bazel file formatting with buildifier
-      - id: buildifier
-        name: Buildifier
-        description: Format Bazel files with buildifier
-        entry: bazel run //:buildifier
-        language: system
-        files: '\.(bzl|bazel|BUILD)$'
-        pass_filenames: false
-
-  # Python formatting and linting
-  - repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-      - id: black
-        language_version: python3
-
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
-
   # Rust formatting via local toolchain
   - repo: local
     hooks:
@@ -33,12 +9,6 @@ repos:
         language: system
         files: '\.rs$'
 
-  # Go formatting
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
-    hooks:
-      - id: go-fmt
-
   # JavaScript/TypeScript/Documentation formatting (optional)
   - repo: local
     hooks:
@@ -48,7 +18,7 @@ repos:
         entry: bash -c 'if command -v prettier >/dev/null 2>&1; then prettier --write "$@"; else echo "Prettier not installed globally, skipping formatting"; fi'
         language: system
         files: '\.(js|ts|jsx|tsx|json|yaml|yml|md|mdx|astro|css)$'
-        exclude: '(package-lock\.json|\.lock|bazel-.*|node_modules)$'
+        exclude: '(package-lock\.json|\.lock|node_modules)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
@@ -57,7 +27,6 @@ repos:
       - id: markdownlint
         args: ['--fix']
         files: '\.(md|mdx)$'
-        exclude: '^docs-site/node_modules/'
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -88,11 +57,10 @@ repos:
   # Custom local hooks
   - repo: local
     hooks:
-      # Rust clippy linting via Bazel (if available)
       - id: rust-clippy
         name: Rust Clippy
-        description: Run clippy on all Rust code via Bazel
-        entry: bash -c 'if bazel query //:clippy 2>/dev/null; then bazel build //:clippy; else echo "Clippy target not found, skipping"; fi'
+        description: Run clippy on the Cargo workspace
+        entry: cargo clippy --locked --workspace --all-targets
         language: system
         files: '\.rs$'
         pass_filenames: false
@@ -104,24 +72,6 @@ repos:
         entry: bash -c 'for file in "$@"; do echo "Validating $file"; done'
         language: system
         files: '\.wit$'
-
-      # Basic Bazel build test (only run on CI or explicit request)
-      - id: bazel-build-test
-        name: Bazel Build Test
-        description: Run basic build test for Bazel files
-        entry: bash -c 'if [ "$PRE_COMMIT_BAZEL_BUILD" = "1" ]; then echo "Testing Bazel build..." && bazel build //tinygo:file_ops_cli //rust:file_ops_component || echo "Build test failed, but continuing"; else echo "Skipping Bazel build test (set PRE_COMMIT_BAZEL_BUILD=1 to enable)"; fi'
-        language: system
-        files: '\.bzl$|\.bazel$|BUILD$'
-        pass_filenames: false
-
-      # Documentation build validation (only on CI or explicit request)
-      - id: docs-build-check
-        name: Documentation Build Check
-        description: Validate documentation builds successfully
-        entry: bash -c 'if [ "$PRE_COMMIT_DOCS_BUILD" = "1" ]; then cd docs-site && npm run build; else echo "Skipping docs build (set PRE_COMMIT_DOCS_BUILD=1 to enable)"; fi'
-        language: system
-        files: '^docs-site/.*\.(js|ts|astro|mdx|md|json)$'
-        pass_filenames: false
 
 ci:
   autofix_commit_msg: |
