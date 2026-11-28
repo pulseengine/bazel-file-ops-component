@@ -28,6 +28,12 @@ env:
   # scripts/install-wasmtime.sh pins the binary and its sha256.
   WASMTIME_VERSION: "50.0.3"
 
+# A new push to a pull request cancels its older run; main, tags and releases
+# are never cancelled (fleet hosted-runner queue, 2026-11-28).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Build the JSON-config component and prove it equivalent to the released
   # TinyGo v0.2.2 artifact.

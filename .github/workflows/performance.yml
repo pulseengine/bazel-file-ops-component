@@ -4,9 +4,10 @@ name: Performance Monitoring
 # v0.3.0). Not a required check: results are reported, not gated.
 
 on:
+  # main, nightly and on demand only: the benchmarks are advisory and four
+  # jobs per pull-request push crowded the fleet's hosted-runner queue
+  # (2026-11-28); a regression still shows on main within a day.
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   schedule:
     # Run performance tests nightly
