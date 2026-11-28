@@ -211,10 +211,11 @@ fn test_status(s: &ast::SimpleCommand) -> Option<TestFold> {
             Arg::NonEmpty { lead } => forms(lead),
         })
         .collect();
-    let combos: usize = choices.iter().map(Vec::len).product();
-    if combos > 4096 {
-        return None;
-    }
+    // At most 4096 combinations; a checked product, so a long list of
+    // expansions cannot overflow past the cap.
+    let combos = choices
+        .iter()
+        .try_fold(1usize, |a, c| a.checked_mul(c.len()).filter(|&n| n <= 4096))?;
     let (mut zero, mut one, mut two) = (false, false, false);
     for mut i in 0..combos {
         let pick: Vec<TestArg> = choices

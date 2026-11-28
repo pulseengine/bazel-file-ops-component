@@ -1158,6 +1158,23 @@ fn r001_refuses_what_the_search_found() {
     }
 }
 
+/// A test with many expansions that may be operators: the number of forms
+/// to try (about 15 per word, 40 words) overflows usize. The check must cap
+/// it with a checked product, not panic or wrap, and return quickly.
+#[test]
+fn r001_test_fold_caps_the_forms_without_overflow() {
+    let words = vec!["\"-$V\""; 40].join(" ");
+    let src = format!("cat missing.txt || test {words}");
+    let start = std::time::Instant::now();
+    let r = rules(&src);
+    assert!(!r.contains(&"KS-R001".to_string()), "{r:?}");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
 /// The controls of BL-1: these can fail, so they stay out of KS-R001.
 #[test]
 fn r001_leaves_failable_assignments_exports_and_tests_alone() {
