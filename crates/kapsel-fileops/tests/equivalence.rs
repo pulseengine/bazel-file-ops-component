@@ -554,4 +554,26 @@ fn rust_component_matches_tinygo_oracle() {
         failures.len(),
         failures.join("\n")
     );
+    // REQ-KS-041: each class is pinned by count, so a case that starts or
+    // stops needing its allowance, or moves between classes, is a decision.
+    let got: Vec<(&str, u32)> = CLASSES
+        .iter()
+        .map(|(id, _)| (*id, per_class.get(id).copied().unwrap_or(0)))
+        .collect();
+    assert_eq!(got, EXPECTED_CLASS_RUNS, "allowlisted runs per class");
+    assert_eq!(
+        allowed,
+        EXPECTED_CLASS_RUNS.iter().map(|(_, n)| n).sum::<u32>(),
+        "allowlisted runs in total"
+    );
 }
+
+/// Allowlisted runs per class, in `CLASSES` order, measured against the
+/// v0.2.2 oracle (99 in total).
+const EXPECTED_CLASS_RUNS: &[(&str, u32)] = &[
+    ("req-ks-017", 10),
+    (FIXED_SAME_PATH, 63),
+    (FIXED_SAME_PATH_REFUSAL, 12),
+    ("src-paths-alias", 10),
+    ("oracle-crash", 4),
+];

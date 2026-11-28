@@ -929,8 +929,9 @@ pub fn json(ctx: &mut Ctx, a: &[String]) -> i32 {
         format!("{}{}{}", &text[..sp.start], sp.text, &text[sp.end..])
     };
     // Read back: the result must be exactly the intended document.
-    match parse(&out) {
-        Ok(n) if to_jv(&out, &n) == want => {}
+    let back = super::readback_text(&out);
+    match parse(back) {
+        Ok(n) if to_jv(back, &n) == want => {}
         _ => {
             return fail(
                 ctx,

@@ -611,3 +611,26 @@ impl Ctx<'_> {
 pub fn regex_error(pattern: &str) -> Option<String> {
     regex::Regex::new(pattern).err().map(|e| e.to_string())
 }
+
+// Test-only fault injection (DD-KS-020): with this set, the read-back of a
+// structured edit sees an empty document, which no intended document equals.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static BREAK_READBACK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The text a structured edit's read-back parses: the edit's output, except
+/// in test builds that break it on purpose.
+#[cfg(test)]
+pub(crate) fn readback_text(out: &str) -> &str {
+    if BREAK_READBACK.get() { "" } else { out }
+}
+
+#[cfg(not(test))]
+#[inline]
+pub(crate) fn readback_text(out: &str) -> &str {
+    out
+}
+
+#[cfg(test)]
+mod readback_tests;

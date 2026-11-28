@@ -230,8 +230,23 @@ pub fn compile_sealed_with(
     key: &SigningKey,
     compiler: impl FnOnce(&Plan) -> Result<Vec<u8>, SealError>,
 ) -> Result<(Vec<u8>, CacheOutcome), SealError> {
-    let trust = key.trusted();
-    let reason = match cache.get(plan, &trust) {
+    compile_sealed_trusting(plan, source, cache, key, &key.trusted(), compiler)
+}
+
+/// [`compile_sealed_with`] with the trust set a module is checked against
+/// given by the caller instead of derived from `key`. Exists so a test can
+/// sign with a key the verifier does not trust; production callers use
+/// [`compile_sealed`].
+#[doc(hidden)]
+pub fn compile_sealed_trusting(
+    plan: &Plan,
+    source: &str,
+    cache: &Cache,
+    key: &SigningKey,
+    trust: &TrustedKeys,
+    compiler: impl FnOnce(&Plan) -> Result<Vec<u8>, SealError>,
+) -> Result<(Vec<u8>, CacheOutcome), SealError> {
+    let reason = match cache.get(plan, trust) {
         Lookup::Hit(m) => return Ok((m, CacheOutcome::Hit)),
         Lookup::Miss(r) => r,
     };
@@ -239,7 +254,7 @@ pub fn compile_sealed_with(
     let sealed = seal(plan, source, module, key)?;
     // A fresh module is verified exactly as a cached one is, so no module
     // reaches the host without a signature and attestation that check out.
-    verify(&sealed, &plan.normalized_sha256(), &trust)?;
+    verify(&sealed, &plan.normalized_sha256(), trust)?;
     cache.put(plan, &sealed)?;
     Ok((sealed, CacheOutcome::Miss(reason)))
 }

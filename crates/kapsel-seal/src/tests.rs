@@ -253,6 +253,29 @@ fn a_fresh_module_returned_on_a_miss_verifies() {
 }
 
 #[test]
+fn a_miss_whose_fresh_module_does_not_verify_is_refused_and_not_cached() {
+    // REQ-KS-021: the miss path calls `verify`. The module is signed by a key
+    // the trust set lacks, so only that call can stop it.
+    let key = SigningKey::generate();
+    let other = SigningKey::generate();
+    let cache = Cache::new(tmp("miss-untrusted"));
+    let p = plan(SRC, &["echo", "hi"], Grants::default(), 0);
+
+    // Control: with the signing key trusted the same call succeeds and caches.
+    let ok = compile_sealed_trusting(&p, SRC, &cache, &key, &key.trusted(), stand_in);
+    assert!(matches!(ok, Ok((_, CacheOutcome::Miss(_)))), "{ok:?}");
+    let file = cache.dir().join(format!("{}.wasm", Cache::key(&p)));
+    assert!(file.exists());
+    std::fs::remove_file(&file).unwrap();
+
+    for trust in [TrustedKeys::empty(), other.trusted()] {
+        let r = compile_sealed_trusting(&p, SRC, &cache, &key, &trust, stand_in);
+        assert!(matches!(r, Err(SealError::BadSignature)), "{r:?}");
+        assert!(!file.exists(), "an unverified module must not be cached");
+    }
+}
+
+#[test]
 fn tampered_cache_file_is_rejected_and_removed() {
     let key = SigningKey::generate();
     let cache = Cache::new(tmp("tamper"));
