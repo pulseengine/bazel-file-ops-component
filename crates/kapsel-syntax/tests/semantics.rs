@@ -116,3 +116,43 @@ fn incomplete_nested() {
     ));
     assert!(!kapsel_syntax::is_incomplete("echo done"));
 }
+
+mod common;
+
+/// Regression (proptest `token_concatenation`, `["Y=", "\\\n"]`): an
+/// assignment value that is only a line continuation had a word span
+/// covering the continuation, outside the assignment's trimmed span.
+#[test]
+fn assignment_value_line_continuation_spans() {
+    for (src, value) in [
+        ("Y=\\\n", vec![]),
+        ("Y=\\\n echo", vec![]),
+        ("for=\\\n", vec![]),
+        (
+            "X=\\\nvalue",
+            vec![WordPart::Literal {
+                text: "value".into(),
+            }],
+        ),
+        (
+            "X=\\\nvalue env",
+            vec![WordPart::Literal {
+                text: "value".into(),
+            }],
+        ),
+        (
+            "X=\"\\\nv\"",
+            vec![WordPart::DoubleQuoted {
+                parts: vec![WordPart::Literal { text: "v".into() }],
+            }],
+        ),
+        ("X=\"\\\n\"", vec![WordPart::DoubleQuoted { parts: vec![] }]),
+    ] {
+        let script = kapsel_syntax::parse(src).unwrap_or_else(|e| panic!("{src:?}: {e:?}"));
+        common::check_spans(src, &script).unwrap_or_else(|e| panic!("{src:?}: {e}"));
+        let Command::Simple(s) = &script.items[0].first.commands[0] else {
+            panic!("{src:?}")
+        };
+        assert_eq!(s.assignments[0].value.parts, value, "{src:?}");
+    }
+}

@@ -46,9 +46,12 @@ pub(crate) fn span_of(node: &SyntaxNode) -> Span {
     }
     match (first, last) {
         (Some(s), Some(e)) => Span::new(s.into(), e.into()),
+        // Only trivia (an empty `X=` value, possibly followed by a line
+        // continuation; an empty `$()`): an empty span where the node starts,
+        // so it stays inside a parent whose span is trimmed the same way.
         _ => {
-            let r = node.text_range();
-            Span::new(r.start().into(), r.end().into())
+            let s = u32::from(node.text_range().start());
+            Span::new(s, s)
         }
     }
 }
