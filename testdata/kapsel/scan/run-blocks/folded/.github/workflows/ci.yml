@@ -1,0 +1,16 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: folded
+        run: >
+          echo one
+          two
+
+          echo three || true
+      - name: folded and joined
+        run: >
+          echo one
+          two || true

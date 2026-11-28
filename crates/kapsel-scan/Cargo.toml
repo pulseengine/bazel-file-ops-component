@@ -15,6 +15,9 @@ path = "src/main.rs"
 # DD-KS-014: pinned by rivet git tag (rivet#1099: not on crates.io yet).
 rivet-yaml = { git = "https://github.com/pulseengine/rivet", tag = "v0.43.3" }
 serde_json.workspace = true
+kapsel-syntax.workspace = true
+kapsel-check.workspace = true
+kapsel-plan.workspace = true
 
 [dev-dependencies]
 sha2.workspace = true
