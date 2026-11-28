@@ -79,7 +79,7 @@ artifacts:
   - id: DD-KS-004
     type: design-decision
     title: "Harmful constructs: a named list, each refuse or warn, each with a planted test"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: "How harmful constructs are listed, judged and tested."
     fields:
