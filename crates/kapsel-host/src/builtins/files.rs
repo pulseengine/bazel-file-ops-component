@@ -1,7 +1,6 @@
 //! mkdir rm cp mv ls
 
 use std::fs;
-use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -48,10 +47,14 @@ pub fn mkdir(ctx: &mut Ctx, a: &[String]) -> i32 {
                 }
             }
             Err(e) => {
-                ctx.msg(&format!(
-                    "cannot create directory '{d}': {}",
-                    crate::shell::errstr(&e)
-                ));
+                ctx.io_fail(
+                    d,
+                    &format!(
+                        "cannot create directory '{d}': {}",
+                        crate::shell::errstr(&e)
+                    ),
+                    &e,
+                );
                 status = 1;
             }
         }
@@ -96,10 +99,11 @@ pub fn rm(ctx: &mut Ctx, a: &[String]) -> i32 {
             Ok(m) => m,
             Err(e) => {
                 if !(force && e.kind() == std::io::ErrorKind::NotFound) {
-                    ctx.msg(&format!(
-                        "cannot remove '{f}': {}",
-                        crate::shell::errstr(&e)
-                    ));
+                    ctx.io_fail(
+                        f,
+                        &format!("cannot remove '{f}': {}", crate::shell::errstr(&e)),
+                        &e,
+                    );
                     status = 1;
                 }
                 continue;
@@ -122,10 +126,11 @@ pub fn rm(ctx: &mut Ctx, a: &[String]) -> i32 {
                 }
             }
             Err(e) => {
-                ctx.msg(&format!(
-                    "cannot remove '{f}': {}",
-                    crate::shell::errstr(&e)
-                ));
+                ctx.io_fail(
+                    f,
+                    &format!("cannot remove '{f}': {}", crate::shell::errstr(&e)),
+                    &e,
+                );
                 status = 1;
             }
         }
@@ -259,7 +264,11 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
         } {
             Ok(m) => m,
             Err(e) => {
-                ctx.msg(&format!("cannot stat '{s}': {}", crate::shell::errstr(&e)));
+                ctx.io_fail(
+                    s,
+                    &format!("cannot stat '{s}': {}", crate::shell::errstr(&e)),
+                    &e,
+                );
                 status = 1;
                 continue;
             }
@@ -311,7 +320,11 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
         if moving && smd.file_type().is_symlink() && sres.parent() != tres.parent() {
             // Moving a link to another directory changes what a relative
             // target means there.
-            let _ = writeln!(ctx.err, "kapsel: {s}: refusing to copy a symlink");
+            ctx.deny_msg_text(
+                s,
+                crate::runerr::ErrorClass::Symlink,
+                "refusing to copy a symlink",
+            );
             status = 1;
             continue;
         }
@@ -342,7 +355,7 @@ fn transfer(ctx: &mut Ctx, ops: &[String], moving: bool, rec: bool, verbose: boo
             }
             Err(e) => {
                 if e.starts_with("kapsel: ") {
-                    let _ = writeln!(ctx.err, "{e}");
+                    ctx.kapsel_line(&e);
                     status = 1;
                     continue;
                 }
@@ -481,10 +494,11 @@ pub fn ls(ctx: &mut Ctx, a: &[String]) -> i32 {
         let md = match fs::metadata(&r) {
             Ok(m) => m,
             Err(e) => {
-                ctx.msg(&format!(
-                    "cannot access '{o}': {}",
-                    crate::shell::errstr(&e)
-                ));
+                ctx.io_fail(
+                    o,
+                    &format!("cannot access '{o}': {}", crate::shell::errstr(&e)),
+                    &e,
+                );
                 status = 2;
                 continue;
             }
@@ -518,10 +532,14 @@ pub fn ls(ctx: &mut Ctx, a: &[String]) -> i32 {
                 .map(|e| e.file_name().to_string_lossy().into_owned())
                 .collect(),
             Err(e) => {
-                ctx.msg(&format!(
-                    "cannot open directory '{name}': {}",
-                    crate::shell::errstr(&e)
-                ));
+                ctx.io_fail(
+                    &name,
+                    &format!(
+                        "cannot open directory '{name}': {}",
+                        crate::shell::errstr(&e)
+                    ),
+                    &e,
+                );
                 status = 2;
                 continue;
             }

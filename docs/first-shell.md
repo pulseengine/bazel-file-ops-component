@@ -72,6 +72,38 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
   `error[KS-…]` diagnostic for a refusal; and `kapsel check --json` settles refusal before
   anything runs (exit 65 with a refusal object, or 0 with a plan), so after a passing check a 65
   from the run came from the script.
+- **Call sites (WIT `site`).** Right before every `call`, the compiled component calls
+  `site(id)`, where `id` is the command's index in a pre-order walk of the plan
+  (`kapsel_plan::Plan::commands()`: and-or lists and pipeline stages in order, a command before
+  the `$(...)` bodies in its words, loop items or the condition before the body, assignment-only
+  commands counted). Ids depend only on the plan's shape, so the normalized plan compiles to the
+  same bytes and the cache key is unchanged. `site` changes no shell state.
+
+## Run errors (REQ-KS-060)
+
+A built-in that fails at run time still prints its own line on stderr (`cat: missing.txt: No
+such file or directory`, `kapsel: /etc/x: outside the session's grants`), so scripts that read
+stderr see the same text. After the run, kapsel also renders each failure as a diagnostic: the
+host records the site of the failing call, a stable class and a help line, and the CLI finds the
+command's span through the same pre-order walk over the original plan:
+
+```text
+error[run:not-found]: cat: result.txt: No such file or directory
+ --> s.sh:2:1
+  |
+2 | cat result.txt
+  | ^^^^^^^^^^^^^^
+  |
+  = help: `result.txt` does not exist; did you mean `results.txt`, which the script writes?
+```
+
+The ids are `run:grants`, `run:symlink`, `run:not-found`, `run:permission`, `run:usage`,
+`run:regex`, `run:edit-no-match`, `run:parse`, `run:io` and `run:failed`; `kapsel explain
+run:grants` prints the long form. They never start with `KS-`, so `error[KS-…]` still marks only
+kapsel's own refusals. Only failing calls (status 1 to 255) are reported; identical errors of one
+command (a loop body) render once. In an interactive session the source is `history`, as for
+warnings. stdout and exit codes do not change. Run errors are not part of `check --json`, which
+runs nothing.
 
 ## Refusal rules, first batch (DD-KS-004)
 

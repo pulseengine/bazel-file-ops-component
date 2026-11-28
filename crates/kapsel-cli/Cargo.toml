@@ -20,6 +20,7 @@ kapsel-db = { path = "../kapsel-db" }
 kapsel-diag = { path = "../kapsel-diag" }
 reedline = { version = "0.53", default-features = false }
 nu-ansi-term = "0.50"
+kapsel-analysis.workspace = true
 salsa.workspace = true
 serde_json.workspace = true
 

@@ -25,7 +25,7 @@ usage: kapsel [GLOBAL FLAGS] -c COMMAND
        kapsel [GLOBAL FLAGS]                       (interactive)
        kapsel [GLOBAL FLAGS] check [--json] (-c COMMAND | FILE)
        kapsel [GLOBAL FLAGS] compile (-c COMMAND | FILE) -o OUT.wasm
-       kapsel explain RULE-ID                      (e.g. KS-R001)
+       kapsel explain ID                           (a rule, e.g. KS-R001, or a run error, e.g. run:grants)
 
 global flags:
   --rw DIR     grant read and write access to DIR (the current directory is always granted)
@@ -218,6 +218,71 @@ fn report(name: &str, text: &str, outcome: CheckOutcome, json: bool) -> Result<P
     }
 }
 
+/// Renders the last run's errors (REQ-KS-060) on stderr, after the lines the
+/// built-ins printed: each at the command that failed, found by its site id
+/// in `plan.commands()` (the same pre-order walk the compiler numbers). The
+/// plan's spans are shifted by `offset` into `text` (the history text in an
+/// interactive session). `written` are the paths the script writes, for a
+/// not-found error's "did you mean". Identical errors of one command (a loop
+/// body failing every time) render once.
+fn report_run_errors(
+    session: &Session,
+    plan: &Plan,
+    src: Source<'_>,
+    offset: u32,
+    written: &[String],
+) {
+    let commands = plan.commands();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = String::new();
+    for e in session.run_errors() {
+        if !seen.insert((e.site, e.class, e.message.clone())) {
+            continue;
+        }
+        let span = e
+            .site
+            .and_then(|i| commands.get(i as usize))
+            .map(|c| kapsel_plan::Span::new(c.span.start + offset, c.span.end + offset));
+        out.push_str(&kapsel_diag::render_run_error(
+            src,
+            &run_diag(e, span, written),
+            render_opts(),
+        ));
+        out.push_str("\n\n");
+    }
+    if !out.is_empty() {
+        let _ = std::io::stdout().flush();
+        eprint!("{out}");
+    }
+}
+
+/// The diagnostic for one run error: id `run:<class>`, and for a missing path
+/// a near miss among `written`.
+fn run_diag(
+    e: &kapsel_host::RunError,
+    span: Option<kapsel_plan::Span>,
+    written: &[String],
+) -> kapsel_diag::RunDiag {
+    let mut help = e.help.clone();
+    if e.class == kapsel_host::ErrorClass::NotFound
+        && let Some(op) = &e.operand
+    {
+        let best = written
+            .iter()
+            .filter_map(|w| kapsel_analysis::distance::near_miss(op, w).map(|d| (d, w)))
+            .min();
+        if let Some((_, w)) = best {
+            help = format!("`{op}` does not exist; did you mean `{w}`, which the script writes?");
+        }
+    }
+    kapsel_diag::RunDiag {
+        id: format!("run:{}", e.class.as_str()),
+        message: e.message.clone(),
+        span,
+        help,
+    }
+}
+
 /// parse -> check through kapsel-db (so KS-S002..S005 apply within the
 /// input). `name` is the script path or `-c`.
 fn front_end(name: &str, source: &str, json: bool) -> Result<Plan, i32> {
@@ -302,6 +367,14 @@ impl Analysis {
         result
     }
 
+    /// The history text and the offset of the last line in it: where a run
+    /// error of that line renders (REQ-KS-060), as its warnings do.
+    fn last_line(&self) -> (String, u32) {
+        let hist = kapsel_db::history(&self.db, self.session);
+        let off = hist.offsets.last().copied().unwrap_or(0);
+        (hist.text.clone(), off)
+    }
+
     /// Records the exit status of the line that just ran.
     fn ran(&mut self, status: i32) {
         if let Some(s) = self.statuses.last_mut() {
@@ -367,7 +440,15 @@ fn run_source(
         Ok(b) => b,
         Err(code) => return code,
     };
-    match session.run_component(&bytes) {
+    let result = session.run_component(&bytes);
+    report_run_errors(
+        &session,
+        &plan,
+        Source::new(name, source),
+        0,
+        &plan.grants.write,
+    );
+    match result {
         Ok(st) => (st & 0xff) as i32,
         Err(e) => {
             eprintln!("kapsel: internal: {e}");
@@ -412,6 +493,10 @@ fn explain_rule(id: &str) -> i32 {
         None => {
             eprintln!("kapsel: unknown rule id '{id}'");
             eprintln!("known rule ids: {}", kapsel_diag::RULE_IDS.join(" "));
+            eprintln!(
+                "known run error ids: {}",
+                kapsel_diag::RUN_ERROR_IDS.join(" ")
+            );
             exit::USAGE
         }
     }
@@ -434,6 +519,8 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
     let mut analysis = Analysis::new();
     // A line editor only on a terminal; every other input keeps the plain reader below.
     let mut ed = editor::Editor::new();
+    // Paths the session's lines write, for a not-found error's "did you mean".
+    let mut written: Vec<String> = Vec::new();
     loop {
         let mut buf = String::new();
         let mut prompt = "kapsel$ ";
@@ -482,13 +569,19 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
             Err(_) => {}
             Ok(plan) => match ctx.compile(&plan, line) {
                 Err(_) => {}
-                Ok(bytes) => match session.run_component(&bytes) {
-                    Ok(st) => {
-                        last = (st & 0xff) as i32;
-                        analysis.ran(last);
+                Ok(bytes) => {
+                    let result = session.run_component(&bytes);
+                    written.extend(plan.grants.write.iter().cloned());
+                    let (text, off) = analysis.last_line();
+                    report_run_errors(session, &plan, Source::new("history", &text), off, &written);
+                    match result {
+                        Ok(st) => {
+                            last = (st & 0xff) as i32;
+                            analysis.ran(last);
+                        }
+                        Err(e) => eprintln!("kapsel: internal: {e}"),
                     }
-                    Err(e) => eprintln!("kapsel: internal: {e}"),
-                },
+                }
             },
         }
         if let Some(n) = session.exit_requested() {

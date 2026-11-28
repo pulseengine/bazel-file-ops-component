@@ -30,7 +30,7 @@ use kapsel_plan::{CheckOutcome, Finding, Severity};
 use serde::Serialize;
 
 mod explain;
-pub use explain::{RULE_IDS, explain};
+pub use explain::{RULE_IDS, RUN_ERROR_IDS, explain};
 
 /// The text a finding's spans index into, and the name shown after `-->`.
 #[derive(Debug, Clone, Copy)]
@@ -213,6 +213,41 @@ pub fn render_outcome(src: Source<'_>, outcome: &CheckOutcome, opts: Options) ->
         CheckOutcome::Refused(r) => render_report(src, &r.findings, opts),
         CheckOutcome::Plan(p) => render_report(src, &p.warnings, opts),
     }
+}
+
+/// A run error (REQ-KS-060): a built-in or a grant check that failed while
+/// the plan ran, located at the command that ran it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunDiag {
+    /// One of [`RUN_ERROR_IDS`], e.g. `run:grants`.
+    pub id: String,
+    /// The line the built-in printed, e.g. `cat: a.txt: No such file or directory`.
+    pub message: String,
+    /// The failing command in the source, when the site is known.
+    pub span: Option<Span>,
+    pub help: String,
+}
+
+/// Renders one run error, rustc-style: `error[run:…]: message`, the source
+/// line with the failing command underlined, then `= help: …`. Without a
+/// span (an unknown site) it renders the title and the help only.
+pub fn render_run_error(src: Source<'_>, d: &RunDiag, opts: Options) -> String {
+    let r = renderer(opts);
+    let mut group = Group::with_title(
+        Level::ERROR
+            .primary_title(d.message.as_str())
+            .id(d.id.as_str()),
+    );
+    if let Some(span) = d.span {
+        group = group.element(
+            Snippet::source(src.text)
+                .path(src.name)
+                .fold(true)
+                .annotation(AnnotationKind::Primary.span(clamp(src.text, span))),
+        );
+    }
+    group = group.element(Level::HELP.message(d.help.as_str()));
+    r.render(&[group])
 }
 
 /// Schema id of [`render_json`]'s output.

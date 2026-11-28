@@ -320,6 +320,10 @@ struct Mock {
     bufs: BTreeMap<u32, String>,
     /// What reached the session's stdout (handle 0).
     out: String,
+    /// The last `site` id, consumed by the next call.
+    site: Option<u32>,
+    /// (site id, argv[0] as written) per call, in call order.
+    sites: Vec<(Option<u32>, String)>,
 }
 
 impl Mock {
@@ -389,6 +393,8 @@ impl wit::Host for Mock {
             ));
         }
         self.log.push(line);
+        let site = self.site.take();
+        self.sites.push((site, words[0].clone()));
         let args: Vec<String> = argv.iter().map(|w| self.expand(w)).collect();
         let modelled = match args[0].as_str() {
             "echo" => {
@@ -445,6 +451,10 @@ impl wit::Host for Mock {
         self.log.push("scope-pop".into());
         self.state = self.saved.pop().expect("scope-pop without scope-push");
     }
+
+    fn site(&mut self, id: u32) {
+        self.site = Some(id);
+    }
 }
 
 fn engine() -> &'static wasmtime::Engine {
@@ -464,6 +474,16 @@ fn run(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32) {
 
 /// [`run`], also returning the session stdout.
 fn run_out(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32, String) {
+    let (mut mock, status) = run_mock(p, script);
+    (
+        std::mem::take(&mut mock.log),
+        status,
+        std::mem::take(&mut mock.out),
+    )
+}
+
+/// Compiles and runs a plan under the mock; returns the mock and the status.
+fn run_mock(p: &Plan, script: &[(&str, &[u32])]) -> (Mock, u32) {
     let bytes = compile(p).unwrap_or_else(|e| panic!("compile: {e}"));
     let component = wasmtime::component::Component::new(engine(), &bytes).unwrap();
     let mut linker = wasmtime::component::Linker::<Mock>::new(engine());
@@ -477,17 +497,13 @@ fn run_out(p: &Plan, script: &[(&str, &[u32])]) -> (Vec<String>, u32, String) {
     let mut store = wasmtime::Store::new(engine(), mock);
     let inst = bindings::Plan::instantiate(&mut store, &component, &linker).unwrap();
     let status = inst.call_run(&mut store).unwrap();
-    let mock = store.data_mut();
+    let mock = store.into_data();
     assert!(
         mock.saved.is_empty(),
         "{} scopes left open",
         mock.saved.len()
     );
-    (
-        std::mem::take(&mut mock.log),
-        status,
-        std::mem::take(&mut mock.out),
-    )
+    (mock, status)
 }
 
 fn check(p: &Plan, script: &[(&str, &[u32])], want_log: &[&str], want_status: u32) {
@@ -1381,6 +1397,7 @@ const RULE_TESTS: &[(&str, &str)] = &[
     ("KC-R19", "pipe3"),
     ("KC-R20", "sub_exit"),
     ("KC-R21", "exit"),
+    ("KC-R22", "single"),
 ];
 
 #[test]
@@ -1570,4 +1587,51 @@ fn grants_are_never_compiled_in() {
         compile(&no_grants).unwrap(),
         "grants changed the module"
     );
+}
+
+// ---- call sites (REQ-KS-060) --------------------------------------------------
+
+/// Every `call` is preceded by `site(id)`, and `id` indexes the command in
+/// `Plan::commands()` (the pre-order walk the CLI uses to find the span):
+/// the called argv[0] is that command's argv[0]. Covers captures (a command
+/// numbered before the bodies in its words), loops and pipelines.
+#[test]
+fn every_call_names_its_command_by_pre_order_index() {
+    let mut checked = 0;
+    for (name, p) in all_plans() {
+        let commands = p.commands();
+        // Loops stop after two bodies.
+        let script: &[(&str, &[u32])] = match name {
+            "while" => &[("test", &[0, 0, 1])],
+            "until" => &[("test", &[1, 1, 0])],
+            _ => &[],
+        };
+        let (mock, _) = run_mock(&p, script);
+        for (site, argv0) in &mock.sites {
+            let id = site.unwrap_or_else(|| panic!("{name}: call {argv0} has no site"));
+            let c = commands
+                .get(id as usize)
+                .unwrap_or_else(|| panic!("{name}: site {id} out of range"));
+            let want = c.argv[0].as_literal().unwrap_or_default();
+            assert!(
+                argv0.trim_matches('"') == want,
+                "{name}: site {id} names `{want}`, the call is `{argv0}`"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 30, "only {checked} calls checked");
+}
+
+/// The same plan gives the same ids whatever its spans: the normalized plan
+/// compiles to the same bytes as the original.
+#[test]
+fn site_ids_do_not_depend_on_spans() {
+    for (name, p) in all_plans() {
+        assert_eq!(
+            compile(&p).unwrap(),
+            compile(&p.normalized()).unwrap(),
+            "{name}"
+        );
+    }
 }

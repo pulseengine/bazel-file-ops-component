@@ -19,6 +19,7 @@
 use regex::bytes::RegexBuilder;
 
 use super::{Ctx, xgetopt};
+use crate::runerr::ErrorClass;
 
 const USAGE: &str = "usage: edit FILE (-s OLD NEW | -e REGEX REPL [-m] | --lines A:B (--with FILE2 | --with-text TEXT)) [-c N] [--allow-none]";
 
@@ -174,8 +175,13 @@ pub fn edit(ctx: &mut Ctx, a: &[String]) -> i32 {
         {
             Ok(r) => r,
             Err(e) => {
-                let first = e.to_string().lines().last().unwrap_or("").to_string();
-                ctx.msg(&format!("invalid regex '{re}': {}", first.trim()));
+                let full = e.to_string();
+                let first = full.lines().last().unwrap_or("").to_string();
+                ctx.regex_fail(
+                    &re,
+                    &format!("invalid regex '{re}': {}", first.trim()),
+                    Some(&full),
+                );
                 return 2;
             }
         };
@@ -190,19 +196,25 @@ pub fn edit(ctx: &mut Ctx, a: &[String]) -> i32 {
     if let Some(want) = count
         && n != want
     {
-        ctx.msg(&format!(
-            "{file}: {what} matched {n} time{}, -c requires {want}; file unchanged",
-            if n == 1 { "" } else { "s" }
-        ));
+        ctx.fail(
+            ErrorClass::EditNoMatch,
+            Some(&file),
+            &format!(
+                "{file}: {what} matched {n} time{}, -c requires {want}; file unchanged",
+                if n == 1 { "" } else { "s" }
+            ),
+        );
         return 1;
     }
     if n == 0 {
         if allow_none {
             return 0;
         }
-        ctx.msg(&format!(
-            "{file}: {what} not found; file unchanged (--allow-none accepts no match)"
-        ));
+        ctx.fail(
+            ErrorClass::EditNoMatch,
+            Some(&file),
+            &format!("{file}: {what} not found; file unchanged (--allow-none accepts no match)"),
+        );
         return 1;
     }
     if out == data {

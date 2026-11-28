@@ -378,6 +378,7 @@ fn decode_run(module: &[u8]) -> Vec<Op> {
                         "bind-item" => "bind-item",
                         "scope-push" => "scope-push",
                         "scope-pop" => "scope-pop",
+                        "site" => "site",
                         other => panic!("unknown import {other}"),
                     };
                     imports.push(name);
@@ -629,6 +630,11 @@ fn exec_wasm(ops: &[Op]) -> Vec<Run> {
                     }
                     "scope-push" => s.trace.push(Ev::ScopePush),
                     "scope-pop" => s.trace.push(Ev::ScopePop),
+                    // `site(id)` only names the next call's command for run-error
+                    // reports: no status, no trace event.
+                    "site" => {
+                        pop(&mut s);
+                    }
                     other => panic!("{other}"),
                 },
             }
@@ -1156,6 +1162,12 @@ const NO_ARITHMETIC: &[(&str, &str)] = &[
     (
         "KC-R18",
         "part-glob: lays out a part variant, computes and tests no status",
+    ),
+    (
+        "KC-R22",
+        "call-site: passes a compile-time constant to `site`, a host call with no result; \
+         the symbolic executor models it as a no-op, so every status proof covers plans \
+         that contain it",
     ),
 ];
 

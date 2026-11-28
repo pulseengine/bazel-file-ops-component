@@ -36,6 +36,8 @@ enum Io {
 enum Ev {
     /// `pipe()`; pipes are numbered in code order.
     Pipe(u32),
+    /// `site(id)` naming the next call's command.
+    Site(u32),
     Call {
         argv: Vec<String>,
         assignments: Vec<(String, String)>,
@@ -119,6 +121,8 @@ struct Expected {
     pipes: u32,
     /// Subshell scopes open at this point of the plan.
     scopes: u32,
+    /// Command nodes seen so far, in pre-order: the next command's site id.
+    commands: u32,
 }
 
 impl Expected {
@@ -180,6 +184,11 @@ impl Expected {
     }
 
     fn stage(&mut self, s: &PStage, stdin: Io, stdout: Io) {
+        // A command is numbered before the `$(...)` bodies in its words.
+        let site = self.commands;
+        if matches!(s, PStage::Call(_)) {
+            self.commands += 1;
+        }
         match s {
             PStage::Call(c) if c.tool.is_some() => {
                 let words = c
@@ -196,6 +205,7 @@ impl Expected {
                     .iter()
                     .map(|(n, w)| (n.clone(), word(w, &mut ids)))
                     .collect();
+                self.evs.push(Ev::Site(site));
                 self.evs.push(Ev::Call {
                     argv,
                     assignments,
@@ -664,6 +674,10 @@ fn walk(m: &Main<'_>) -> Result<Vec<Ev>, CompileError> {
                     }
                     "scope-push" => evs.push(Ev::ScopePush),
                     "scope-pop" => evs.push(Ev::ScopePop),
+                    "site" => {
+                        let id = konst(pop(&mut stack)?)?;
+                        evs.push(Ev::Site(id));
+                    }
                     other => return Err(mismatch(format!("call to unknown import `{other}`"))),
                 }
             }
