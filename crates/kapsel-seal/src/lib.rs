@@ -237,6 +237,9 @@ pub fn compile_sealed_with(
     };
     let module = compiler(&plan.normalized())?;
     let sealed = seal(plan, source, module, key)?;
+    // A fresh module is verified exactly as a cached one is, so no module
+    // reaches the host without a signature and attestation that check out.
+    verify(&sealed, &plan.normalized_sha256(), &trust)?;
     cache.put(plan, &sealed)?;
     Ok((sealed, CacheOutcome::Miss(reason)))
 }

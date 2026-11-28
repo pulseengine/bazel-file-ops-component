@@ -236,6 +236,23 @@ fn whitespace_only_change_hits_and_argv_change_misses() {
 }
 
 #[test]
+fn a_fresh_module_returned_on_a_miss_verifies() {
+    // The miss path verifies before returning; this pins the contract that
+    // whatever reaches the host on a miss passes the same check a cache hit does.
+    let key = SigningKey::generate();
+    let cache = Cache::new(tmp("cache-miss-verify"));
+    let p = plan("echo hi", &["echo", "hi"], Grants::default(), 0);
+    let (m, o) = run(&p, "echo hi", &cache, &key);
+    assert_eq!(o, CacheOutcome::Miss(MissReason::Absent));
+    let att = verify(&m, &p.normalized_sha256(), &key.trusted()).unwrap();
+    assert!(
+        att.inputs
+            .iter()
+            .any(|i| i.artifact.hash == p.normalized_sha256())
+    );
+}
+
+#[test]
 fn tampered_cache_file_is_rejected_and_removed() {
     let key = SigningKey::generate();
     let cache = Cache::new(tmp("tamper"));
