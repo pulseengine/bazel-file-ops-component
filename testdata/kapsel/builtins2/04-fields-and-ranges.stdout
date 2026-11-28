@@ -1,0 +1,17 @@
+PID
+101
+202
+PID CMD
+101 -zsh
+202 cargo
+CMD
+-zsh
+--workspace
+root -> /bin/sh
+  101 ttys000    0:00.10 -zsh
+  202 ttys001    0:02.50 cargo test --workspace
+  202 ttys001    0:02.50 cargo test --workspace
+error[E0308]: mismatched types
+  --> src/main.rs:7:5
+unused
+src/lib.rs:3:9

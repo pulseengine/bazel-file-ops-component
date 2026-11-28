@@ -16,7 +16,8 @@ use kapsel_plan::{
 use sha2::{Digest, Sha256};
 
 mod args;
-use args::{leading_literal, rm_danger, sed_in_place, spec_for, split_args};
+pub use args::{XFlag, XVal, xflags_for as builtin_xflags};
+use args::{leading_literal, rm_danger, sed_in_place, spec_for, split_args, xflags_for, xsplit};
 
 pub use kapsel_plan::BUILTINS;
 
@@ -136,6 +137,40 @@ fn help_for(rule: &str, name: &str) -> String {
         R010 => "write the command name literally, e.g. `cp` instead of `$CMD`; put the variable in an argument instead".to_string(),
         _ => String::new(),
     }
+}
+
+/// KS-R009 for an interpreter: the built-in that covers what it is measured
+/// to be used for (REQ-KS-063: 80,836 agent shell calls, 2026-11-27).
+fn covering_builtin(name: &str) -> Option<&'static str> {
+    let python_like = name == "node"
+        || name == "ruby"
+        || name
+            .strip_prefix("python")
+            .is_some_and(|v| v.chars().all(|c| c.is_ascii_digit() || c == '.'));
+    Some(match name {
+        "perl" => {
+            "perl -pi -e: use `edit FILE -e RE REPL` (`-m` lets `.` match a newline, `-c N` requires N replacements); \
+             a literal replace is `edit FILE -s OLD NEW`, a line range `lines A:B FILE`"
+        }
+        "awk" | "gawk" | "mawk" | "nawk" => {
+            "awk '{print $N}': use `field N FILE` (`-d DELIM`, `-1` is the last field); \
+             awk 'NR>=A && NR<=B': use `lines A:B FILE`; awk '/a/,/b/': use `lines /a/,/b/ FILE`"
+        }
+        "jq" => {
+            "jq: use `json get PATH FILE` (`-r` raw strings, `-c` compact), `json set PATH VALUE FILE`, \
+             `json del PATH FILE` or `json merge FILE OTHER`"
+        }
+        "yq" => {
+            "yq: use `yaml get PATH FILE` or `yaml set PATH VALUE FILE`, which keeps comments; \
+             TOML is `toml get PATH FILE` and `toml set PATH VALUE FILE`"
+        }
+        _ if python_like => {
+            "for a file edit use `edit FILE -s OLD NEW` or `edit FILE -e RE REPL`; \
+             for data `json get PATH FILE`, `json set PATH VALUE FILE`, `yaml get`, `toml get`; \
+             also `base64`, `sha256sum`, `field N`, `lines A:B`"
+        }
+        _ => return None,
+    })
 }
 
 /// Closest built-in within edit distance 2 (a swap of neighbours counts 1) (1 for names of 4 letters or less).
@@ -628,7 +663,9 @@ impl Cx<'_> {
                 s.words[0].span,
             );
             let mut h = help_for(R009, &name);
-            if let Some(b) = closest_builtin(&name) {
+            if let Some(cover) = covering_builtin(&name) {
+                h = format!("{cover}; other uses of `{name}` need native tools (v0.5, REQ-KS-030)");
+            } else if let Some(b) = closest_builtin(&name) {
                 h = format!("did you mean `{b}`? {h}");
             }
             self.help(h);
@@ -893,11 +930,14 @@ impl Cx<'_> {
         let Some(Tool::Builtin(name)) = &call.tool else {
             return (out, false);
         };
+        let args = &call.argv[1..];
+        let spans: Vec<ast::Span> = s.words.iter().skip(1).map(|w| w.span).collect();
+        if let Some(table) = xflags_for(name) {
+            return Self::x_accesses(name, &xsplit(table, args, &spans));
+        }
         let Some(spec) = spec_for(name) else {
             return (out, false);
         };
-        let args = &call.argv[1..];
-        let spans: Vec<ast::Span> = s.words.iter().skip(1).map(|w| w.span).collect();
         let sp = split_args(&spec, args, &spans);
         let mut push = |ws: &[(&PWord, ast::Span)], a: Access| {
             for (w, span) in ws {
@@ -1000,6 +1040,62 @@ impl Cx<'_> {
             _ => {}
         }
         (out, sp.unknown)
+    }
+
+    /// Accesses of the REQ-KS-063 built-ins. Writers list their FILE as both
+    /// read and written (it is read, edited, and replaced), like `sed -i`.
+    fn x_accesses(name: &str, sp: &args::Split<'_>) -> (Vec<(PWord, Access, ast::Span)>, bool) {
+        let mut out: Vec<(PWord, Access, ast::Span)> = Vec::new();
+        let mut unknown = sp.unknown;
+        let pos = &sp.positional;
+        let mut add = |range: &[ArgRef<'_>], write: bool| {
+            for (w, span) in range {
+                out.push(((*w).clone(), Access::Read, *span));
+                if write {
+                    out.push(((*w).clone(), Access::Write, *span));
+                }
+            }
+        };
+        let from = |i: usize| pos.get(i..).unwrap_or(&[]);
+        let at = |i: usize| pos.get(i..i + 1).unwrap_or(&[]);
+        match name {
+            "edit" => add(pos, true),
+            "json" | "yaml" | "toml" => {
+                match pos.first().map(|(w, _)| w.as_literal()) {
+                    // json get PATH [FILE]
+                    Some(Some(sub)) if sub == "get" => add(from(2), false),
+                    // json set PATH VALUE FILE
+                    Some(Some(sub)) if sub == "set" => add(at(3), true),
+                    // json del PATH FILE
+                    Some(Some(sub)) if sub == "del" && name != "toml" => add(at(2), true),
+                    // json merge FILE OTHER
+                    Some(Some(sub)) if sub == "merge" && name == "json" => {
+                        add(at(1), true);
+                        add(at(2), false);
+                    }
+                    // The host refuses an unknown subcommand and touches nothing.
+                    Some(Some(_)) | None => {}
+                    // A subcommand from an expansion: any of the above.
+                    Some(None) => unknown = true,
+                }
+            }
+            "field" | "lines" => add(from(1), false),
+            "base64" => add(pos, false),
+            "sha256sum" => {
+                add(pos, false);
+                // -c reads the files the checksum list names.
+                if sp.opts.iter().any(|o| o == "-c" || o == "--check") {
+                    unknown = true;
+                }
+            }
+            _ => {}
+        }
+        for (k, w, span) in &sp.values {
+            if *k == 'r' {
+                out.push((w.clone(), Access::Read, *span));
+            }
+        }
+        (out, unknown)
     }
 
     fn collect_grants(&mut self, call: &Call, s: &ast::SimpleCommand, last_stage: bool) {

@@ -556,3 +556,124 @@ pub fn sed_script_acts(script: &str) -> bool {
         }
     })
 }
+
+// ---- REQ-KS-063 built-ins: exact flags --------------------------------------
+
+/// What one value of an exact flag is.
+#[derive(Clone, Copy, PartialEq)]
+pub enum XVal {
+    /// Text that is not a path (a pattern, a count, a delimiter).
+    Text,
+    /// A path the built-in reads.
+    Read,
+}
+
+/// One exact flag and the values it takes.
+pub type XFlag = (&'static str, &'static [XVal]);
+
+/// The flags of the REQ-KS-063 built-ins (edit, json, yaml, toml, field,
+/// lines, base64, sha256sum). Each flag is matched as a whole word, never as
+/// a cluster, and takes a fixed number of values. A word that starts with `-`
+/// and reads as a number (`-1`) is an operand: `field -1`, `json set .n -1 f`.
+/// The host parses with the same table (`kapsel-host/src/builtins/mod.rs`,
+/// `xflags_for`); `xflags_tables_agree` in the host tests keeps them equal.
+pub fn xflags_for(tool: &str) -> Option<&'static [XFlag]> {
+    use XVal::{Read, Text};
+    const T2: &[XVal] = &[Text, Text];
+    const T1: &[XVal] = &[Text];
+    const R1: &[XVal] = &[Read];
+    const NO: &[XVal] = &[];
+    Some(match tool {
+        "edit" => &[
+            ("-s", T2),
+            ("-e", T2),
+            ("-m", NO),
+            ("-c", T1),
+            ("--allow-none", NO),
+            ("--lines", T1),
+            ("--with", R1),
+            ("--with-text", T1),
+        ],
+        "json" => &[
+            ("-c", NO),
+            ("-r", NO),
+            ("-cr", NO),
+            ("-rc", NO),
+            ("--str", NO),
+        ],
+        "yaml" => &[("-j", NO), ("--str", NO)],
+        "toml" => &[("--str", NO)],
+        "field" => &[("-d", T1), ("-o", T1)],
+        "lines" => &[],
+        "base64" => &[("-d", NO), ("--decode", NO), ("-w", T1)],
+        "sha256sum" => &[("-c", NO), ("--check", NO)],
+        _ => return None,
+    })
+}
+
+/// True for `-1`, `-2.5`: an operand, not a flag.
+pub fn is_negative_number(s: &str) -> bool {
+    s.strip_prefix('-').is_some_and(|r| {
+        r.chars().next().is_some_and(|c| c.is_ascii_digit())
+            && r.chars().all(|c| c.is_ascii_digit() || c == '.')
+    })
+}
+
+/// Splits arguments by an exact-flag table. `values` carries `('r', word)`
+/// for each [`XVal::Read`] value and `('_', word)` for text; `opts` the flags.
+pub fn xsplit<'a>(table: &[XFlag], args: &'a [PWord], spans: &[Span]) -> Split<'a> {
+    let span_of = |i: usize| spans.get(i).copied().unwrap_or_default();
+    let mut sp = Split {
+        positional: Vec::new(),
+        opts: Vec::new(),
+        values: Vec::new(),
+        unknown: false,
+        opaque: false,
+    };
+    let mut after_dd = false;
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        let at = i;
+        i += 1;
+        if after_dd {
+            sp.positional.push((a, span_of(at)));
+            continue;
+        }
+        let (head, lead_parts) = leading_literal(a);
+        let nonlit = lead_parts < a.parts.len();
+        if !head.starts_with('-') || (head == "-" && !nonlit) {
+            sp.positional.push((a, span_of(at)));
+            continue;
+        }
+        if nonlit {
+            // `-$X`: may be any flag.
+            sp.unknown = true;
+            sp.opaque = true;
+            continue;
+        }
+        if head == "--" {
+            after_dd = true;
+            continue;
+        }
+        if is_negative_number(&head) {
+            sp.positional.push((a, span_of(at)));
+            continue;
+        }
+        let Some((_, vals)) = table.iter().find(|(f, _)| *f == head) else {
+            sp.unknown = true;
+            continue;
+        };
+        sp.opts.push(head.clone());
+        for v in *vals {
+            let Some(w) = args.get(i) else {
+                sp.unknown = true;
+                break;
+            };
+            let key = if *v == XVal::Read { 'r' } else { '_' };
+            sp.values.push((key, w.clone(), span_of(i)));
+            i += 1;
+        }
+    }
+    sp
+}

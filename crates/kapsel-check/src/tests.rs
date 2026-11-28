@@ -623,7 +623,89 @@ const GRANTS: &[(&str, &[&str], &[&str], bool)] = &[
     ("for f in a b; do cat $f; done", &[], &[], true),
     ("x=$(cat a)", &["a"], &[], false),
     ("echo $(cat a > b)", &["a"], &["b"], false),
+    // REQ-KS-063: writers list FILE as read and written; get forms read it.
+    ("edit f -s a b", &["f"], &["f"], false),
+    ("edit -e 'x(.)' '$1' f -c 2", &["f"], &["f"], false),
+    ("edit f -s -x -y", &["f"], &["f"], false),
+    ("edit f --lines 1:2 --with g", &["f", "g"], &["f"], false),
+    ("edit f --lines 1:2 --with-text g", &["f"], &["f"], false),
+    ("edit \"$F\" -s a b", &[], &[], true),
+    ("json get .a f", &["f"], &[], false),
+    ("json get -r .a", &[], &[], false),
+    ("json set .a 1 f", &["f"], &["f"], false),
+    ("json set .n -1 f", &["f"], &["f"], false),
+    ("json set --str .a x f", &["f"], &["f"], false),
+    ("json del .a f", &["f"], &["f"], false),
+    ("json merge f o", &["f", "o"], &["f"], false),
+    ("json $SUB .a f", &[], &[], true),
+    ("yaml get .a f", &["f"], &[], false),
+    ("yaml set .a b f", &["f"], &["f"], false),
+    ("yaml del .a f", &["f"], &["f"], false),
+    ("toml get .a f", &["f"], &[], false),
+    ("toml set .a 1 f", &["f"], &["f"], false),
+    ("field 2 f", &["f"], &[], false),
+    ("field -1 -d , f g", &["f", "g"], &[], false),
+    ("lines 2:3 f", &["f"], &[], false),
+    ("lines '/a/,/b/' f", &["f"], &[], false),
+    ("base64 -d f", &["f"], &[], false),
+    ("sha256sum a b", &["a", "b"], &[], false),
+    ("sha256sum -c sums", &["sums"], &[], true),
 ];
+
+#[test]
+fn r009_names_the_builtin_that_covers_an_interpreter() {
+    for (src, want) in [
+        (
+            "perl -pi -e s/a/b/ f",
+            "perl -pi -e: use `edit FILE -e RE REPL`",
+        ),
+        ("python3 -c 'print(1)'", "`edit FILE -s OLD NEW`"),
+        ("python x.py", "`json get PATH FILE`"),
+        ("python3.12 x.py", "`json get PATH FILE`"),
+        ("node x.js", "`edit FILE -e RE REPL`"),
+        ("ruby -e x", "`yaml get`"),
+        ("awk '{print $2}' f", "awk '{print $N}': use `field N FILE`"),
+        ("awk 'NR>=2 && NR<=4' f", "use `lines A:B FILE`"),
+        ("jq -r .a f.json", "jq: use `json get PATH FILE`"),
+        ("yq .a f.yaml", "yq: use `yaml get PATH FILE`"),
+    ] {
+        let CheckOutcome::Refused(r) = run(src) else {
+            panic!("{src} not refused")
+        };
+        let f = r.findings.iter().find(|f| f.rule == "KS-R009").unwrap();
+        let h = f.help.as_deref().unwrap_or("");
+        assert!(h.contains(want), "{src}: {h}");
+        assert!(h.contains("REQ-KS-030"), "{src}: {h}");
+        assert!(!h.contains("did you mean"), "{src}: {h}");
+    }
+    // Other programs keep the generic help.
+    let CheckOutcome::Refused(r) = run("make all") else {
+        panic!()
+    };
+    let h = r.findings[0].help.as_deref().unwrap_or("");
+    assert!(h.starts_with("use one of the built-ins ("), "{h}");
+    assert!(
+        h.contains("edit, json, yaml, toml, field, lines, base64, sha256sum"),
+        "{h}"
+    );
+}
+
+#[test]
+fn req_ks_063_builtins_are_accepted() {
+    for src in [
+        "edit f -s a b",
+        "json get .a f",
+        "yaml set .a 1 f",
+        "toml get .a f",
+        "field 1 f",
+        "lines 1:2 f",
+        "base64 f",
+        "sha256sum f",
+    ] {
+        let p = plan(src);
+        assert!(p.warnings.is_empty(), "{src}: {:?}", p.warnings);
+    }
+}
 
 #[test]
 fn grants_table() {

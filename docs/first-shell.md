@@ -37,7 +37,7 @@ The parser and check stage cover them from the start.
 | `kapsel-syntax` | rowan parser → `kapsel-ast` | REQ-KS-010, DD-KS-002 |
 | `kapsel-check` | AST → `CheckOutcome` (plan or refusal) | REQ-KS-011, 012, 013, DD-KS-003, 004 |
 | `kapsel-compile` | `Plan` → component bytes, deterministic | REQ-KS-020, DD-KS-005 |
-| `kapsel-host` | wasmtime host, built-ins, session state, grants | REQ-KS-022, 025 |
+| `kapsel-host` | wasmtime host, built-ins, session state, grants | REQ-KS-022, 025, 063 |
 | `kapsel-cli` | the `kapsel` binary: `-c`, script file, interactive, `check`, `compile` | REQ-KS-014 |
 
 The three contract files change only additively during the slice, and every change is called out
@@ -71,7 +71,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 | KS-R006 | refuse | network into an interpreter: `curl`/`wget` piped to `sh`/`bash` or another interpreter |
 | KS-R007 | refuse | escaping the session: `nohup`, `setsid`, `disown`, trailing `&` |
 | KS-R008 | refuse | killing by pattern: `pkill`, `killall` |
-| KS-R009 | refuse | a command that is not a built-in (names the command, points at v0.5 native tools) |
+| KS-R009 | refuse | a command that is not a built-in (names the command, points at v0.5 native tools; for python, perl, node, ruby, awk, jq or yq, names the built-in that covers the common use) |
 | KS-R010 | refuse | a dynamic command name |
 | KS-R000 | refuse | a parse error: the construct is outside the subset (names it) |
 

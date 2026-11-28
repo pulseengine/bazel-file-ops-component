@@ -409,3 +409,45 @@ artifacts:
     links:
       - type: satisfies
         target: REQ-KS-020
+
+  - id: DD-KS-020
+    type: design-decision
+    title: "Edits change the named place only, are checked before they land, and land whole"
+    status: approved
+    release: v0.3.0
+    description: "How edit, json, yaml and toml change a file (REQ-KS-063, FEAT-KS-022)."
+    fields:
+      decision: >
+        An edit names its place (a pattern with an expected count, a line range, or a path) and
+        changes that place and nothing else. JSON keeps key order (serde_json preserve_order) and
+        the file's indentation. YAML is spliced into rivet-yaml's lossless rowan CST (the same
+        rivet tag as kapsel-scan): rivet-yaml has no edit API, but every node carries
+        its byte range, so set and del replace or remove that range and the text around it is
+        untouched; flow collections, anchors and aliases are refused rather than rewritten. TOML
+        goes through toml_edit, and a replaced value keeps the old value's comments. Before the
+        file is replaced, YAML and TOML results are parsed back and compared with the intended
+        document; a mismatch, a pattern that matches nothing, or a count other than -c N exits 1
+        with the file untouched. The new content is written to a temporary file in the same
+        directory and renamed over FILE, after the write grant check and the symlink refusal
+        that every writer passes.
+      rationale: >
+        Verb: amend a record in place without retyping it. Borrowed from the notary's
+        interlineation rule: a change to an executed instrument is written at the exact place,
+        initialled, and the rest of the page stays as signed, so nobody has to re-read the whole
+        document to trust it; here the bytes outside the edited node are the signed page. Second
+        field, the laboratory notebook's single-strike correction: a correction that cannot be
+        made legibly in place is not forced, a new entry is written instead, and every correction
+        is countersigned; here an edit that cannot be spliced cleanly is refused with a pointer
+        to `edit --lines`, and each spliced result is read back before it is kept.
+      alternatives: >
+        Re-serialize the whole document (serde_yaml, archived in 2024, and every Value-based
+        emitter drop comments and reorder or restyle the rest of the file); a separate
+        comment-preserving YAML crate (a second YAML parser beside rivet-yaml, with its own
+        reading of the same file); sed -i style line edits only (no structure, and a silent
+        no-op on no match, which is the failure this decision exists to stop).
+      source-ref: "kapsel#140, owner 2026-11-27: no python needed for basic stuff, e.g. yaml or json"
+    links:
+      - type: satisfies
+        target: REQ-KS-063
+      - type: refines
+        target: FEAT-KS-022

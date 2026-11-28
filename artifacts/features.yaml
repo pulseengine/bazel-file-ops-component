@@ -122,6 +122,30 @@ artifacts:
       - type: satisfies
         target: REQ-KS-025
 
+  - id: FEAT-KS-022
+    type: feature
+    title: "Edit files and structured data without an interpreter"
+    status: approved
+    release: v0.3.0
+    description: >
+      Built-ins for what python, perl, node and awk were measured to do in agent shell calls:
+      `edit` (literal, regex and multi-line replace in a file, splice by line range), `json`
+      (get, set, del, merge), `yaml` and `toml` (get and set that keep comments), `field`,
+      `lines`, `base64` and `sha256sum`. KS-R009 names the covering built-in when it refuses an
+      interpreter.
+    fields:
+      phase: phase-2
+      acceptance-criteria:
+        - "An edit that matches nothing, or not exactly the count -c names, exits 1 and leaves the file byte for byte as it was"
+        - "Every write is a temporary file in the same directory renamed over FILE, checked against the write grant, and refused through a symlink"
+        - "A yaml or toml set or del changes the edited node only: the rest of a commented file is byte-exact (goldens in kapsel-host/tests/builtins2.rs)"
+        - "kapsel check lists each writer's FILE as read and written, and each get form's FILE as read"
+        - "KS-R009 on python, python3, perl, node, ruby, awk, jq and yq names the built-in for the common use"
+        - "The scripts in testdata/kapsel/builtins2/ give their recorded stdout and files"
+    links:
+      - type: satisfies
+        target: REQ-KS-063
+
   - id: FEAT-KS-030
     type: feature
     title: "Native tools from an allowlist"

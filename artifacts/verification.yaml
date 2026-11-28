@@ -116,3 +116,23 @@ artifacts:
         target: REQ-KS-064
       - type: verifies
         target: REQ-KS-041
+
+  - id: VER-KS-009
+    type: verification
+    title: "Edit and structured-data built-ins: goldens, comment preservation, grants, refusal help"
+    status: approved
+    release: v0.3.0
+    description: >
+      Golden output per built-in and flag, byte-exact YAML and TOML goldens of edited commented
+      files, no partial write when -c fails, every writer refused outside the grants and through
+      a symlink, check-stage grants, KS-R009 help per interpreter, and the end-to-end scripts in
+      testdata/kapsel/builtins2/.
+    fields:
+      method: automated-test
+      test-location: "crates/kapsel-host/tests/builtins2.rs, crates/kapsel-check/src/tests.rs, crates/kapsel-corpus/tests/builtins2.rs"
+      test-name: "builtins2::*, grants_table, r009_names_the_builtin_that_covers_an_interpreter, builtins2_scripts_match_expected"
+    links:
+      - type: verifies
+        target: REQ-KS-063
+      - type: verifies
+        target: FEAT-KS-022

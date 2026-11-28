@@ -8,11 +8,14 @@ use crate::grants;
 use crate::shell::{Shell, Sink, errstr};
 
 mod basic;
+mod data;
+mod edit;
 mod files;
 mod regex_conv;
 mod sed;
 mod text;
 mod text2;
+mod text3;
 mod timefmt;
 
 pub struct Ctx<'a> {
@@ -232,6 +235,185 @@ pub fn getopt(ctx: &mut Ctx, args: &[String], spec: &Spec) -> Result<Parsed, ()>
     Ok(Parsed { flags, operands })
 }
 
+/// The exact flags of the REQ-KS-063 built-ins, as (flag, number of values).
+/// kapsel-check's `xflags_for` has the same table (with which values are
+/// paths); `xflags_tables_agree` keeps the two equal.
+pub fn xflags_for(tool: &str) -> Option<&'static [(&'static str, usize)]> {
+    Some(match tool {
+        "edit" => &[
+            ("-s", 2),
+            ("-e", 2),
+            ("-m", 0),
+            ("-c", 1),
+            ("--allow-none", 0),
+            ("--lines", 1),
+            ("--with", 1),
+            ("--with-text", 1),
+        ],
+        "json" => &[("-c", 0), ("-r", 0), ("-cr", 0), ("-rc", 0), ("--str", 0)],
+        "yaml" => &[("-j", 0), ("--str", 0)],
+        "toml" => &[("--str", 0)],
+        "field" => &[("-d", 1), ("-o", 1)],
+        "lines" => &[],
+        "base64" => &[("-d", 0), ("--decode", 0), ("-w", 1)],
+        "sha256sum" => &[("-c", 0), ("--check", 0)],
+        _ => return None,
+    })
+}
+
+/// Flags (with their values) and operands, parsed by an exact-flag table.
+pub struct XParsed {
+    pub flags: Vec<(&'static str, Vec<String>)>,
+    pub operands: Vec<String>,
+}
+
+impl XParsed {
+    pub fn has(&self, f: &str) -> bool {
+        self.flags.iter().any(|(n, _)| *n == f)
+    }
+    pub fn val(&self, f: &str) -> Option<&[String]> {
+        self.flags
+            .iter()
+            .rev()
+            .find(|(n, _)| *n == f)
+            .map(|(_, v)| v.as_slice())
+    }
+}
+
+/// True for `-1`, `-2.5`: an operand, not a flag.
+pub fn is_negative_number(s: &str) -> bool {
+    s.strip_prefix('-').is_some_and(|r| {
+        r.chars().next().is_some_and(|c| c.is_ascii_digit())
+            && r.chars().all(|c| c.is_ascii_digit() || c == '.')
+    })
+}
+
+/// Parses the arguments of a REQ-KS-063 built-in. Flags are whole words
+/// (no clusters), anywhere on the line; `--` ends them; `-` and negative
+/// numbers are operands. An unknown flag is an error naming the supported set.
+pub fn xgetopt(ctx: &mut Ctx, args: &[String]) -> Result<XParsed, ()> {
+    let table = xflags_for(&ctx.name).unwrap_or(&[]);
+    let mut p = XParsed {
+        flags: Vec::new(),
+        operands: Vec::new(),
+    };
+    let mut i = 0;
+    let mut only_operands = false;
+    while i < args.len() {
+        let a = &args[i];
+        i += 1;
+        if only_operands || !a.starts_with('-') || a == "-" || is_negative_number(a) {
+            p.operands.push(a.clone());
+            continue;
+        }
+        if a == "--" {
+            only_operands = true;
+            continue;
+        }
+        let Some(&(flag, n)) = table.iter().find(|(f, _)| f == a) else {
+            let supported: Vec<String> = table
+                .iter()
+                .map(|(f, n)| match n {
+                    0 => f.to_string(),
+                    1 => format!("{f} X"),
+                    _ => format!("{f} X Y"),
+                })
+                .collect();
+            let name = ctx.name.clone();
+            ctx.msg(&format!(
+                "unknown flag {a}; kapsel's {name} supports: {}",
+                if supported.is_empty() {
+                    "no flags".to_string()
+                } else {
+                    supported.join(" ")
+                }
+            ));
+            return Err(());
+        };
+        if i + n > args.len() {
+            ctx.msg(&format!(
+                "option '{flag}' requires {n} argument{}",
+                if n == 1 { "" } else { "s" }
+            ));
+            return Err(());
+        }
+        p.flags.push((flag, args[i..i + n].to_vec()));
+        i += n;
+    }
+    Ok(p)
+}
+
+/// Replaces `path` with `data` atomically: a temporary file in the same
+/// directory, then a rename over the original, so a reader sees the old
+/// file or the new one and never a partial write. The original's permission
+/// bits are kept. The caller has already passed `path` through
+/// [`Ctx::wpath`] (the write grant, and no existing symlink).
+pub fn atomic_write(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let dir = path.parent().unwrap_or(std::path::Path::new("."));
+    let base = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let perms = std::fs::metadata(path).ok().map(|m| m.permissions());
+    let mut attempt = 0;
+    loop {
+        let n = SEQ.fetch_add(1, Ordering::Relaxed);
+        let tmp = dir.join(format!(".{base}.kapsel-{}-{n}.tmp", std::process::id()));
+        let fh = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp);
+        let mut fh = match fh {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && attempt < 8 => {
+                attempt += 1;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+        let res = fh
+            .write_all(data)
+            .and_then(|()| fh.sync_all())
+            .and_then(|()| match &perms {
+                Some(p) => std::fs::set_permissions(&tmp, p.clone()),
+                None => Ok(()),
+            })
+            .and_then(|()| std::fs::rename(&tmp, path));
+        if res.is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        return res;
+    }
+}
+
+impl Ctx<'_> {
+    /// Resolves FILE for an in-place edit (write grant, no symlink) and reads
+    /// it. Prints the reason and returns None on failure.
+    pub fn edit_target(&mut self, arg: &str) -> Option<(PathBuf, Vec<u8>)> {
+        let path = self.wpath(arg, true)?;
+        match std::fs::read(&path) {
+            Ok(d) => Some((path, d)),
+            Err(e) => {
+                self.io_msg(arg, &e);
+                None
+            }
+        }
+    }
+
+    /// Writes an edited FILE back atomically. Returns the status.
+    pub fn commit(&mut self, arg: &str, path: &std::path::Path, data: &[u8]) -> i32 {
+        match atomic_write(path, data) {
+            Ok(()) => 0,
+            Err(e) => {
+                self.io_msg(arg, &e);
+                1
+            }
+        }
+    }
+}
+
 /// Runs the built-in `args[0]`. Returns the status (256 + n for `exit n`).
 pub fn run(sh: &mut Shell, args: &[String], stdin: Box<dyn Read>, out: Sink, err: Sink) -> i32 {
     let mut ctx = Ctx {
@@ -272,6 +454,14 @@ pub fn run(sh: &mut Shell, args: &[String], stdin: Box<dyn Read>, out: Sink, err
         "ls" => files::ls(&mut ctx, a),
         "date" => timefmt::date(&mut ctx, a),
         "sleep" => timefmt::sleep(&mut ctx, a),
+        "edit" => edit::edit(&mut ctx, a),
+        "json" => data::json(&mut ctx, a),
+        "yaml" => data::yaml(&mut ctx, a),
+        "toml" => data::toml(&mut ctx, a),
+        "field" => text3::field(&mut ctx, a),
+        "lines" => text3::lines(&mut ctx, a),
+        "base64" => text3::base64(&mut ctx, a),
+        "sha256sum" => text3::sha256sum(&mut ctx, a),
         other => {
             let o = other.to_string();
             ctx.msg(&format!("{o}: not a kapsel built-in"));

@@ -1,0 +1,14 @@
+# CI for the demo crate
+name: ci
+on:
+  push:
+    branches: [main]   # only main
+jobs:
+  test:
+    runs-on: ubuntu-24.04  # pinned image
+    steps:
+      # check out first
+      - uses: actions/checkout@v4
+      - run: cargo test
+      - {run: cargo doc}
+    timeout-minutes: 30
