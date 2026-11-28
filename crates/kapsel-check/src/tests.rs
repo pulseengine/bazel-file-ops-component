@@ -538,6 +538,33 @@ fn help_examples_pass_kapsel_s_own_check() {
     assert!(checked >= 30, "only {checked} help fragments checked");
 }
 
+/// REQ-KS-013: built-ins that read the current directory without naming it
+/// grant `.`; a bare `cd` goes to $HOME, which the plan cannot name. Found by
+/// kapsel-cli's grants_from_plan test (`ls` in corpus 012 was denied).
+#[test]
+fn implicit_current_directory_reads_are_granted() {
+    for src in [
+        "ls",
+        "ls -1",
+        "ls -a",
+        "grep -r foo",
+        "grep -rn foo",
+        "grep -R x",
+    ] {
+        let p = plan(src);
+        assert_eq!(p.grants.read, vec!["."], "{src:?}");
+        assert!(!p.grants.dynamic, "{src:?}");
+    }
+    for src in ["ls d", "grep -r foo d", "grep foo"] {
+        assert!(!plan(src).grants.read.contains(&".".to_string()), "{src:?}");
+    }
+    assert!(plan("cd").grants.dynamic);
+    assert!(!plan("cd d").grants.dynamic);
+    // `.` always exists: no KS-R016 for `ls | head`.
+    assert!(!rules("ls | head -n 1").contains(&"KS-R016".to_string()));
+    assert!(rules("ls d | head -n 1").contains(&"KS-R016".to_string()));
+}
+
 #[test]
 fn the_help_example_check_can_fail() {
     // The pre-review KS-R011 help: a brace group, refused with KS-R000.
@@ -851,7 +878,8 @@ const GRANTS: &[(&str, &[&str], &[&str], bool)] = &[
     ("uniq -c f", &["f"], &[], false),
     ("cut -d , -f 1 f", &["f"], &[], false),
     ("ls d1 d2", &["d1", "d2"], &[], false),
-    ("ls", &[], &[], false),
+    // `ls` lists the current directory (it was &[] before the v0.3.0 review).
+    ("ls", &["."], &[], false),
     ("grep foo a b", &["a", "b"], &[], false),
     ("grep -n foo a", &["a"], &[], false),
     ("grep -e foo -e bar a", &["a"], &[], false),

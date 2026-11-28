@@ -29,6 +29,9 @@ global flags:
   --rw DIR     grant read and write access to DIR (the current directory is always granted)
   --ro DIR     grant read access to DIR
   --key FILE   signing key (default: a key under $KAPSEL_HOME/keys, created on first use)
+  --grants-from-plan  (testing, REQ-KS-013) run FILE or -c with exactly the paths the
+               plan grants, not the current directory; refused if the grants are dynamic
+  --drop-grant PATH   (testing, with --grants-from-plan) leave PATH out of those grants
   -h, --help   this text
 ";
 
@@ -45,6 +48,8 @@ struct Opts {
     rw: Vec<String>,
     ro: Vec<String>,
     key: Option<PathBuf>,
+    grants_from_plan: bool,
+    drop_grants: Vec<String>,
     json: bool,
     out: Option<PathBuf>,
     cmd: Option<String>,
@@ -63,6 +68,8 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
         rw: vec![],
         ro: vec![],
         key: None,
+        grants_from_plan: false,
+        drop_grants: vec![],
         json: false,
         out: None,
         cmd: None,
@@ -92,6 +99,8 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
             "--rw" => o.rw.push(value(&mut i, "--rw")?),
             "--ro" => o.ro.push(value(&mut i, "--ro")?),
             "--key" => o.key = Some(PathBuf::from(value(&mut i, "--key")?)),
+            "--grants-from-plan" => o.grants_from_plan = true,
+            "--drop-grant" => o.drop_grants.push(value(&mut i, "--drop-grant")?),
             "-o" => o.out = Some(PathBuf::from(value(&mut i, "-o")?)),
             "--json" => o.json = true,
             "check" if positional == 0 && o.sub == Sub::Run && o.file.is_none() => {
@@ -129,6 +138,14 @@ fn parse_args(args: &[String]) -> Result<Opts, i32> {
     }
     if o.json && o.sub != Sub::Check {
         return Err(usage_error("--json belongs to `check`"));
+    }
+    if o.grants_from_plan && (o.sub != Sub::Run || (o.cmd.is_none() && o.file.is_none())) {
+        return Err(usage_error(
+            "--grants-from-plan runs -c COMMAND or a FILE, not `check`, `compile` or the prompt",
+        ));
+    }
+    if !o.drop_grants.is_empty() && !o.grants_from_plan {
+        return Err(usage_error("--drop-grant needs --grants-from-plan"));
     }
     if o.out.is_some() && o.sub != Sub::Compile {
         return Err(usage_error("-o belongs to `compile`"));
@@ -328,10 +345,20 @@ impl Ctx {
     }
 }
 
-/// parse -> check -> compile -> run. Returns the exit status.
-fn run_source(session: &mut Session, ctx: &Ctx, name: &str, source: &str) -> i32 {
+/// parse -> check -> compile -> run. Returns the exit status. The session is
+/// made after the check, from the plan (`--grants-from-plan` needs it).
+fn run_source(
+    ctx: &Ctx,
+    name: &str,
+    source: &str,
+    make_session: impl FnOnce(&Plan) -> Result<Session, i32>,
+) -> i32 {
     let plan = match front_end(name, source, false) {
         Ok(p) => p,
+        Err(code) => return code,
+    };
+    let mut session = match make_session(&plan) {
+        Ok(s) => s,
         Err(code) => return code,
     };
     let bytes = match ctx.compile(&plan, source) {
@@ -503,14 +530,19 @@ fn real_main() -> i32 {
         Sub::Run => {}
     }
 
-    // Grants: the current directory read-write, plus the flags.
+    // Grants: the current directory read-write, plus the flags. With
+    // --grants-from-plan the current directory is not granted; the plan's
+    // paths are added once the check has produced it.
     let mut grants = GrantSet::default();
-    match std::env::current_dir() {
-        Ok(d) => grants.read_write.push(d),
+    let cwd = match std::env::current_dir() {
+        Ok(d) => d,
         Err(e) => {
             eprintln!("kapsel: current directory: {e}");
             return exit::GRANTS;
         }
+    };
+    if !o.grants_from_plan {
+        grants.read_write.push(cwd.clone());
     }
     for d in &o.rw {
         match check_grant("--rw", d) {
@@ -524,12 +556,11 @@ fn real_main() -> i32 {
             Err(c) => return c,
         }
     }
-    let mut session = match Session::new(grants) {
-        Ok(s) => s,
-        Err(e) => {
+    let new_session = |grants: GrantSet| {
+        Session::new(grants).map_err(|e| {
             eprintln!("kapsel: {e}");
-            return exit::GRANTS;
-        }
+            exit::GRANTS
+        })
     };
 
     if o.cmd.is_some() || o.file.is_some() {
@@ -537,9 +568,49 @@ fn real_main() -> i32 {
             Ok(s) => s,
             Err(c) => return c,
         };
-        return run_source(&mut session, &ctx, &input_name(&o), &source);
+        return run_source(&ctx, &input_name(&o), &source, |plan| {
+            if o.grants_from_plan {
+                plan_grants(plan, &cwd, &o.drop_grants, &mut grants)?;
+            }
+            new_session(grants)
+        });
     }
-    interactive(&mut session, &ctx)
+    match new_session(grants) {
+        Ok(mut session) => interactive(&mut session, &ctx),
+        Err(c) => c,
+    }
+}
+
+/// `--grants-from-plan`: the plan's read and write paths, made absolute
+/// against `cwd`, as exact-path grants, less every `--drop-grant` path.
+/// Refused (exit 78) when the plan's grants are dynamic: then the plan does
+/// not know every path, and there is nothing exact to grant.
+fn plan_grants(
+    plan: &Plan,
+    cwd: &std::path::Path,
+    drop: &[String],
+    grants: &mut GrantSet,
+) -> Result<(), i32> {
+    if plan.grants.dynamic {
+        eprintln!("kapsel: --grants-from-plan: the plan's grants are dynamic");
+        return Err(exit::GRANTS);
+    }
+    for d in drop {
+        let known = plan.grants.read.contains(d) || plan.grants.write.contains(d);
+        if !known {
+            eprintln!("kapsel: --drop-grant {d}: not a grant of the plan");
+            return Err(exit::GRANTS);
+        }
+    }
+    let abs = |p: &String| cwd.join(p);
+    let keep = |p: &&String| !drop.contains(p);
+    grants
+        .paths_read
+        .extend(plan.grants.read.iter().filter(keep).map(abs));
+    grants
+        .paths_write
+        .extend(plan.grants.write.iter().filter(keep).map(abs));
+    Ok(())
 }
 
 fn main() {

@@ -1005,10 +1005,14 @@ impl Cx<'_> {
             }
         };
         match name.as_str() {
-            "cd" => {
-                if let Some(first) = sp.positional.first() {
-                    push(std::slice::from_ref(first), Access::Read);
-                }
+            "cd" => match sp.positional.first() {
+                Some(first) => push(std::slice::from_ref(first), Access::Read),
+                // A bare `cd` goes to $HOME, a path the plan cannot name.
+                None => return (out, true),
+            },
+            // `ls` with no operand lists the current directory.
+            "ls" if sp.positional.is_empty() => {
+                out.push((PWord::literal("."), Access::Read, s.span));
             }
             "cat" | "wc" | "ls" | "head" | "tail" | "cut" => push(&sp.positional, Access::Read),
             "uniq" => {
@@ -1061,6 +1065,17 @@ impl Cx<'_> {
                             Some(_) => {}
                         }
                     }
+                }
+                // `grep -r PATTERN` with no file walks the current directory.
+                let recursive = sp.opts.iter().any(|o| {
+                    o == "--recursive"
+                        || o == "--dereference-recursive"
+                        || (o.starts_with('-')
+                            && !o.starts_with("--")
+                            && o.chars().any(|c| c == 'r' || c == 'R'))
+                });
+                if name == "grep" && recursive && files.is_empty() {
+                    out.push((PWord::literal("."), Access::Read, s.span));
                 }
                 for (w, span) in &files {
                     out.push(((*w).clone(), Access::Read, *span));
@@ -1196,9 +1211,11 @@ impl Cx<'_> {
                 self.check_empty_prefix(w, *span);
             }
             // KS-R016: a non-last stage's failure cannot change the status.
+            // The current directory (`ls`, `grep -r` with no operand) exists.
             if !last_stage
                 && *access == Access::Read
                 && w.as_literal().is_some()
+                && w.as_literal().as_deref() != Some(".")
                 && matches!(
                     name.as_str(),
                     "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort"

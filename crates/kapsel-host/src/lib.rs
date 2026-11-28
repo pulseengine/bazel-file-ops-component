@@ -38,6 +38,12 @@ use bindings::kapsel::shell::host as wit;
 pub struct GrantSet {
     pub read_write: Vec<PathBuf>,
     pub read_only: Vec<PathBuf>,
+    /// Exact absolute paths (and everything under them) that may be read,
+    /// whether or not they exist yet: a plan's read grants, for
+    /// `kapsel --grants-from-plan` (testing REQ-KS-013).
+    pub paths_read: Vec<PathBuf>,
+    /// Exact absolute paths (and everything under them) that may be written.
+    pub paths_write: Vec<PathBuf>,
 }
 
 #[derive(Debug)]

@@ -1131,6 +1131,7 @@ impl G {
         let grants = GrantSet {
             read_write: vec![root.join("work")],
             read_only: vec![root.join("ro")],
+            ..Default::default()
         };
         let s = Session::with_env(grants, root.join("work"), vec![]).unwrap();
         G {
