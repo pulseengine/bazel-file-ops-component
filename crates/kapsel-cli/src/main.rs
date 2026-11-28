@@ -521,12 +521,15 @@ fn read_source(o: &Opts) -> Result<String, i32> {
     }
 }
 
-fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
+fn interactive(session: &mut Session, ctx: &Ctx, grants: Vec<PathBuf>) -> i32 {
     let stdin = std::io::stdin();
     let mut last = 0;
     let mut analysis = Analysis::new();
     // A line editor only on a terminal; every other input keeps the plain reader below.
     let mut ed = editor::Editor::new();
+    if let Some(e) = ed.as_mut() {
+        e.set_grants(grants);
+    }
     // Paths the session's lines write, for a not-found error's "did you mean".
     let mut written: Vec<String> = Vec::new();
     loop {
@@ -693,8 +696,17 @@ fn real_main() -> i32 {
             new_session(grants)
         });
     }
+    // The directories the session may read: completion offers names only there.
+    let readable: Vec<PathBuf> = grants
+        .read_write
+        .iter()
+        .chain(&grants.read_only)
+        .chain(&grants.paths_write)
+        .chain(&grants.paths_read)
+        .cloned()
+        .collect();
     match new_session(grants) {
-        Ok(mut session) => interactive(&mut session, &ctx),
+        Ok(mut session) => interactive(&mut session, &ctx, readable),
         Err(c) => c,
     }
 }

@@ -42,6 +42,7 @@ pub struct Editor {
     rl: Reedline,
     prompt: KapselPrompt,
     cwd: std::sync::Arc<std::sync::Mutex<PathBuf>>,
+    grants: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
 }
 
 impl Editor {
@@ -72,12 +73,17 @@ impl Editor {
         let cwd = std::sync::Arc::new(std::sync::Mutex::new(
             std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
         ));
+        // Until the session says otherwise, nothing is granted to complete.
+        let grants = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let rl = Reedline::create()
             .with_history(history)
             .with_validator(Box::new(KapselValidator))
             .with_highlighter(Box::new(KapselHighlighter))
             .with_hinter(Box::new(RuleHinter))
-            .with_completer(Box::new(KapselCompleter { cwd: cwd.clone() }))
+            .with_completer(Box::new(KapselCompleter {
+                cwd: cwd.clone(),
+                grants: grants.clone(),
+            }))
             .with_menu(ReedlineMenu::EngineCompleter(Box::new(
                 ColumnarMenu::default().with_name("completion_menu"),
             )))
@@ -87,6 +93,7 @@ impl Editor {
             rl,
             prompt: KapselPrompt,
             cwd,
+            grants,
         })
     }
 
@@ -94,6 +101,14 @@ impl Editor {
     pub fn set_cwd(&mut self, dir: PathBuf) {
         if let Ok(mut d) = self.cwd.lock() {
             *d = dir;
+        }
+    }
+
+    /// Tells the completer the session's grants (the directories it may
+    /// read): file names outside them are never offered.
+    pub fn set_grants(&mut self, dirs: Vec<PathBuf>) {
+        if let Ok(mut g) = self.grants.lock() {
+            *g = dirs;
         }
     }
 
@@ -350,11 +365,73 @@ pub fn slot(prefix: &str) -> Slot<'_> {
 /// changes without changing the process's.
 pub struct KapselCompleter {
     cwd: std::sync::Arc<std::sync::Mutex<PathBuf>>,
+    grants: std::sync::Arc<std::sync::Mutex<Vec<PathBuf>>>,
+}
+
+/// `p` made absolute against `dir` with `.` and `..` applied lexically.
+fn lexical(dir: &std::path::Path, p: &std::path::Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for c in dir.join(p).components() {
+        match c {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Where file-name completion may look: `Inside` lists the directory (it is
+/// under a grant, also after its symlinks are followed); `Toward` offers
+/// only the next component of each grant below it, without reading the
+/// directory (nothing outside the grants is probed); `Nothing` otherwise.
+enum Reach {
+    Inside,
+    Toward(Vec<String>),
+    Nothing,
+}
+
+fn reach(base: &std::path::Path, grants: &[PathBuf]) -> Reach {
+    let canon: Vec<PathBuf> = grants
+        .iter()
+        .filter_map(|g| g.canonicalize().ok())
+        .collect();
+    let lexically_inside = grants.iter().chain(&canon).any(|g| base.starts_with(g));
+    if lexically_inside {
+        // A symlink on the way may lead out of the grant.
+        return match base.canonicalize() {
+            Ok(c) if canon.iter().any(|g| c.starts_with(g)) => Reach::Inside,
+            _ => Reach::Nothing,
+        };
+    }
+    let mut next: Vec<String> = grants
+        .iter()
+        .chain(&canon)
+        .filter_map(|g| g.strip_prefix(base).ok())
+        .filter_map(|rest| rest.components().next())
+        .filter_map(|c| c.as_os_str().to_str().map(str::to_string))
+        .collect();
+    next.sort();
+    next.dedup();
+    if next.is_empty() {
+        Reach::Nothing
+    } else {
+        Reach::Toward(next)
+    }
 }
 
 /// Suggestions for the word ending at byte `pos` of `line`; `dir` is where
-/// file names come from.
-pub fn complete_in(line: &str, pos: usize, dir: &std::path::Path) -> Vec<Suggestion> {
+/// file names come from, and only names under `grants` (the session's
+/// read-write and read-only directories) are offered.
+pub fn complete_in(
+    line: &str,
+    pos: usize,
+    dir: &std::path::Path,
+    grants: &[PathBuf],
+) -> Vec<Suggestion> {
     let pos = pos.min(line.len());
     if !line.is_char_boundary(pos) {
         return Vec::new();
@@ -394,13 +471,24 @@ pub fn complete_in(line: &str, pos: usize, dir: &std::path::Path) -> Vec<Suggest
             } else {
                 dir.join(dpart)
             };
-            let Ok(rd) = std::fs::read_dir(&base) else {
-                return Vec::new();
+            let base = lexical(dir, &base);
+            let entries: Vec<(String, bool)> = match reach(&base, grants) {
+                Reach::Nothing => return Vec::new(),
+                Reach::Toward(names) => names.into_iter().map(|n| (n, true)).collect(),
+                Reach::Inside => match std::fs::read_dir(&base) {
+                    Ok(rd) => rd
+                        .flatten()
+                        .filter_map(|e| {
+                            let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
+                            Some((e.file_name().into_string().ok()?, is_dir))
+                        })
+                        .collect(),
+                    Err(_) => return Vec::new(),
+                },
             };
-            let mut out: Vec<Suggestion> = rd
-                .flatten()
-                .filter_map(|e| {
-                    let n = e.file_name().into_string().ok()?;
+            let mut out: Vec<Suggestion> = entries
+                .into_iter()
+                .filter_map(|(n, is_dir)| {
                     // A name with control characters would be printed raw in the
                     // completion menu, where an escape sequence acts on the terminal.
                     if n.chars().any(char::is_control) {
@@ -409,7 +497,6 @@ pub fn complete_in(line: &str, pos: usize, dir: &std::path::Path) -> Vec<Suggest
                     if !n.starts_with(name) || (n.starts_with('.') && !name.starts_with('.')) {
                         return None;
                     }
-                    let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
                     let mut v = String::new();
                     if cur.contains('/') {
                         v.push_str(dpart);
@@ -448,7 +535,8 @@ impl Completer for KapselCompleter {
             .lock()
             .map(|d| d.clone())
             .unwrap_or_else(|_| PathBuf::from("."));
-        CompletionResult::fresh(complete_in(line, pos, &dir))
+        let grants = self.grants.lock().map(|g| g.clone()).unwrap_or_default();
+        CompletionResult::fresh(complete_in(line, pos, &dir, &grants))
     }
 }
 
@@ -457,7 +545,7 @@ mod tests {
     use super::*;
 
     fn values(line: &str, dir: &std::path::Path) -> Vec<String> {
-        complete_in(line, line.len(), dir)
+        complete_in(line, line.len(), dir, &[dir.to_path_buf()])
             .into_iter()
             .map(|s| s.value)
             .collect()
@@ -598,10 +686,50 @@ mod tests {
         assert!(values("cat b", d.path()).is_empty());
     }
 
+    /// Second review, non-blocking 4: file names come only from under the
+    /// session's grants (cwd plus `--rw` / `--ro`); outside them nothing is
+    /// listed, and a directory above a grant offers only the way to it.
+    #[test]
+    fn file_names_outside_the_grants_are_never_offered() {
+        let root = tempfile::tempdir().unwrap();
+        let cwd = root.path().join("work");
+        let ro = root.path().join("shared");
+        let secret = root.path().join("secret");
+        for d in [&cwd, &ro, &secret] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(cwd.join("mine"), "").unwrap();
+        std::fs::write(ro.join("doc"), "").unwrap();
+        std::fs::write(secret.join("key"), "").unwrap();
+        std::os::unix::fs::symlink(&secret, cwd.join("link")).unwrap();
+        let grants = vec![cwd.clone(), ro.clone()];
+        let v = |line: &str| -> Vec<String> {
+            complete_in(line, line.len(), &cwd, &grants)
+                .into_iter()
+                .map(|s| s.value)
+                .collect()
+        };
+        assert_eq!(v("cat m"), vec!["mine"]);
+        // A granted directory, by `..` and by absolute path.
+        assert_eq!(v("cat ../shared/d"), vec!["../shared/doc"]);
+        let abs = format!("cat {}/d", ro.display());
+        assert_eq!(v(&abs), vec![format!("{}/doc", ro.display())]);
+        // Not granted: by `..`, by absolute path, through a symlink.
+        assert!(v("cat ../secret/").is_empty());
+        assert!(v(&format!("cat {}/", secret.display())).is_empty());
+        assert!(v("cat link/").is_empty());
+        assert!(v("cat /etc/pas").is_empty());
+        // Above the grants: only the next step toward each one.
+        assert_eq!(v("cat ../"), vec!["../shared/", "../work/"]);
+        assert!(!v("cat ../").iter().any(|s| s.contains("secret")));
+        // No grants, no names.
+        assert!(complete_in("cat m", 5, &cwd, &[]).is_empty());
+    }
+
     #[test]
     fn suggestion_spans_replace_the_typed_word() {
         let d = tempfile::tempdir().unwrap();
-        let s = complete_in("cat f | gre", 11, d.path());
+        let s = complete_in("cat f | gre", 11, d.path(), &[d.path().to_path_buf()]);
         assert_eq!((s[0].span.start, s[0].span.end), (8, 11));
     }
 
