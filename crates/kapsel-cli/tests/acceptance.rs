@@ -506,3 +506,33 @@ fn unknown_command_is_refused_not_run() {
     assert_eq!(o.status.code(), Some(65));
     assert!(err(&o).contains("KS-R009"), "{}", err(&o));
 }
+
+/// B1 of the v0.3.0 review: through the binary, `|| true | cat` printed
+/// `status=0`. Every right-hand side of `||` that cannot fail is refused
+/// before anything runs.
+#[test]
+fn or_rhs_that_cannot_fail_is_refused_through_the_binary() {
+    for src in [
+        "grep -q x missing.txt || true | cat; echo \"status=$?\"",
+        "grep -q x missing.txt || ! false; echo \"status=$?\"",
+        "grep -q x missing.txt || exit 0",
+        "grep -q x missing.txt || test 1; echo \"status=$?\"",
+        "grep -q x missing.txt || [ -n x ]; echo \"status=$?\"",
+    ] {
+        let e = Env::new();
+        let o = e.cmd().args(["-c", src]).output().unwrap();
+        assert_eq!(o.status.code(), Some(65), "{src}: {}", err(&o));
+        assert_eq!(out(&o), "", "{src}: nothing runs");
+        assert!(err(&o).contains("error[KS-R001]"), "{src}: {}", err(&o));
+    }
+    // The controls run, and the failure shows in the status.
+    for (src, code) in [
+        ("grep -q x missing.txt || exit 1", 1),
+        ("grep -q x missing.txt || false", 1),
+        ("grep -q x missing.txt || exit", 2),
+    ] {
+        let e = Env::new();
+        let o = e.cmd().args(["-c", src]).output().unwrap();
+        assert_eq!(o.status.code(), Some(code), "{src}: {}", err(&o));
+    }
+}

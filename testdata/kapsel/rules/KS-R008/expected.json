@@ -8,7 +8,7 @@
       "end": 14
     },
     "excerpt": "pkill -f build",
-    "help": "find the process id you started and kill that one: `kill PID` (`pkill` matches by name and can hit others)",
+    "help": "kill only the process id you started, outside kapsel (it has no `kill` built-in in v0.3); `pkill` matches by name and can hit others",
     "notes": [
       "pattern kills also hit processes this session never started"
     ]

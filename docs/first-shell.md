@@ -60,8 +60,18 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
 - **Grants:** the session may read and write the current directory and nothing else unless
   `--rw DIR` / `--ro DIR` add more. A path outside every grant fails the built-in with exit 1 and a
   message; it never touches the file. `ZWINGER_GRANTS` (REQ-KS-023) replaces the flags in v0.4.
+  For testing REQ-KS-013, `--grants-from-plan` grants exactly the plan's read and write paths and
+  not the current directory (refused when the plan's grants are dynamic), and `--drop-grant PATH`
+  leaves one of them out; `crates/kapsel-cli/tests/grants_from_plan.rs` runs the dash corpus and
+  the acceptance lines both ways.
 - **Exit codes** (`kapsel_plan::exit`): command status 0 to 255 passes through; 64 usage,
   65 refused, 70 internal, 78 grants. Built-ins use only 0, 1 and 2.
+  A script can still `exit 64`, `65`, `70` or `78` itself (KS-R018 warns when it does), so the
+  status alone does not say who failed. A caller tells them apart this way: kapsel's own failures
+  print on stderr, a line starting `kapsel:` for usage, grants and internal errors, and an
+  `error[KS-…]` diagnostic for a refusal; and `kapsel check --json` settles refusal before
+  anything runs (exit 65 with a refusal object, or 0 with a plan), so after a passing check a 65
+  from the run came from the script.
 
 ## Refusal rules, first batch (DD-KS-004)
 
@@ -69,7 +79,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 
 | Id | Severity | Construct |
 |---|---|---|
-| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal) |
+| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is always 0: a pipeline with a `true` or `:` stage, `! false`, `exit 0`, a constant-true `test`/`[`, a loop whose body always ends with status 0 |
 | KS-R002 | warn | `2>/dev/null` on a command whose failure is not otherwise handled |
 | KS-R003 | refuse | `rm -r`/`-rf` whose path is `/`, `~`, `.`, `..`, empty, or begins with an unquoted or possibly-empty expansion (`rm -rf $X/`) |
 | KS-R004 | refuse | code from strings: `eval`, `sh -c`, `bash -c`, `source`, `.` |
@@ -80,6 +90,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 | KS-R009 | refuse | a command that is not a built-in (names the command, points at v0.5 native tools; for python, perl, node, ruby, awk, jq or yq, names the built-in that covers the common use) |
 | KS-R010 | refuse | a dynamic command name |
 | KS-R000 | refuse | a parse error: the construct is outside the subset (names it) |
+| KS-R018 | warn | `exit 64`, `65`, `70` or `78` (modulo 256): the script's status collides with kapsel's own failure codes |
 
 ## Oracles
 

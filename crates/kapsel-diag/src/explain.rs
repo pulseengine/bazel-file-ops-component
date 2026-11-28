@@ -6,7 +6,7 @@
 pub const RULE_IDS: &[&str] = &[
     "KS-R000", "KS-R001", "KS-R002", "KS-R003", "KS-R004", "KS-R005", "KS-R006", "KS-R007",
     "KS-R008", "KS-R009", "KS-R010", "KS-R011", "KS-R012", "KS-R013", "KS-R014", "KS-R015",
-    "KS-R016", "KS-R017", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
+    "KS-R016", "KS-R017", "KS-R018", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
 ];
 
 /// The long-form explanation of `rule_id`, or `None` for an unknown id.
@@ -32,6 +32,7 @@ pub fn explain(rule_id: &str) -> Option<&'static str> {
         "KS-R015" => R015,
         "KS-R016" => R016,
         "KS-R017" => R017,
+        "KS-R018" => R018,
         "KS-S001" => S001,
         "KS-S002" => S002,
         "KS-S003" => S003,
@@ -78,8 +79,21 @@ is destroyed, and nothing records that it happened.
     false || true
     rm stale.lock || :
 
+Any right-hand side of `||` whose status is always 0 does the same, and is
+refused the same way; the message names the construct:
+
+    grep -q x f || true | cat     # a pipeline with `true` or `:` as a stage
+    grep -q x f || ! false        # `!` of something that always fails
+    grep -q x f || exit 0         # also `exit 256`, and a bare `exit` after `echo`
+    grep -q x f || test 1         # a test of constants: `[ 1 ]`, `[ -n x ]`
+    grep -q x f || for i in a; do :; done   # a loop whose body ends in status 0
+
+`cmd || exit 1`, `cmd || false` and `cmd || echo none` (KS-R011, a warning)
+are not KS-R001: their status can be non-zero.
+
 What to do instead:
-- Handle the failure: `cmd || echo \"cmd failed\" >&2` keeps a trace.
+- Drop the `|| true` and let the command fail.
+- Stop on the failure: `cmd || exit 1`.
 - If failure is expected and harmless, test for the condition instead:
   `test -e stale.lock && rm stale.lock`.
 - If only a specific status is fine, check it: `grep -q x f; test $? -le 1`.
@@ -231,7 +245,8 @@ signature check had failed.
     cosign verify ... || echo \"verify failed\"
 
 What to do instead:
-- Stop on failure: `cmd || { echo 'cmd failed' >&2; exit 1; }`.
+- Stop on failure: `cmd || exit 1`, or drop the `|| echo` and let the
+  command fail with its own message.
 - Keep `|| echo` only when the message is the whole report and success
   really is the right status.
 ";
@@ -316,6 +331,27 @@ the filesystem root instead of the intended directory (91 measured).
 What to do instead:
 - Check it first: `test -n \"$DEST\" && cp a.txt \"$DEST/a.txt\"`.
 - Or use a literal relative path.
+";
+
+const R018: &str = "\
+KS-R018: exit code collides with kapsel's own (warn)
+
+kapsel exits 64 for a usage error, 65 for a refusal, 70 for an internal
+error and 78 for a grants error (REQ-KS-014). A script that runs `exit 65`
+gives its caller the same status as a script kapsel refused, so the status
+alone cannot say who failed. Statuses are taken modulo 256: `exit 321` is 65.
+
+    grep -q x config.txt || exit 65
+
+How a caller tells them apart:
+- kapsel's own failures also print on stderr: a line starting `kapsel:`
+  (usage, grants, internal) or an `error[KS-...]` diagnostic (refused).
+- `kapsel check --json` decides refusal before anything runs: it exits 65
+  with a refusal object, or 0 with a plan. A caller that checks first knows
+  that a later 65 came from the script.
+
+What to do instead:
+- Pick a status kapsel does not use, e.g. `exit 1`, or 2 to 63.
 ";
 
 const S001: &str = "\

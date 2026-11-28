@@ -5,14 +5,15 @@ false || true
 cat missing.txt | sort
 jq . a.json
 --- output
-error[KS-R001]: `|| true` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`
+error[KS-R001]: `|| true` turns any failure of the command before it into success and destroys the error signal; let the command fail, or stop with `|| exit 1`
  --> script.sh:1:7
   |
 1 | false || true
   |       ^^^^^^^
   |
   = note: `|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)
-  = help: handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| true`
+  = note: any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0
+  = help: drop the `|| true` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`
 
 warning[KS-R016]: `cat missing.txt` reads a path that may not exist in a pipeline stage that is not the last, so a failure here cannot change the pipeline's status
  --> script.sh:2:5

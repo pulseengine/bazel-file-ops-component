@@ -38,6 +38,9 @@ impl GrantErr {
 pub struct Grants {
     pub read_write: Vec<PathBuf>,
     pub read_only: Vec<PathBuf>,
+    /// Exact paths, resolved but not required to exist (`GrantSet::paths_*`).
+    pub paths_write: Vec<PathBuf>,
+    pub paths_read: Vec<PathBuf>,
 }
 
 impl Grants {
@@ -51,18 +54,39 @@ impl Grants {
             }
             Ok(c)
         };
+        let exact = |p: &PathBuf| -> Result<PathBuf, HostError> {
+            if !p.is_absolute() {
+                return Err(HostError(format!("grant {}: not absolute", p.display())));
+            }
+            resolve(Path::new("/"), p)
+                .map_err(|e| HostError(format!("grant {}: {}", p.display(), e.reason())))
+        };
         Ok(Self {
             read_write: set.read_write.iter().map(canon).collect::<Result<_, _>>()?,
             read_only: set.read_only.iter().map(canon).collect::<Result<_, _>>()?,
+            paths_write: set
+                .paths_write
+                .iter()
+                .map(exact)
+                .collect::<Result<_, _>>()?,
+            paths_read: set.paths_read.iter().map(exact).collect::<Result<_, _>>()?,
         })
     }
 
     pub fn can_write(&self, resolved: &Path) -> bool {
-        self.read_write.iter().any(|g| resolved.starts_with(g))
+        self.read_write
+            .iter()
+            .chain(&self.paths_write)
+            .any(|g| resolved.starts_with(g))
     }
 
     pub fn can_read(&self, resolved: &Path) -> bool {
-        self.can_write(resolved) || self.read_only.iter().any(|g| resolved.starts_with(g))
+        self.can_write(resolved)
+            || self
+                .read_only
+                .iter()
+                .chain(&self.paths_read)
+                .any(|g| resolved.starts_with(g))
     }
 
     /// Resolves an operand for reading and checks it against the grants.
@@ -196,5 +220,41 @@ pub fn resolve_nofollow_last(cwd: &Path, path: &Path) -> Result<PathBuf, GrantEr
     match (abs.parent(), abs.components().next_back()) {
         (Some(parent), Some(Component::Normal(name))) => Ok(resolve(cwd, parent)?.join(name)),
         _ => resolve(cwd, &abs),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `GrantSet::paths_*` (`kapsel --grants-from-plan`): an exact path and
+    /// everything under it, existing or not, and nothing beside it.
+    #[test]
+    fn exact_path_grants_cover_the_path_and_below_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::write(root.join("a"), "x").unwrap();
+        let set = GrantSet {
+            paths_read: vec![root.join("a")],
+            paths_write: vec![root.join("out"), root.join("new.txt")],
+            ..Default::default()
+        };
+        let g = Grants::new(&set).unwrap();
+        assert!(g.check_read(&root, "a").is_ok());
+        assert_eq!(g.check_write(&root, "a", true), Err(GrantErr::Outside));
+        assert_eq!(g.check_read(&root, "b"), Err(GrantErr::Outside));
+        assert_eq!(g.check_read(&root, "."), Err(GrantErr::Outside));
+        assert!(g.check_write(&root, "new.txt", true).is_ok());
+        assert!(g.check_write(&root, "out/x/y", true).is_ok());
+        assert!(g.check_read(&root, "out/x").is_ok());
+        assert_eq!(g.check_write(&root, "outer", true), Err(GrantErr::Outside));
+        let rel = GrantSet {
+            paths_read: vec![PathBuf::from("a")],
+            ..Default::default()
+        };
+        assert!(
+            Grants::new(&rel).is_err(),
+            "a relative exact path is refused"
+        );
     }
 }

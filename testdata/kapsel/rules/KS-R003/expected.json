@@ -8,7 +8,7 @@
       "end": 14
     },
     "excerpt": "$BUILD/",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -22,7 +22,7 @@
       "end": 24
     },
     "excerpt": "//",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -36,7 +36,7 @@
       "end": 35
     },
     "excerpt": "/./",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -50,7 +50,7 @@
       "end": 45
     },
     "excerpt": "/*",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -64,7 +64,7 @@
       "end": 60
     },
     "excerpt": "\"$HOME\"/",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -78,7 +78,7 @@
       "end": 71
     },
     "excerpt": "./*",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]
@@ -92,7 +92,7 @@
       "end": 86
     },
     "excerpt": "a/../..",
-    "help": "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`",
+    "help": "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`",
     "notes": [
       "a recursive delete whose path can be empty, `/`, `~` or `.` is a never event: one unset variable removes everything"
     ]

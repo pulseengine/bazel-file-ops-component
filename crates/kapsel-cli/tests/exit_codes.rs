@@ -119,3 +119,44 @@ fn varve_toolchain_layer_is_2026_11_28_or_later() {
     );
     assert_eq!(toml_value(&text, "realm").as_deref(), Some("covalent"));
 }
+
+/// REQ-KS-014 and KS-R018: a script's own `exit 64|65|70|78` gives the same
+/// status as kapsel's own failure, and the two are told apart the way
+/// docs/first-shell.md says: kapsel's failures print `kapsel:` or an
+/// `error[KS-…]` diagnostic on stderr, and `check --json` settles refusal
+/// before anything runs.
+#[test]
+fn a_script_exit_code_that_collides_is_told_apart_from_kapsel_s_own() {
+    // A line that starts with `kapsel:` or `error[KS-`.
+    let marked = |err: &str| {
+        err.lines()
+            .any(|l| l.starts_with("kapsel:") || l.starts_with("error[KS-"))
+    };
+    for (code, kapsel_failure) in [
+        (64, vec!["-c"]),
+        (65, vec!["-c", "false || true"]),
+        (78, vec!["--rw", "/definitely/not/here", "-c", "echo"]),
+    ] {
+        let (k_code, _, k_err) = run(&kapsel_failure);
+        let script = format!("exit {code}");
+        let (s_code, _, s_err) = run(&["-c", &script]);
+        assert_eq!(k_code, Some(code), "{kapsel_failure:?}: {k_err}");
+        assert_eq!(s_code, Some(code), "{script}: {s_err}");
+        assert!(
+            marked(&k_err),
+            "kapsel's own failure is marked on stderr: {k_err}"
+        );
+        assert!(
+            !marked(&s_err),
+            "the script's own exit is not marked as kapsel's: {s_err}"
+        );
+        assert!(s_err.contains("warning[KS-R018]"), "{s_err}");
+        // check --json: a plan (exit 0) for the script, a refusal for kapsel's.
+        let (c_code, c_out, _) = run(&["check", "--json", "-c", &script]);
+        assert_eq!(c_code, Some(0));
+        assert!(c_out.contains("\"KS-R018\""), "{c_out}");
+    }
+    let (c_code, c_out, _) = run(&["check", "--json", "-c", "false || true"]);
+    assert_eq!(c_code, Some(65));
+    assert!(c_out.contains("\"KS-R001\""), "{c_out}");
+}

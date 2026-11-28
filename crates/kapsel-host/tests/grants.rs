@@ -28,6 +28,7 @@ impl G {
         let grants = GrantSet {
             read_write: vec![root.join("work")],
             read_only: vec![root.join("ro")],
+            ..Default::default()
         };
         let s = Session::with_env(grants, root.join("work"), vec![]).unwrap();
         G {
@@ -448,12 +449,14 @@ fn invalid_grants_are_errors() {
     let g = GrantSet {
         read_write: vec![PathBuf::from("/definitely/not/here")],
         read_only: vec![],
+        ..Default::default()
     };
     assert!(Session::new(g).is_err());
     let f = tempfile::NamedTempFile::new().unwrap();
     let g = GrantSet {
         read_write: vec![f.path().to_path_buf()],
         read_only: vec![],
+        ..Default::default()
     };
     let e = Session::new(g).err().unwrap();
     assert!(e.0.contains("not a directory"), "{}", e.0);

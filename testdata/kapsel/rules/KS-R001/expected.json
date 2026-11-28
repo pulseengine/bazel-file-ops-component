@@ -2,29 +2,121 @@
   {
     "rule": "KS-R001",
     "severity": "refuse",
-    "message": "`|| true` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`",
+    "message": "`|| true` turns any failure of the command before it into success and destroys the error signal; let the command fail, or stop with `|| exit 1`",
     "span": {
       "start": 24,
       "end": 31
     },
     "excerpt": "|| true",
-    "help": "handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| true`",
+    "help": "drop the `|| true` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
     "notes": [
-      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)"
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
     ]
   },
   {
     "rule": "KS-R001",
     "severity": "refuse",
-    "message": "`|| :` turns any failure of the command before it into success and destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`",
+    "message": "`|| :` turns any failure of the command before it into success and destroys the error signal; let the command fail, or stop with `|| exit 1`",
     "span": {
       "start": 56,
       "end": 60
     },
     "excerpt": "|| :",
-    "help": "handle the failure explicitly: `cmd || { echo 'cmd failed, continuing because ...' >&2; }`, or drop the `|| :`",
+    "help": "drop the `|| :` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
     "notes": [
-      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)"
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| true | cat` cannot fail: the pipeline `true | cat` has `true` as a stage: it does no work whose failure the status could report, and the stages after it read nothing; like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 83,
+      "end": 96
+    },
+    "excerpt": "|| true | cat",
+    "help": "drop the `|| true | cat` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| ! false` cannot fail: `! false` negates a command that always fails (`false` always has status 1); like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 119,
+      "end": 129
+    },
+    "excerpt": "|| ! false",
+    "help": "drop the `|| ! false` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| exit 0` cannot fail: `exit 0` always exits with status 0; like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 152,
+      "end": 161
+    },
+    "excerpt": "|| exit 0",
+    "help": "drop the `|| exit 0` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| test 1` cannot fail: `test 1` tests constants and is always true; like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 184,
+      "end": 193
+    },
+    "excerpt": "|| test 1",
+    "help": "drop the `|| test 1` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| [ -n x ]` cannot fail: `[ -n x ]` tests constants and is always true; like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 216,
+      "end": 227
+    },
+    "excerpt": "|| [ -n x ]",
+    "help": "drop the `|| [ -n x ]` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
+    ]
+  },
+  {
+    "rule": "KS-R001",
+    "severity": "refuse",
+    "message": "`|| for f in a; do :; done` cannot fail: the `for` loop's body always ends with status 0 (`:` always has status 0), and a loop with no items has status 0 too; like `|| true`, it turns any failure of the command before it into success and destroys the error signal",
+    "span": {
+      "start": 250,
+      "end": 275
+    },
+    "excerpt": "|| for f in a; do :; done",
+    "help": "drop the `|| for f in a; do :; done` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`",
+    "notes": [
+      "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+      "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0"
     ]
   }
 ]

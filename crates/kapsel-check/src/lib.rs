@@ -16,6 +16,7 @@ use kapsel_plan::{
 use sha2::{Digest, Sha256};
 
 mod args;
+mod status;
 pub use args::{XFlag, XVal, xflags_for as builtin_xflags};
 use args::{leading_literal, rm_danger, sed_in_place, spec_for, split_args, xflags_for, xsplit};
 
@@ -39,13 +40,27 @@ pub const R014: &str = "KS-R014";
 pub const R015: &str = "KS-R015";
 pub const R016: &str = "KS-R016";
 pub const R017: &str = "KS-R017";
+pub const R018: &str = "KS-R018";
 
 /// Every rule id this crate can put on a finding, in order. One list: the plant
 /// pack, the explain table and the registry tests read it (REQ-KS-016).
 pub const RULES: &[&str] = &[
     R000, R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013, R014, R015,
-    R016, R017,
+    R016, R017, R018,
 ];
+
+/// The exit codes kapsel itself uses for its own failures (REQ-KS-014,
+/// `kapsel_plan::exit`): a script's `exit N` with one of these collides (KS-R018).
+const KAPSEL_EXIT_CODES: &[(i32, &str)] = &[
+    (kapsel_plan::exit::USAGE, "usage error"),
+    (kapsel_plan::exit::REFUSED, "refusal"),
+    (kapsel_plan::exit::INTERNAL, "internal error"),
+    (kapsel_plan::exit::GRANTS, "grants error"),
+];
+
+/// The help line given when a parse error carries none of its own (KS-R000).
+const R000_HELP: &str = "rewrite it with pipes, redirects, `&&`, `||`, `;`, quoting, `$(...)` and \
+                         `for`/`while`/`until` only";
 
 /// Shells that `-c` turns into code-from-strings (KS-R004).
 const SHELLS: &[&str] = &["sh", "bash", "dash", "zsh", "ksh"];
@@ -69,6 +84,7 @@ fn notes_for(rule: &str) -> Vec<String> {
         ],
         R001 => &[
             "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
+            "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0",
         ],
         R002 => &[
             "2>/dev/null appears in 21% of measured agent shell calls and hides the error the next step needs",
@@ -113,6 +129,9 @@ fn notes_for(rule: &str) -> Vec<String> {
         R017 => &[
             "an unset or empty variable at the start of a path silently turns `\"$DIR/x\"` into `/x` (91 measured)",
         ],
+        R018 => &[
+            "kapsel exits 64 (usage), 65 (refused), 70 (internal) and 78 (grants) for its own failures; a script that exits with one of them looks like kapsel failed (REQ-KS-014)",
+        ],
         R010 => &[
             "the command name decides what the grant check applies to, so it must be known before the plan is accepted",
         ],
@@ -124,17 +143,17 @@ fn notes_for(rule: &str) -> Vec<String> {
 fn help_for(rule: &str, name: &str) -> String {
     match rule {
         R001 => format!(
-            "handle the failure explicitly: `cmd || {{ echo 'cmd failed, continuing because ...' >&2; }}`, or drop the `|| {name}`"
+            "drop the `|| {name}` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`"
         ),
         R002 => "drop the `2>/dev/null` so the error shows, or test the status: `cmd 2>/dev/null || echo 'cmd failed' >&2`".to_string(),
-        R003 => "quote the variable and guard it: `test -n \"$X\" && rm -rf -- \"$X/sub\"`, or name a literal subpath such as `rm -rf ./build`".to_string(),
+        R003 => "name a literal subpath such as `rm -rf ./build`, or start the path with a literal directory so an empty variable stays inside it: `rm -rf -- \"build/$X\"`".to_string(),
         R004 => format!("write the commands out as separate commands instead of `{name}`; if the text really is dynamic, split it into steps that each pass the check"),
         R005 => "remove `set`; kapsel runs with fixed status rules: handle each failure with `||` or `&&` where it matters".to_string(),
-        R006 => "download to a file, read it, then run it as a reviewed script: `curl -o install.sh URL`, then `cat install.sh`".to_string(),
+        R006 => "download the script to a file outside kapsel (it has no network built-in in v0.3), read it with `cat install.sh`, and run it only as a reviewed, checked script: `kapsel install.sh`".to_string(),
         R007 => format!("run `{name}`'s command in the foreground, or start it outside kapsel; nothing may outlive the plan"),
-        R008 => format!("find the process id you started and kill that one: `kill PID` (`{name}` matches by name and can hit others)"),
+        R008 => format!("kill only the process id you started, outside kapsel (it has no `kill` built-in in v0.3); `{name}` matches by name and can hit others"),
         R009 => format!("use one of the built-ins ({}), or wait for native tools in v0.5 (REQ-KS-030)", BUILTINS.join(", ")),
-        R011 => "stop the line on failure: `cmd || { echo 'cmd failed' >&2; exit 1; }`; keep `|| echo` only when the message is the whole report".to_string(),
+        R011 => format!("stop the line on failure: `cmd || exit 1`, or drop the `|| {name}` and let the command fail; keep `|| {name}` only when the message is the whole report"),
         R012 => "quote the target: `> \"$FILE\"`".to_string(),
         R013 => "quote the operand: `[ \"$n\" -eq 0 ]`".to_string(),
         R014 => "chain with `&&`: `cd X && cmd`, so the next command only runs if the cd worked".to_string(),
@@ -142,6 +161,7 @@ fn help_for(rule: &str, name: &str) -> String {
         R016 => format!("test the path first (`[ -e {name} ] &&`) or make it the last stage"),
         R017 => format!("check it first: `test -n \"${name}\" &&`"),
         R010 => "write the command name literally, e.g. `cp` instead of `$CMD`; put the variable in an argument instead".to_string(),
+        R018 => format!("pick a status kapsel does not use, e.g. `exit 1` instead of `{name}`; kapsel's own failures also print `kapsel:` (usage, grants, internal) or an `error[KS-…]` diagnostic (refused) on stderr, and `kapsel check --json` tells a refusal from a plan before anything runs"),
         _ => String::new(),
     }
 }
@@ -305,11 +325,7 @@ pub fn refuse_parse_errors(source: &str, errors: &[ast::ParseError]) -> CheckOut
                 if rule == R007 {
                     return Some(help_for(R007, "&"));
                 }
-                Some(
-                    "rewrite it with pipes, redirects, `&&`, `||`, `;`, quoting, `$(...)` and \
-                     `for`/`while`/`until` only"
-                        .to_string(),
-                )
+                Some(R000_HELP.to_string())
             });
             if !e.expected.is_empty() {
                 f.notes.insert(0, format!("expected {}", e.expected.join(" or ")));
@@ -389,20 +405,21 @@ impl Cx<'_> {
         PAndOr { first, rest }
     }
 
-    /// KS-R001: `|| true` and `|| :` turn a failure into success.
+    /// KS-R001: a right-hand side of `||` that cannot fail (`|| true`, `|| :`,
+    /// `|| true | cat`, `|| ! false`, `|| exit 0`, `|| test 1`, a loop whose
+    /// body ends in `:`) turns a failure into success. See `status`.
     fn check_or_true(&mut self, rhs: &ast::Pipeline, prev_end: u32) {
-        if rhs.negated || rhs.commands.len() != 1 {
-            return;
-        }
-        let ast::Command::Simple(cmd) = &rhs.commands[0] else {
+        let Some(why) = status::pipeline_zero(rhs, false, self.source) else {
             return;
         };
-        let Some(name) = cmd.words.first().and_then(literal_of) else {
-            return;
+        let rhs_text = excerpt(self.source, rhs.span).trim().to_string();
+        // The plain idiom (`|| true` with nothing else) keeps its short message.
+        let idiom = match rhs.commands.as_slice() {
+            [ast::Command::Simple(cmd)] if !rhs.negated && cmd.words.len() == 1 => {
+                literal_of(&cmd.words[0]).filter(|n| n == "true" || n == ":")
+            }
+            _ => None,
         };
-        if name != "true" && name != ":" {
-            return;
-        }
         // Widen the span back over the `||` operator when the text allows it.
         let gap = self
             .source
@@ -411,15 +428,18 @@ impl Cx<'_> {
         let start = gap
             .rfind("||")
             .map_or(rhs.span.start, |i| prev_end + i as u32);
-        self.refuse(
-            R001,
-            format!(
+        let message = match &idiom {
+            Some(name) => format!(
                 "`|| {name}` turns any failure of the command before it into success and \
-                 destroys the error signal; handle the failure explicitly, e.g. `|| echo ...`"
+                 destroys the error signal; let the command fail, or stop with `|| exit 1`"
             ),
-            ast::Span::new(start, rhs.span.end),
-        );
-        self.help(help_for(R001, &name));
+            None => format!(
+                "`|| {rhs_text}` cannot fail: {why}; like `|| true`, it turns any failure of \
+                 the command before it into success and destroys the error signal"
+            ),
+        };
+        self.refuse(R001, message, ast::Span::new(start, rhs.span.end));
+        self.help(help_for(R001, idiom.as_deref().unwrap_or(&rhs_text)));
     }
 
     fn lower_pipeline(&mut self, p: &ast::Pipeline, handled: bool) -> PPipeline {
@@ -654,6 +674,9 @@ impl Cx<'_> {
                     self.help(help_for(R013, ""));
                 }
             }
+            if name == "exit" {
+                self.check_exit_code(s);
+            }
             if name == "rm" {
                 let spans: Vec<ast::Span> = s.words.iter().skip(1).map(|w| w.span).collect();
                 self.check_rm(args, &spans);
@@ -678,6 +701,36 @@ impl Cx<'_> {
             self.help(h);
         }
         None
+    }
+
+    /// KS-R018: `exit N` where N (modulo 256) is one of kapsel's own codes.
+    fn check_exit_code(&mut self, s: &ast::SimpleCommand) {
+        let Some(word) = s.words.get(1) else {
+            return;
+        };
+        let Some(n) = literal_of(word) else {
+            return;
+        };
+        if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
+            return;
+        }
+        let Ok(v) = n.parse::<u128>() else {
+            return;
+        };
+        let status = (v % 256) as i32;
+        let Some((code, what)) = KAPSEL_EXIT_CODES.iter().find(|(c, _)| *c == status) else {
+            return;
+        };
+        let text = excerpt(self.source, s.span).trim().to_string();
+        self.warn(
+            R018,
+            format!(
+                "`{text}` exits with {code}, the code kapsel uses for its own {what}: a caller \
+                 cannot tell from the status alone whether the script or kapsel failed"
+            ),
+            s.span,
+        );
+        self.help(help_for(R018, &text));
     }
 
     /// KS-R003: recursive `rm` on a path that can be the root, home, or cwd.
@@ -952,10 +1005,14 @@ impl Cx<'_> {
             }
         };
         match name.as_str() {
-            "cd" => {
-                if let Some(first) = sp.positional.first() {
-                    push(std::slice::from_ref(first), Access::Read);
-                }
+            "cd" => match sp.positional.first() {
+                Some(first) => push(std::slice::from_ref(first), Access::Read),
+                // A bare `cd` goes to $HOME, a path the plan cannot name.
+                None => return (out, true),
+            },
+            // `ls` with no operand lists the current directory.
+            "ls" if sp.positional.is_empty() => {
+                out.push((PWord::literal("."), Access::Read, s.span));
             }
             "cat" | "wc" | "ls" | "head" | "tail" | "cut" => push(&sp.positional, Access::Read),
             "uniq" => {
@@ -1008,6 +1065,17 @@ impl Cx<'_> {
                             Some(_) => {}
                         }
                     }
+                }
+                // `grep -r PATTERN` with no file walks the current directory.
+                let recursive = sp.opts.iter().any(|o| {
+                    o == "--recursive"
+                        || o == "--dereference-recursive"
+                        || (o.starts_with('-')
+                            && !o.starts_with("--")
+                            && o.chars().any(|c| c == 'r' || c == 'R'))
+                });
+                if name == "grep" && recursive && files.is_empty() {
+                    out.push((PWord::literal("."), Access::Read, s.span));
                 }
                 for (w, span) in &files {
                     out.push(((*w).clone(), Access::Read, *span));
@@ -1143,9 +1211,11 @@ impl Cx<'_> {
                 self.check_empty_prefix(w, *span);
             }
             // KS-R016: a non-last stage's failure cannot change the status.
+            // The current directory (`ls`, `grep -r` with no operand) exists.
             if !last_stage
                 && *access == Access::Read
                 && w.as_literal().is_some()
+                && w.as_literal().as_deref() != Some(".")
                 && matches!(
                     name.as_str(),
                     "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort"

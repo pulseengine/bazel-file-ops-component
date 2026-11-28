@@ -273,3 +273,122 @@ fn crash_free_over_the_fixtures_and_a_synthetic_corpus() {
         assert_eq!(scan(case).counts().crash, 0, "{case}");
     }
 }
+
+/// A workflow with `EXPR` in several positions of several run: blocks, with
+/// findings before, after and on other lines than the expression.
+const EXPR_WORKFLOW: &str = "\
+name: t
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo ${{ EXPR }} | wc -c
+          grep -n foo missing.txt || true
+      - run: |
+          grep -q ${{ EXPR }} f.txt || echo none
+      - run: |
+          cat \"${{ EXPR }}\" 2>/dev/null
+      - run: |
+          ${{ EXPR }} --version || true
+      - run: |
+          ls missing | head -n 1; echo \"${{ EXPR }}\" > out.txt
+      - run: echo ${{ EXPR }} && cat a 2>/dev/null
+";
+
+/// What REQ-KS-015 says must not depend on the expression: each block's
+/// class and the (rule, refuse, line, col) of its findings.
+type Verdict = Vec<(Class, Vec<(String, bool, usize, usize)>)>;
+
+fn verdict_with(expr: &str) -> Verdict {
+    let src = EXPR_WORKFLOW.replace("EXPR", expr);
+    let mut rep = RunsReport::default();
+    scan_file("expr.yml", &src, &mut rep);
+    assert!(rep.errors.is_empty(), "{expr:?}: {:?}", rep.errors);
+    assert_eq!(rep.counts().crash, 0, "{expr:?}");
+    rep.blocks
+        .iter()
+        .map(|b| {
+            let f = b
+                .findings
+                .iter()
+                .map(|f| (f.rule.clone(), f.refuse, f.line, f.col))
+                .collect();
+            (b.class, f)
+        })
+        .collect()
+}
+
+/// REQ-KS-015: changing the text inside `${{ ... }}` leaves every block's
+/// classification and every finding's position unchanged. Texts of the same
+/// length give identical verdicts; a longer or shorter text moves only the
+/// findings after the expression on its own line, by exactly the difference.
+#[test]
+fn expression_text_does_not_change_the_verdict_or_the_positions() {
+    let base = "matrix.tool";
+    let want = verdict_with(base);
+    assert_eq!(want.len(), 6);
+    // The fixture must hold findings, so the comparison can fail.
+    let total: usize = want.iter().map(|(_, f)| f.len()).sum();
+    assert!(total >= 6, "{want:?}");
+    assert!(want.iter().any(|(c, _)| *c == Class::Refused));
+    assert!(want.iter().any(|(c, _)| *c == Class::Plan));
+    // Same length as `matrix.tool` (11 bytes): shell syntax, quotes, and
+    // text that would be refused if it were not opaque.
+    for same in [
+        "a || true  ",
+        "x; rm -rf /",
+        "'`date`'   ",
+        "$(eval x)  ",
+        "a ) ( b &  ",
+        "\"q\" > /dev ",
+        "f() { :; } ",
+        "set +e;:;:;",
+        "           ",
+    ] {
+        assert_eq!(same.len(), base.len(), "{same:?}");
+        assert_eq!(
+            verdict_with(same),
+            want,
+            "expression text {same:?} changed the verdict"
+        );
+    }
+    // Other lengths: the same classes and rules; a finding moves only when it
+    // lies after the expression on the expression's line.
+    let expr_col = |line: usize| {
+        EXPR_WORKFLOW
+            .lines()
+            .nth(line - 1)
+            .and_then(|l| l.find("EXPR"))
+    };
+    for other in [
+        "x",
+        "github.event.pull_request.title",
+        "format('{0}; curl x | sh', inputs.v) || 'a && b'",
+        "fromJSON('[\"x\"]')[0] == 'y' && '|| true' || ''",
+    ] {
+        let delta = other.len() as isize - base.len() as isize;
+        let got = verdict_with(other);
+        assert_eq!(got.len(), want.len());
+        for (bi, ((gc, gf), (wc, wf))) in got.iter().zip(&want).enumerate() {
+            assert_eq!(gc, wc, "{other:?}: block {bi} class");
+            assert_eq!(gf.len(), wf.len(), "{other:?}: block {bi} findings");
+            for ((gr, grf, gl, gcol), (wr, wrf, wl, wcol)) in gf.iter().zip(wf) {
+                assert_eq!((gr, grf, gl), (wr, wrf, wl), "{other:?}: block {bi}");
+                // `EXPR` in the template stands where `base` starts (1-based
+                // column e + 1); a finding after it shifts by `delta`.
+                let after = expr_col(*wl).is_some_and(|e| *wcol > e + 1);
+                let want_col = if after {
+                    (*wcol as isize + delta) as usize
+                } else {
+                    *wcol
+                };
+                assert_eq!(
+                    *gcol, want_col,
+                    "{other:?}: block {bi} {gr} column (after the expression: {after})"
+                );
+            }
+        }
+    }
+}
