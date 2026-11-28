@@ -102,14 +102,17 @@ artifacts:
   - id: DD-KS-005
     type: design-decision
     title: "Compile plans to WASM and cache the module"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: "A checked plan becomes a reproducible, signed, cached WASM module."
     fields:
       decision: >
-        The plan is the compiler's input. The output is a component that imports `command` and
-        native-exec. The module is reproducible, cached by plan plus interface versions, and
-        signed. Grants are never compiled in.
+        The plan is the compiler's input. In v0.3.0 the output is a component of world
+        `kapsel:shell/plan` that imports only `kapsel:shell/host@0.1.0`; built-ins as composed
+        `command` components and native-exec replace host calls in v0.4.0 and v0.5.0 (narrowed
+        2026-11-28, as REQ-KS-020 was). The module is reproducible, cached by the normalized plan
+        plus compiler version, interface version and interface text, signed with sigil, and
+        verified before it runs, fresh or cached. Grants are never compiled in.
       rationale: >
         Verb: turn a reviewed instruction into a sealed unit that runs the same way every time.
         Borrowed from pharmaceutical batch records: a validated batch is made by a fixed master
@@ -287,14 +290,15 @@ artifacts:
   - id: DD-KS-014
     type: design-decision
     title: "The workflow scanner reads YAML with rivet-yaml and treats expressions as opaque"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "How Phase 0 reads workflows and reports."
     fields:
       decision: >
         rivet-yaml, pinned by rivet git tag with a lockfile, gives positions for each run:
-        block; ${{ ... }} is replaced by an opaque token before checking; one report per run, and
-        an issue only for a repository with refusals.
+        block; ${{ ... }} is replaced by an opaque token before checking; one report per run, with a
+        section per repository. Phase 0 (v0.3.0) only reports and never fails a run on refusals;
+        filing an issue for a repository with refusals is a later phase (narrowed 2026-11-28).
       rationale: >
         Verb: measure a gap before enforcing a rule. Borrowed from epidemiology's surveillance
         before intervention: count cases with a fixed case definition first, then intervene, and

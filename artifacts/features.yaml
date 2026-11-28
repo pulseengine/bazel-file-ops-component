@@ -25,7 +25,7 @@ artifacts:
   - id: FEAT-KS-010
     type: feature
     title: "kapsel check: analyze a command without running it"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: "Analyze any command and get a plan or a refusal with reasons, without running it."
     fields:
@@ -90,7 +90,7 @@ artifacts:
   - id: FEAT-KS-020
     type: feature
     title: "kapsel run: compile a checked command to WASM and run it"
-    status: approved
+    status: verified
     release: v0.3.0
     description: "Run a checked command as a compiled, cached WASM module under granted directories."
     fields:

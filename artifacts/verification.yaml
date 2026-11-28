@@ -167,6 +167,8 @@ artifacts:
       - type: verifies
         target: REQ-KS-011
 
+      - type: verifies
+        target: FEAT-KS-010
   - id: VER-KS-011
     type: verification
     title: "|| true and || : are refused with a rule id and a reason"
@@ -182,6 +184,8 @@ artifacts:
       - type: verifies
         target: REQ-KS-012
 
+      - type: verifies
+        target: FEAT-KS-010
   - id: VER-KS-012
     type: verification
     title: Every rule has a planted script and a control, and CI fails if either flips
@@ -214,6 +218,8 @@ artifacts:
       - type: verifies
         target: REQ-KS-014
 
+      - type: verifies
+        target: FEAT-KS-020
   - id: VER-KS-014
     type: verification
     title: JSON-config mode accepts workspace_dir '.' and fails on an unknown operation
@@ -308,6 +314,10 @@ artifacts:
       - type: verifies
         target: REQ-KS-021
 
+      - type: verifies
+        target: DD-KS-005
+      - type: verifies
+        target: FEAT-KS-020
   - id: VER-KS-020
     type: verification
     title: Nothing runs without a plan from the check stage
@@ -342,6 +352,8 @@ artifacts:
       - type: verifies
         target: FEAT-KS-021
 
+      - type: verifies
+        target: FEAT-KS-020
   - id: VER-KS-022
     type: verification
     title: Every finding says what is wrong, where, and what to do
@@ -403,6 +415,8 @@ artifacts:
     links:
       - type: verifies
         target: REQ-KS-064
+      - type: verifies
+        target: DD-KS-014
   - id: VER-KS-026
     type: verification
     title: "Workflow scanner run-blocks rule classifies every run: block with no crash"
@@ -419,6 +433,10 @@ artifacts:
         target: REQ-KS-015
       - type: verifies
         target: FEAT-KS-011
+      - type: verifies
+        target: DD-KS-014
+      - type: verifies
+        target: FEAT-KS-010
   - id: VER-KS-027
     type: verification
     title: "Edit and structured-data built-ins: goldens, comment preservation, grants, refusal help"
