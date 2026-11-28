@@ -35,6 +35,9 @@ jobs:
         targets: wasm32-wasip2
         components: clippy
 
+    - name: Install strace (check-runs-nothing test counts processes and sockets)
+      run: sudo apt-get update -q && sudo apt-get install -y -q strace
+
     - name: Keep kapsel's key and cache outside the workspace
       run: echo "KAPSEL_HOME=$RUNNER_TEMP/kapsel-home" >> "$GITHUB_ENV"
 
