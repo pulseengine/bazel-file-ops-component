@@ -483,7 +483,11 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
             let data = match std::fs::read(&path) {
                 Ok(d) => d,
                 Err(e) => {
-                    ctx.msg(&format!("can't read {f}: {}", crate::shell::errstr(&e)));
+                    ctx.io_fail(
+                        f,
+                        &format!("can't read {f}: {}", crate::shell::errstr(&e)),
+                        &e,
+                    );
                     status = 2;
                     continue;
                 }
@@ -526,7 +530,11 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
             match std::fs::read(&path) {
                 Ok(d) => d,
                 Err(e) => {
-                    ctx.msg(&format!("can't read {f}: {}", crate::shell::errstr(&e)));
+                    ctx.io_fail(
+                        f,
+                        &format!("can't read {f}: {}", crate::shell::errstr(&e)),
+                        &e,
+                    );
                     status = 2;
                     continue;
                 }

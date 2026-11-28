@@ -9,10 +9,30 @@ pub const RULE_IDS: &[&str] = &[
     "KS-R016", "KS-R017", "KS-R018", "KS-S001", "KS-S002", "KS-S003", "KS-S004", "KS-S005",
 ];
 
+/// The ids of run errors (REQ-KS-060): `run:<class>`, one per error class
+/// of the host (`kapsel_host::ErrorClass`). A run error is not a rule hit:
+/// the script ran and a built-in failed. The id is shown as
+/// `error[run:grants]`, so it never reads as kapsel's own `error[KS-…]`.
+pub const RUN_ERROR_IDS: &[&str] = &[
+    "run:grants",
+    "run:symlink",
+    "run:not-found",
+    "run:permission",
+    "run:usage",
+    "run:regex",
+    "run:edit-no-match",
+    "run:parse",
+    "run:io",
+    "run:failed",
+];
+
 /// The long-form explanation of `rule_id`, or `None` for an unknown id.
 /// Ids are matched case-insensitively (`ks-r001` works).
 pub fn explain(rule_id: &str) -> Option<&'static str> {
     let id = rule_id.trim().to_ascii_uppercase();
+    if let Some(text) = explain_run(&rule_id.trim().to_ascii_lowercase()) {
+        return Some(text);
+    }
     Some(match id.as_str() {
         "KS-R000" => R000,
         "KS-R001" => R001,
@@ -453,9 +473,167 @@ What to do instead:
   `test -e reslts && rm -r reslts`.
 ";
 
+fn explain_run(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "run:grants" => E_GRANTS,
+        "run:symlink" => E_SYMLINK,
+        "run:not-found" => E_NOT_FOUND,
+        "run:permission" => E_PERMISSION,
+        "run:usage" => E_USAGE,
+        "run:regex" => E_REGEX,
+        "run:edit-no-match" => E_EDIT_NO_MATCH,
+        "run:parse" => E_PARSE,
+        "run:io" => E_IO,
+        "run:failed" => E_FAILED,
+        _ => return None,
+    })
+}
+
+const E_GRANTS: &str = "\
+run:grants: a path outside the session's grants (run error)
+
+The session may read and write the current directory, and the directories
+given with `--rw DIR` (read and write) and `--ro DIR` (read only), and
+nothing else. A built-in or a redirect that names a path outside them fails
+with status 1 before it touches the file:
+
+    cat /etc/hostname
+    kapsel: /etc/hostname: outside the session's grants
+
+What to do instead:
+- Run kapsel from a directory that contains the files, or
+- grant the directory on kapsel's command line: `kapsel --ro /etc -c ...`
+  to read, `--rw DIR` to write.
+";
+
+const E_SYMLINK: &str = "\
+run:symlink: a write through a symlink, a symlink copy, or a symlink loop
+(run error)
+
+kapsel does not write through a symlink (the link could point outside the
+grants), does not copy or move a symlink to another directory (a relative
+target would change meaning), and cannot resolve a symlink loop.
+
+What to do instead:
+- Name the file the symlink points to, inside the grants.
+- Replace the symlink with the file if the script should write it.
+";
+
+const E_NOT_FOUND: &str = "\
+run:not-found: a file or directory that does not exist (run error)
+
+The built-in names the path it could not find. When the script writes a
+path within one or two edits of it, the help line asks `did you mean`.
+
+    echo a > results.txt
+    cat result.txt        # did you mean `results.txt`?
+
+What to do instead:
+- Fix the path, or create the file before the command that reads it.
+- Test first when the file is optional: `test -f FILE && cat FILE`.
+";
+
+const E_PERMISSION: &str = "\
+run:permission: the file system refuses access (run error)
+
+The path is inside the grants, but its permission bits refuse the read or
+write.
+
+What to do instead:
+- Check the file's mode and owner (`ls -l FILE`) and change them outside
+  kapsel if the script should have access.
+";
+
+const E_USAGE: &str = "\
+run:usage: an unknown flag, a missing or extra operand (run error)
+
+kapsel's built-ins accept a documented set of flags; an unknown flag is an
+error naming the flag and that set, never silently ignored. A missing or
+extra operand is an error too. The help line lists the flags the built-in
+supports.
+
+What to do instead:
+- Use one of the listed flags, or the built-in that covers the task
+  (`json`, `yaml`, `toml`, `field`, `lines`, `edit`).
+";
+
+const E_REGEX: &str = "\
+run:regex: a regular expression that does not compile (run error)
+
+`grep`, `sed` and `edit -e` compile their pattern before they read input.
+The help line names the column of the pattern where the regex engine
+stopped and why (an unclosed group, a bad repetition, ...).
+
+What to do instead:
+- Fix the pattern at that column; escape a literal metacharacter with a
+  backslash, or use `grep -F` for a fixed string.
+";
+
+const E_EDIT_NO_MATCH: &str = "\
+run:edit-no-match: `edit` found no match, or not the count `-c` asked for
+(run error)
+
+`edit FILE -s OLD NEW` and `edit FILE -e REGEX REPL` fail when OLD or REGEX
+does not occur, so a script never believes an edit happened when it did not.
+The file is left unchanged.
+
+What to do instead:
+- Check the search text against the file: whitespace and case count.
+- Add `--allow-none` only when no match is an expected outcome.
+";
+
+const E_PARSE: &str = "\
+run:parse: input that is not valid JSON, YAML, TOML or UTF-8 (run error)
+
+`json`, `yaml` and `toml` parse their input completely before they read or
+edit it; the message names the position of the error. A VALUE that does not
+parse in the format is refused too (use `--str` for a string). The file is
+left unchanged.
+
+What to do instead:
+- Fix the input at the position the message names.
+- Pass a string value with `--str`.
+";
+
+const E_IO: &str = "\
+run:io: another operating system error (run error)
+
+The operating system refused the operation for a reason other than a missing
+file or a permission: a directory where a file was expected, a file where a
+directory was expected, a full disk.
+
+What to do instead:
+- Read the reason in the message and fix the operand it names.
+";
+
+const E_FAILED: &str = "\
+run:failed: a built-in rejected its input (run error)
+
+Any other failure a built-in reports: a bad number, an invalid date, a
+`test` expression it cannot evaluate. The message names what was rejected.
+
+What to do instead:
+- Fix the operand or the input the message names.
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_run_error_has_an_explanation_with_a_fix_section() {
+        for id in RUN_ERROR_IDS {
+            let text = explain(id).unwrap_or_else(|| panic!("{id} missing"));
+            assert!(text.starts_with(id), "{id} must start with its id");
+            assert!(
+                text.contains("What to do instead:"),
+                "{id} has no fix section"
+            );
+            assert!(!RULE_IDS.contains(id));
+        }
+        assert_eq!(explain("RUN:GRANTS"), explain("run:grants"));
+        assert_eq!(explain("run:nope"), None);
+    }
 
     #[test]
     fn every_rule_has_an_explanation_with_a_fix_section() {

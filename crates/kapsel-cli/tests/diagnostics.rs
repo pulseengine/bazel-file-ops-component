@@ -90,8 +90,14 @@ fn interactive_retry_without_change_warns_ks_s001_across_lines() {
     assert!(s.contains("warning[KS-S001]"), "{s}");
     assert!(s.contains("--> history:"), "{s}");
     assert!(s.contains("failed here with exit status 1"), "{s}");
-    // a warning does not stop the line: it ran (and failed) again
-    assert_eq!(s.matches("in.txt: No such file").count(), 2, "{s}");
+    // a warning does not stop the line: it ran (and failed) again (the
+    // built-in's own lines; each failure is also rendered as a run error)
+    let own = s
+        .lines()
+        .filter(|l| !l.starts_with("error[") && l.contains("cat: in.txt: No such file"))
+        .count();
+    assert_eq!(own, 2, "{s}");
+    assert_eq!(s.matches("error[run:not-found]").count(), 2, "{s}");
     assert_eq!(o.status.code(), Some(1));
 }
 

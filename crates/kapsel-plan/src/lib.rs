@@ -257,6 +257,73 @@ pub const BUILTINS: &[&str] = &[
     "edit", "json", "yaml", "toml", "field", "lines", "base64", "sha256sum",
 ];
 
+impl Plan {
+    /// Every command node of the plan in the pre-order walk that numbers the
+    /// WIT `site` ids (REQ-KS-060): and-or lists in order, pipeline stages in
+    /// order, a command before the `$(...)` bodies in its words (command
+    /// words, then redirections, then assignments), a `for`'s item words
+    /// before its body, a `while`/`until` condition before its body.
+    /// Assignment-only commands are included. The compiled component passes
+    /// index `i` to `site` before running `commands()[i]`; the same walk over
+    /// the normalized plan gives the same indices.
+    pub fn commands(&self) -> Vec<&Call> {
+        let mut out = Vec::new();
+        walk_list(&self.body, &mut out);
+        out
+    }
+}
+
+fn walk_list<'a>(list: &'a [PAndOr], out: &mut Vec<&'a Call>) {
+    for ao in list {
+        walk_pipeline(&ao.first, out);
+        for (_, p) in &ao.rest {
+            walk_pipeline(p, out);
+        }
+    }
+}
+
+fn walk_pipeline<'a>(p: &'a PPipeline, out: &mut Vec<&'a Call>) {
+    for s in &p.stages {
+        match s {
+            PStage::Call(c) => {
+                out.push(c);
+                let redirect_words = c.redirects.iter().filter_map(|r| match &r.target {
+                    PRedirectTarget::Word { word } | PRedirectTarget::Heredoc { body: word } => {
+                        Some(word)
+                    }
+                    PRedirectTarget::Fd { .. } => None,
+                });
+                let words = c
+                    .argv
+                    .iter()
+                    .chain(redirect_words)
+                    .chain(c.assignments.iter().map(|(_, w)| w));
+                for w in words {
+                    walk_word(w, out);
+                }
+            }
+            PStage::For { items, body, .. } => {
+                items.iter().for_each(|w| walk_word(w, out));
+                walk_list(body, out);
+            }
+            PStage::While {
+                condition, body, ..
+            } => {
+                walk_list(condition, out);
+                walk_list(body, out);
+            }
+        }
+    }
+}
+
+fn walk_word<'a>(w: &'a PWord, out: &mut Vec<&'a Call>) {
+    for p in &w.parts {
+        if let PPart::Capture { body, .. } = p {
+            walk_list(body, out);
+        }
+    }
+}
+
 /// Normalization for caching and attestation (REQ-KS-021).
 ///
 /// Two inputs that differ only in whitespace, comments or layout produce the

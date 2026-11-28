@@ -17,9 +17,11 @@ use wasmtime::{Engine, Store};
 
 mod builtins;
 mod grants;
+mod runerr;
 mod shell;
 
 pub use builtins::xflags_for;
+pub use runerr::{ErrorClass, RunError, help_for, regex_position};
 pub use shell::SharedBuf;
 use shell::{ROp, Shell, Sink, WPart, WRedirect, WWord};
 
@@ -120,6 +122,11 @@ impl wit::Host for HostState {
         self.shell
             .call(&argv, &assigns, &reds, stdin, stdout)
             .map_err(trap)
+    }
+
+    fn site(&mut self, id: u32) -> wasmtime::Result<()> {
+        self.shell.site = Some(id);
+        Ok(())
     }
 
     fn set_var(&mut self, name: String, value: wit::Word) -> wasmtime::Result<()> {
@@ -225,6 +232,14 @@ impl Session {
             .expect("session shell")
             .exported
             .contains(name)
+    }
+
+    /// The run errors of the last run (REQ-KS-060), in the order they
+    /// happened: each failed call's structured errors, with the `site` id of
+    /// its command. Cleared when the next run starts. The stderr lines were
+    /// printed as they happened; these are for the CLI to render with spans.
+    pub fn run_errors(&self) -> &[RunError] {
+        &self.shell.as_ref().expect("session shell").run_errors
     }
 
     /// The last command's status (`$?`).

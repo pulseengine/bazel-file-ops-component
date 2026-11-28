@@ -51,6 +51,19 @@ interface host {
   call: func(argv: list<word>, assignments: list<tuple<string, word>>,
              redirects: list<redirect>, stdin: u32, stdout: u32) -> u32;
 
+  // Names the source command of the next `call`, so the host can say where a
+  // run error happened (REQ-KS-060). The component calls it immediately
+  // before every `call`. `id` is the static index of that command in a
+  // pre-order walk of the plan over every command node (assignment-only
+  // commands included, though they make no `call`): and-or lists in order,
+  // pipeline stages in order, a command before the `$(...)` bodies in its
+  // words (command words, then redirections, then assignments), a `for`'s
+  // item words before its body, a `while`/`until` condition before its body
+  // (`kapsel_plan::Plan::commands`). Ids depend only on the plan's shape, so
+  // the normalized plan gives the same ids and the same bytes. It changes no
+  // shell state.
+  site: func(id: u32);
+
   // `NAME=value` with no command.
   set-var: func(name: string, value: word);
 
