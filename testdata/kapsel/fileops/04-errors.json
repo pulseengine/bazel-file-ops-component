@@ -1,10 +1,12 @@
 [
   {
     "name": "copy-missing-source",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/nope", "dest_path": "x"}]}
   },
   {
     "name": "copy-source-is-directory",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"dirs": ["src"]},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "{W}/src", "dest_path": "x"}]}
   },
@@ -15,10 +17,12 @@
   },
   {
     "name": "copy-directory-missing-source",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/nope", "dest_path": "d"}]}
   },
   {
     "name": "copy-directory-source-is-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"a.txt": "a"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_directory_contents", "src_path": "{W}/a.txt", "dest_path": "d"}]}
   },
@@ -30,20 +34,24 @@
     "name": "read-file-directory",
     "tree": {"dirs": ["src"]},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "read_file", "path": "{W}/src"}]},
-    "allow": {"*": "The TinyGo component crashes (panic: slice out of range in os.ReadFile, wasm trap, exit 134); the Rust component reports an error and exits 1."},
+    "note": "The TinyGo component crashes (panic: slice out of range in os.ReadFile, wasm trap, exit 134); the Rust component reports an error and exits 1.",
+    "allow": {"*": "oracle-crash"},
     "expect_rust": {"code": 1, "stderr_contains": "failed to read file"}
   },
   {
     "name": "concatenate-missing-source",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"a.txt": "a"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "concatenate_files", "sources": ["{W}/a.txt", "{W}/nope"], "dest_path": "cc"}]}
   },
   {
     "name": "move-missing-source",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "move_path", "src_path": "{W}/ws/nope", "dest_path": "mm"}]}
   },
   {
     "name": "mkdir-over-a-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "tree": {"files": {"ws/file": "f"}},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "mkdir", "path": "file"}]}
   },
@@ -54,6 +62,7 @@
   },
   {
     "name": "write-to-workspace-root",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "write_file", "path": ".", "content": "x"}]}
   },
   {
@@ -63,28 +72,34 @@
   },
   {
     "name": "source-outside-every-preopen",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "copy_file", "src_path": "/nopreopen/a", "dest_path": "x"}]}
   },
   {
     "name": "run-command-bare-name",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "echo", "args": ["x"]}]}
   },
   {
     "name": "run-command-path-no-dev",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "output_file": "o.txt"}]}
   },
   {
     "name": "run-command-path-with-dev-output",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "dev": true,
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "output_file": "out/o.txt"}]}
   },
   {
     "name": "run-command-path-with-dev-no-output",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "dev": true,
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "/bin/echo", "args": ["x"], "work_dir": "sub"}]}
   },
   {
     "name": "run-command-quoted-name",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [{"type": "run_command", "command": "we\"ird\tname"}]}
   },
   {
@@ -93,6 +108,7 @@
   },
   {
     "name": "second-operation-fails",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "config": {"workspace_dir": "{W}/ws", "operations": [
       {"type": "write_file", "path": "first.txt", "content": "1"},
       {"type": "copy_file", "src_path": "{W}/nope", "dest_path": "z"},

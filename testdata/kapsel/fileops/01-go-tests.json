@@ -1,6 +1,7 @@
 [
   {
     "name": "process-json-config",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestProcessJsonConfig (tinygo/json_bridge_test.go)",
     "tree": {"files": {"src/main.cpp": "int main() { return 0; }"}},
     "config": {"workspace_dir": "{W}/workspace", "operations": [
@@ -10,6 +11,7 @@
   },
   {
     "name": "copy-directory-contents",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestJsonConfigCopyDirectoryContents",
     "tree": {"files": {"headers/header1.h": "#pragma once\n// Header 1", "headers/header2.h": "#pragma once\n// Header 2"}},
     "config": {"workspace_dir": "{W}/workspace", "operations": [
@@ -18,6 +20,7 @@
   },
   {
     "name": "run-command-echo-output-file",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestJsonConfigRunCommand",
     "config": {"workspace_dir": "{W}/workspace", "operations": [
       {"type": "run_command", "command": "echo", "args": ["Hello, World!"], "output_file": "output.txt"}
@@ -25,6 +28,7 @@
   },
   {
     "name": "validate-valid-config",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "TestValidateJsonConfig: valid config (the source does not exist)",
     "config": {"workspace_dir": "{W}/workspace", "operations": [
       {"type": "mkdir", "path": "include"},
@@ -40,7 +44,8 @@
     "name": "validate-relative-workspace-dir",
     "from": "TestValidateJsonConfig: relative workspace dir",
     "config": {"workspace_dir": "relative/path", "operations": [{"type": "mkdir", "path": "test"}]},
-    "allow": {"*": "REQ-KS-017: a relative workspace_dir is accepted; TinyGo refuses it before running. Without a '.' preopen the Rust run then fails creating it."},
+    "note": "REQ-KS-017: a relative workspace_dir is accepted; TinyGo refuses it before running. Without a '.' preopen the Rust run then fails creating it.",
+    "allow": {"*": "req-ks-017"},
     "expect_rust": {"code": 1, "stderr_contains": "failed to create workspace directory"}
   },
   {
@@ -76,6 +81,7 @@
   },
   {
     "name": "sample-workspace-config-rebased",
+    "allow": {"same": "fixed-v0.2.2-same-path"},
     "from": "testdata/sample_workspace_config.json with its paths under the tree",
     "tree": {"files": {"test/source/main.cpp": "int main(){}\n", "test/headers/types.h": "typedef int t;\n", "test/libs/a/liba.c": "a\n", "test/libs/b.c": "b\n"}},
     "config": {"workspace_dir": "{W}/tmp/test_workspace", "operations": [

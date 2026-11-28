@@ -97,7 +97,7 @@ fn execute(op: &Operation, ws: &str) -> Result<Vec<String>, String> {
         }
         "concatenate_files" => {
             let dest = workspace_path(ws, &op.dest_path, "dest_path")?;
-            ops::concatenate_files(&op.sources, &dest)?;
+            ops::concatenate_files(op.concat_sources(), &dest)?;
             Ok(vec![dest])
         }
         "move_path" => {

@@ -10,7 +10,8 @@
 //! [`validate`] applies TinyGo's checks with one change that REQ-KS-017
 //! requires: a relative `workspace_dir` (rules_wasm_component writes `"."`)
 //! is accepted, and with it relative, execroot-relative source paths. An
-//! unknown operation type is an error, as in TinyGo.
+//! unknown operation type is an error, as in TinyGo. concatenate_files also
+//! takes `src_paths` as an alias of `sources` (owner, 2026-11-28).
 //!
 //! The serde derives give the same field names for code that writes
 //! configs. They are not the decoder: use [`parse_json_config`] to read one.
@@ -50,6 +51,22 @@ pub struct Operation {
     pub content: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<String>,
+    /// An alias of `sources` for concatenate_files, the name
+    /// rules_wasm_component's docs and Go wrapper use (owner, 2026-11-28).
+    /// The TinyGo component ignores it. Giving both is an error.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub src_paths: Vec<String>,
+}
+
+impl Operation {
+    /// concatenate_files' sources: `sources`, or its alias `src_paths`.
+    pub fn concat_sources(&self) -> &[String] {
+        if self.sources.is_empty() {
+            &self.src_paths
+        } else {
+            &self.sources
+        }
+    }
 }
 
 /// The operation types, in the order TinyGo's schema lists them.
@@ -113,9 +130,10 @@ struct RawOperation {
     output_file: String,
     content: String,
     sources: GoSlice<String>,
+    src_paths: GoSlice<String>,
 }
 
-const OPERATION_FIELDS: [&str; 10] = [
+const OPERATION_FIELDS: [&str; 11] = [
     "type",
     "src_path",
     "dest_path",
@@ -126,6 +144,7 @@ const OPERATION_FIELDS: [&str; 10] = [
     "output_file",
     "content",
     "sources",
+    "src_paths",
 ];
 
 fn decode_strings(d: &mut Decoder, v: &Value, out: &mut GoSlice<String>) {
@@ -148,7 +167,8 @@ fn decode_operation(d: &mut Decoder, v: &Value, op: &mut RawOperation) {
             "work_dir" => d.string(val, &mut op.work_dir),
             "output_file" => d.string(val, &mut op.output_file),
             "content" => d.string(val, &mut op.content),
-            _ => decode_strings(d, val, &mut op.sources),
+            "sources" => decode_strings(d, val, &mut op.sources),
+            _ => decode_strings(d, val, &mut op.src_paths),
         },
     );
 }
@@ -191,6 +211,7 @@ pub fn parse_json_config(data: &[u8]) -> Result<JsonConfig, String> {
                 output_file: o.output_file,
                 content: o.content,
                 sources: o.sources.to_vec(),
+                src_paths: o.src_paths.to_vec(),
             })
             .collect(),
     })
@@ -331,9 +352,12 @@ pub fn is_abs(p: &str) -> bool {
 /// Check a decoded config before anything runs. The error is the text
 /// TinyGo gives after "invalid JSON config: ".
 ///
-/// REQ-KS-017 differs from TinyGo in one place: a relative `workspace_dir`
-/// is accepted, and when it is, source paths may be relative too
-/// (execroot-relative). Destinations must be relative either way.
+/// Two differences from TinyGo:
+/// - REQ-KS-017: a relative `workspace_dir` is accepted, and when it is,
+///   source paths may be relative too (execroot-relative). Destinations
+///   must be relative either way.
+/// - concatenate_files takes `src_paths` as an alias of `sources`
+///   (owner, 2026-11-28); a non-empty value for both is an error.
 pub fn validate(config: &JsonConfig) -> Result<(), String> {
     if config.workspace_dir.is_empty() {
         return Err("workspace_dir cannot be empty".to_string());
@@ -397,7 +421,12 @@ fn validate_operation(op: &Operation, i: usize, relative_mode: bool) -> Result<(
             rel("path", &op.path)?;
         }
         "concatenate_files" => {
-            if op.sources.is_empty() {
+            if !op.sources.is_empty() && !op.src_paths.is_empty() {
+                return Err(format!(
+                    "operation {i}: concatenate_files takes sources or src_paths, not both"
+                ));
+            }
+            if op.concat_sources().is_empty() {
                 return Err(format!("operation {i}: concatenate_files requires sources"));
             }
             if op.dest_path.is_empty() {
@@ -405,7 +434,7 @@ fn validate_operation(op: &Operation, i: usize, relative_mode: bool) -> Result<(
                     "operation {i}: concatenate_files requires dest_path"
                 ));
             }
-            for (j, s) in op.sources.iter().enumerate() {
+            for (j, s) in op.concat_sources().iter().enumerate() {
                 if !relative_mode && !is_abs(s) {
                     return Err(format!("operation {i}: source {j} must be absolute: {s}"));
                 }
