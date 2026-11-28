@@ -5,7 +5,7 @@ moves, in either direction, until this file, the `KNOWN_WRONG` / `DECLINED` tabl
 `src/lib.rs` and the pinned numbers in the test change together.
 
 Known-wrong count: 0
-Declined count: 8
+Declined count: 7
 
 ## Known wrong (compiled, differs from POSIX `sh`)
 
@@ -31,11 +31,13 @@ A dynamic command name. Construct `call`. Test `kd3_dynamic_command_name`.
 Construct `call`. Test `kd4_no_tool_with_argv`.
 
 ### KD-5: command with no tool and no assignments
-Construct `call`. Test `kd5_no_tool_no_assignments`.
+With or without redirects: the check stage lowers a redirect-only `> f` to the `:` built-in.
+Construct `call`. Tests `kd5_no_tool_no_assignments`, `kd5_redirect_without_tool_or_assignments`.
 
-### KD-6: command with no tool but with redirects
-A redirect-only command such as `> f` (which truncates `f` in POSIX) has no host call to carry
-the redirect. Construct `call`. Test `kd6_redirect_only_command`.
+KD-6 (command with no tool but with redirects, e.g. `X=1 > f`) is no longer declined: rule
+KC-R23 `assign-redirect` lowers it (`set-var` each assignment, then `:` with the redirects).
+Tests `assign_with_redirect_persists_then_calls_colon`, `assign_redirect_order_and_persistence`,
+`assign_redirect_failure_keeps_the_variable`.
 
 ### KD-7: redirect whose target kind does not match its operator
 For example `Write` with an fd target or `DupOut` with a word. Construct `redirect`. Test

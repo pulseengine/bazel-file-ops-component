@@ -135,16 +135,12 @@ fn select_call(c: &Call) -> Result<Rule, CompileError> {
             span,
             "command with no tool but with argv words",
         )),
-        None if !c.redirects.is_empty() => Err(decline(
-            "call",
-            span,
-            "command with no tool but with redirects (redirect-only command)",
-        )),
         None if c.assignments.is_empty() => Err(decline(
             "call",
             span,
             "command with no tool and no assignments",
         )),
+        None if !c.redirects.is_empty() => Ok(ASSIGN_REDIR),
         None => Ok(ASSIGN_ONLY),
     }
 }
@@ -492,6 +488,9 @@ impl Cx {
         };
         match s {
             PStage::Call(c) if rule == CALL_BUILTIN => self.emit_call(c, site, stdin, stdout),
+            PStage::Call(c) if rule == ASSIGN_REDIR => {
+                self.emit_assign_redirect(c, site, stdin, stdout)
+            }
             PStage::Call(c) => self.emit_assign_only(c, stdin),
             PStage::For { var, items, body } => {
                 self.emit_for(var, items, body, stdin, stdout, span)
@@ -563,6 +562,59 @@ impl Cx {
         let (rp, rl) = self.redirects(&c.redirects, span, &mut caps)?;
         let (sp, sl) = self.assignments(&c.assignments, &mut caps);
         self.emit_captures(&caps, stdin, span)?;
+        self.emit_site_call(site, (ap, al), (sp, sl), (rp, rl), stdin, stdout);
+        Ok(())
+    }
+
+    /// KC-R23. `X=1 > f`: assignments and redirects but no command name
+    /// (POSIX 2.9.1). The assignments persist in the current environment
+    /// (`set-var` each, in order); then a call of `:` (argv `[":"]`, no
+    /// assignments) performs the redirects, and its status is the command's:
+    /// 0, or non-zero when a redirect fails, with the variables still set.
+    /// Expansion order as for a call: redirections, then assignments.
+    fn emit_assign_redirect(
+        &mut self,
+        c: &Call,
+        site: u32,
+        stdin: Handle,
+        stdout: Handle,
+    ) -> Result<(), CompileError> {
+        let span = Some(c.span);
+        let colon = [PWord::literal(":")];
+        let mut caps = Vec::new();
+        let (ap, al) = self.word_list(&colon, &mut caps);
+        let (rp, rl) = self.redirects(&c.redirects, span, &mut caps)?;
+        let mut sets = Vec::with_capacity(c.assignments.len());
+        for (name, w) in &c.assignments {
+            let (np, nl) = self.data.string(name);
+            let (wp, wl) = self.word(w, &mut caps);
+            sets.push((np, nl, wp, wl));
+        }
+        let (sp, sl) = self.assignments(&[], &mut caps);
+        self.emit_captures(&caps, stdin, span)?;
+        for (np, nl, wp, wl) in sets {
+            self.i32(np);
+            self.i32(nl);
+            self.i32(wp);
+            self.i32(wl);
+            self.emit(Instruction::Call(F_SET_VAR));
+        }
+        self.emit_site_call(site, (ap, al), (sp, sl), (rp, rl), stdin, stdout);
+        Ok(())
+    }
+
+    /// `site(id)`, the host call, then the `exit` check: 256 + n ends the
+    /// innermost scope with status n (KC-R20), or stops the plan with status
+    /// n when no scope is open (KC-R21).
+    fn emit_site_call(
+        &mut self,
+        site: u32,
+        (ap, al): (u32, u32),
+        (sp, sl): (u32, u32),
+        (rp, rl): (u32, u32),
+        stdin: Handle,
+        stdout: Handle,
+    ) {
         // The command's site, right before its call (after its captures, which
         // name their own sites).
         self.fire(CALL_SITE);
@@ -598,7 +650,6 @@ impl Cx {
             }
         }
         self.emit(Instruction::End);
-        Ok(())
     }
 
     /// Runs `body` in a subshell scope: `scope-push`, a block that an `exit`

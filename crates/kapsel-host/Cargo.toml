@@ -8,6 +8,9 @@ repository.workspace = true
 
 [dependencies]
 kapsel-plan.workspace = true
+# Diagnostics: built-in error lines escape control characters as the
+# rendered diagnostics do (`kapsel_diag::escape_controls`).
+kapsel-diag = { path = "../kapsel-diag" }
 wasmtime = { version = "51", default-features = false, features = ["runtime", "cranelift", "component-model", "std"] }
 regex = "1"
 # REQ-KS-063: decodes and encodes JSON strings for `json`, whose reader is

@@ -190,21 +190,33 @@ impl Expected {
             self.commands += 1;
         }
         match s {
-            PStage::Call(c) if c.tool.is_some() => {
-                let words = c
-                    .argv
+            PStage::Call(c) if c.tool.is_some() || !c.redirects.is_empty() => {
+                // No tool but redirects (`X=1 > f`): the assignments persist
+                // (`set-var` each, in order), then `:` performs the redirects.
+                let persist = c.tool.is_none();
+                let colon = [PWord::literal(":")];
+                let argv_words: &[PWord] = if persist { &colon } else { &c.argv };
+                let words = argv_words
                     .iter()
                     .chain(c.redirects.iter().filter_map(redirect_word))
                     .chain(c.assignments.iter().map(|(_, w)| w));
                 let ids = self.captures(words, stdin);
                 let mut ids = ids.into_iter();
-                let argv = c.argv.iter().map(|w| word(w, &mut ids)).collect();
+                let argv = argv_words.iter().map(|w| word(w, &mut ids)).collect();
                 let redirects = c.redirects.iter().map(|r| redirect(r, &mut ids)).collect();
-                let assignments = c
+                let assigned: Vec<(String, String)> = c
                     .assignments
                     .iter()
                     .map(|(n, w)| (n.clone(), word(w, &mut ids)))
                     .collect();
+                let assignments = if persist {
+                    for (n, v) in assigned {
+                        self.evs.push(Ev::SetVar(n, v));
+                    }
+                    Vec::new()
+                } else {
+                    assigned
+                };
                 self.evs.push(Ev::Site(site));
                 self.evs.push(Ev::Call {
                     argv,
