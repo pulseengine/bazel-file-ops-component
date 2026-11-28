@@ -399,7 +399,7 @@ artifacts:
         reason (KC codes), never silent wrong code; lowering is a table of named rules, each with
         a test; every compile runs a translation validator that decodes the component and checks
         its call skeleton against the plan; frozen fixtures pin the output bytes; known-wrong
-        shapes are pinned by exact count, and a count that moves either way is red.
+        shapes are pinned by exact count, and a count that moves either way is red. Owner, 2026-11-28: ordeal (certificate-checked QF_BV) proves each lowering rule's status arithmetic and the data-layout bounds and alignment, with committed certificates re-checked in CI, as synth does for its rule table.
       rationale: >
         Verb: hand over a sealed artifact whose contents match its order. Borrowed from synth's
         honesty rule and per-compilation validators, which measured the cost of skipping them
