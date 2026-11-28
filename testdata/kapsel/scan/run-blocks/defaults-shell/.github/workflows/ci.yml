@@ -1,0 +1,21 @@
+name: ci
+on: push
+defaults:
+  run:
+    shell: pwsh
+jobs:
+  win:
+    runs-on: windows-2025
+    steps:
+      - run: Get-ChildItem
+  lin:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: echo from bash
+      - shell: "bash -e {0}"
+        run: echo templated
+      - shell: kapsel
+        run: echo kapsel

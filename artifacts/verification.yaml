@@ -403,3 +403,23 @@ artifacts:
     links:
       - type: verifies
         target: REQ-KS-064
+  - id: VER-KS-026
+    type: verification
+    title: "Workflow scanner run-blocks rule classifies every run: block with no crash"
+    status: approved
+    release: v0.3.0
+    description: >
+      Fixtures under testdata/kapsel/scan/run-blocks/ cover a shell block, a block with an
+      expression, pwsh, `shell: python`, workflow and job `defaults.run.shell`, a `|` block, a
+      `>` block, a heredoc and an `|| true` refusal. The tests assert each classification, that
+      findings map to the original YAML line and column, that masking keeps every offset, and that
+      no input crashes the parser. The fleet numbers are in docs/scanner-phase0.md.
+    fields:
+      method: automated-test
+      test-location: crates/kapsel-scan/tests/run_blocks.rs
+      test-name: "shell_block_plans, expression_stays_opaque_and_maps_to_the_yaml_column, pwsh_is_not_shell_and_the_next_block_still_scans, python_step_shell_is_not_shell, defaults_shell_applies_by_scope, multiline_block_maps_to_its_yaml_line, folded_block_refuses_at_the_right_line, heredoc_with_expression_is_checked_without_crash, or_true_refuses_with_rule_and_line, windows_runner_defaults_to_pwsh_unless_undecided, a_panic_is_caught_and_reported_as_a_crash_message, masking_keeps_every_offset,unterminated_expression_and_odd_text_do_not_crash, crash_free_over_the_fixtures_and_a_synthetic_corpus"
+    links:
+      - type: verifies
+        target: REQ-KS-015
+      - type: verifies
+        target: FEAT-KS-011

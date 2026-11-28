@@ -1,0 +1,9 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - shell: pwsh
+        run: Write-Host "hello" || true
+      - run: echo plain

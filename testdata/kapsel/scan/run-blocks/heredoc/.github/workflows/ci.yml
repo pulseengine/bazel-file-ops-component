@@ -1,0 +1,12 @@
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: heredoc
+        run: |
+          cat <<EOF
+          repo ${{ github.repository }}
+          EOF
+          echo done
