@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 /// Byte range `[start, end)` in the source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Span {
     pub start: u32,
     pub end: u32,
@@ -41,6 +42,7 @@ pub struct AndOrList {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AndOrOp {
     And,
@@ -128,6 +130,7 @@ pub struct Redirect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RedirectOp {
     /// `<`

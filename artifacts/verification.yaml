@@ -157,12 +157,12 @@ artifacts:
     title: kapsel check runs nothing (one input)
     status: implemented
     release: v0.3.0
-    description: "kapsel check --json on 'cat a | sort -u > b' prints the plan and b is not created; a refused input exits 65. PARTIAL: REQ-KS-011's criterion covers every input and also process spawn and network access; only one plan input is checked for writes, and nothing checks spawns or network. Missing test: run kapsel check over the plant pack, the parse goldens and the error corpus in an empty scratch directory and assert no file is created or changed and no child process starts."
+    description: "kapsel check --json on 'cat a | sort -u > b' prints the plan and b is not created; a refused input exits 65. Over every plant-pack script, parse golden input and error-corpus case, check with -c, with a script file and with --json, in an empty scratch directory, creates, changes and removes nothing (before and after snapshot of names, kinds, sizes, mtimes and contents; KAPSEL_HOME is untouched too) and starts no child process. Process instrument: a PATH holding a tripwire executable for every built-in and common tool name (each logs and exits 99), and an empty PATH, with the same stdout, stderr and status required; both also run with HOME and KAPSEL_HOME unset. Blind to: a program started by absolute path, a spawn from code that sets its own PATH, and any network access. On Linux, when strace is installed, an OS-level count (execve beyond kapsel itself, fork, clone without CLONE_THREAD, AF_INET sockets) also runs; it is skipped without strace, so network access is checked only there."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli --test acceptance); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-cli/tests/acceptance.rs
-      test-name: check_json_reports_the_plan_grants, check_json_of_a_refusal_exits_65
+      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/check_runs_nothing.rs
+      test-name: check_json_reports_the_plan_grants, check_json_of_a_refusal_exits_65, check_creates_changes_and_removes_nothing_and_spawns_nothing, the_tripwire_catches_a_spawn, check_under_strace_starts_no_process_and_opens_no_socket (Linux, needs strace)
     links:
       - type: verifies
         target: REQ-KS-011
@@ -187,12 +187,12 @@ artifacts:
     title: Every rule has a planted script and a control, and CI fails if either flips
     status: verified
     release: v0.3.0
-    description: "testdata/kapsel/rules/KS-R000..KS-R017 each hold planted.sh, control.sh and expected.json; the plant pack test runs them through the real parser and fails when a planted case is not caught, its golden changes or its control warns or is refused. The KS-S001..S005 rules have planted and control cases in kapsel-analysis. Note: the rule lists in these tests are written out by hand (0..=17); a new rule id added without a plant would not fail them (see the gap list)."
+    description: "testdata/kapsel/rules/KS-R000..KS-R017 each hold planted.sh, control.sh and expected.json; the plant pack test runs them through the real parser and fails when a planted case is not caught, its golden changes or its control warns or is refused. The KS-S001..S005 rules have planted and control cases in kapsel-analysis. One registry holds the ids (kapsel_check::RULES for KS-R, kapsel_analysis::RULES for KS-S) and the plant pack, the case tables and the explain-table test iterate it; a test fails if a registered rule lacks planted.sh or control.sh (or, for KS-S, a planted and a control unit test), if a plant-pack directory is not in the registry, if kapsel_diag::RULE_IDS differs from the registry, or if any shipped source names a KS-R or KS-S id literal that is not registered."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-check -p kapsel-analysis); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-check/tests/plant_pack.rs; crates/kapsel-check/src/tests.rs; crates/kapsel-analysis/src/tests.rs
-      test-name: plant_pack_through_the_real_parser, tests::plant_pack_files_agree_with_rules, tests::every_rule_catches_its_planted_case_and_passes_its_control, tests::every_rule_id_has_a_case, tests::s001_planted_*/s001_control_*, s002_*, s003_planted/s003_control, s004_planted/s004_control, s005_planted/s005_control
+      test-location: crates/kapsel-check/tests/plant_pack.rs; crates/kapsel-check/src/tests.rs; crates/kapsel-analysis/src/tests.rs; crates/kapsel-check/tests/rule_registry.rs; crates/kapsel-diag/tests/registry.rs
+      test-name: plant_pack_through_the_real_parser, tests::plant_pack_files_agree_with_rules, tests::every_rule_catches_its_planted_case_and_passes_its_control, tests::every_rule_id_has_a_case, tests::s001_planted_*/s001_control_*, s002_*, s003_planted/s003_control, s004_planted/s004_control, s005_planted/s005_control, every_registered_rule_has_a_planted_script_and_a_control, plant_pack_directories_are_exactly_the_registry, tests::every_registered_rule_has_a_planted_and_a_control_test, registry_has_no_duplicates_and_the_explain_table_matches_it, every_rule_id_in_the_source_is_in_the_registry
     links:
       - type: verifies
         target: REQ-KS-016
@@ -204,12 +204,12 @@ artifacts:
     title: "-c, script files and the exit codes through the kapsel binary"
     status: implemented
     release: v0.3.0
-    description: "The real binary runs a script file, returns the last command's status, and exits 64 (usage), 65 (refused), 70 (internal) and 78 (grants) in the cases named. PARTIAL: no test runs the same content once with -c and once as a script file and compares stdout, stderr and status, which REQ-KS-014's criterion requires."
+    description: "The real binary runs a script file, returns the last command's status, and exits 64 (usage), 65 (refused), 70 (internal) and 78 (grants) in the cases named. The same content given once with -c and once as a script file, for acceptance commands, statuses, refused inputs, parse errors, warnings and corpus scripts, under run, check and check --json, gives the same stdout, stderr (source name normalised, -c against the path) and exit status, and the same files in the scratch directory; the six failure kinds (64, 65, 70, 78, built-in 2, command 1) have distinct codes and docs/first-shell.md documents them."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli --test acceptance); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-cli/tests/acceptance.rs
-      test-name: script_file, script_status_is_the_last_command, usage_errors_exit_64, or_true_is_refused_with_ks_r001, a_missing_key_file_is_an_internal_error, invalid_grants_exit_78, no_home_fails_closed_with_78_and_writes_nothing
+      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/forms_agree.rs
+      test-name: script_file, script_status_is_the_last_command, usage_errors_exit_64, or_true_is_refused_with_ks_r001, a_missing_key_file_is_an_internal_error, invalid_grants_exit_78, no_home_fails_closed_with_78_and_writes_nothing, dash_c_and_a_script_file_give_the_same_stdout_stderr_and_status, diagnostics_name_the_source_by_its_form, failure_kinds_have_distinct_exit_codes_and_the_documented_values
     links:
       - type: verifies
         target: REQ-KS-014
@@ -236,12 +236,12 @@ artifacts:
     title: Exit codes through the shipped component and the binary
     status: implemented
     release: v0.3.0
-    description: "The shipped file_ops_component.wasm and its AOT asset exit with the TinyGo oracle's code (0 or 1) on all 197 equivalence cases (ci.yml run 46115737949; locally exit 0); the kapsel binary's 64, 65, 70, 78 and pass-through statuses are asserted. CI builds with Rust 1.100.0 and rust-toolchain.toml and Cargo.toml rust-version pin 1.100. PARTIAL: nothing fails if both pins are lowered together; built-in status 2 is asserted only in-process (kapsel-host), not through the binary; nothing checks the covalent 2026.11.28 toolchain layer."
+    description: "The shipped file_ops_component.wasm and its AOT asset exit with the TinyGo oracle's code (0 or 1) on all 197 equivalence cases (ci.yml run 46115737949; locally exit 0); the kapsel binary's 64, 65, 70, 78 and pass-through statuses are asserted, and built-in status 2 (grep on a missing file), command status 1 (false) and exit 7 are asserted through the binary. CI builds with Rust 1.100.0; a test reads rust-toolchain.toml, the workspace rust-version and every crate's rust-version and fails if any is below 1.100, and another fails if the layer in varve.toml is older than 2026.11.28. The rust-toolchain.toml channel is checked by the test but was not lowered in the proof run, to keep rustup from fetching another toolchain."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo test --locked -p kapsel-fileops --test equivalence -- --ignored --nocapture; local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-fileops/tests/equivalence.rs; crates/kapsel-cli/tests/acceptance.rs
-      test-name: rust_component_matches_tinygo_oracle (--ignored), usage_errors_exit_64, invalid_grants_exit_78, a_missing_key_file_is_an_internal_error, script_status_is_the_last_command
+      test-location: crates/kapsel-fileops/tests/equivalence.rs; crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/exit_codes.rs
+      test-name: rust_component_matches_tinygo_oracle (--ignored), usage_errors_exit_64, invalid_grants_exit_78, a_missing_key_file_is_an_internal_error, script_status_is_the_last_command, a_failing_built_in_exits_2_and_false_exits_1_and_exit_7_exits_7, rust_toolchain_and_every_rust_version_are_at_least_1_100, varve_toolchain_layer_is_2026_11_28_or_later
     links:
       - type: verifies
         target: REQ-KS-018
@@ -251,12 +251,12 @@ artifacts:
     title: Interactive lines are checked, compiled and run, and the session persists
     status: implemented
     release: v0.3.0
-    description: "cd and assignments persist across lines (binary and host), $? at EOF is the last status, exit ends the session, a refused line prints its finding and the next line runs, a refused rm does not run. PARTIAL: no test feeds a refused line that contains an assignment or cd and then shows the session unchanged, which REQ-KS-019's criterion requires."
+    description: "cd and assignments persist across lines (binary and host), 0 at EOF is the last status, exit ends the session, a refused line prints its finding and the next line runs, a refused rm does not run. A refused line 'X=2; cd sub; false || true' fed over stdin between lines that set and print the state leaves , the working directory and 0 exactly as in the same session without that line, and as the last line leaves the session status unchanged."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-cli -p kapsel-host); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-host/tests/real_compiler.rs; crates/kapsel-host/tests/e2e.rs
-      test-name: interactive_session_keeps_cd_and_variables, interactive_continuation_prompt_and_refused_line, interactive_eof_exits_with_the_last_status_and_exit_ends_the_session, interactive_ks_s005_refuses_the_line_and_the_session_goes_on, cd_and_variables_persist_between_lines, variables_persist_across_components, cd_persists_across_components
+      test-location: crates/kapsel-cli/tests/acceptance.rs; crates/kapsel-cli/tests/diagnostics.rs; crates/kapsel-host/tests/real_compiler.rs; crates/kapsel-host/tests/e2e.rs; crates/kapsel-cli/tests/acceptance.rs
+      test-name: interactive_session_keeps_cd_and_variables, interactive_continuation_prompt_and_refused_line, interactive_eof_exits_with_the_last_status_and_exit_ends_the_session, interactive_ks_s005_refuses_the_line_and_the_session_goes_on, cd_and_variables_persist_between_lines, variables_persist_across_components, cd_persists_across_components, interactive_refused_line_leaves_variables_cwd_and_status_unchanged
     links:
       - type: verifies
         target: REQ-KS-019
@@ -330,12 +330,12 @@ artifacts:
     title: Built-ins agree with dash and GNU coreutils on the corpus
     status: implemented
     release: v0.3.0
-    description: "All 20 corpus scripts agree with dash on Linux (rust.yml step 'Corpus agrees with dash': 20 scripts, 0 mismatches); every built-in name dispatches; per-built-in goldens; unsupported flags list the supported set; built-ins reach only granted paths. Locally on macOS the corpus comparison is advisory (BSD tools): 4 mismatches, as expected. PARTIAL: the corpus does not exercise each built-in's measured flag set (for example grep -E -n -i -v -r -l -c -o -q, sed -n 'a,bp', sort -u -r -n -k), which REQ-KS-025's criterion requires."
+    description: "All corpus scripts agree with dash on Linux (rust.yml step 'Corpus agrees with dash'); the corpus now has 32 scripts, with 021 to 032 exercising the measured flags of grep (-E -n -i -v -r -l -c -o -q), sed (-n 'a,bp', s///g, -E), sort (-u -r -n -k -t), head/tail -n, wc -l -w -c, cut -d -f -c, tr, uniq -c -d -u, seq and ls -1, deterministic (no dates, sizes or users). Every built-in name dispatches; per-built-in goldens; unsupported flags list the supported set; built-ins reach only granted paths. Locally on macOS the corpus comparison is advisory (BSD tools): 6 mismatches, all output padding (BSD wc and uniq -c pad differently): 002, 006, 014, 018, 028 and 031. The test fails only on Linux."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast; cargo test --locked -p kapsel-corpus -- --nocapture (authoritative on Linux); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-corpus/tests/corpus.rs; crates/kapsel-host/tests/builtins.rs; crates/kapsel-host/tests/grants.rs
-      test-name: corpus_agrees_with_dash, every_builtin_name_dispatches, grep_cases, sed_cases, sort_cases (and the other *_cases), unknown_flags_are_errors_listing_the_supported_set, outside_paths_are_refused_and_untouched
+      test-location: crates/kapsel-corpus/tests/corpus.rs; crates/kapsel-host/tests/builtins.rs; crates/kapsel-host/tests/grants.rs; testdata/kapsel/corpus/021-grep-basic.sh .. 032-seq-ls.sh
+      test-name: corpus_agrees_with_dash, every_builtin_name_dispatches, grep_cases, sed_cases, sort_cases (and the other *_cases), unknown_flags_are_errors_listing_the_supported_set, outside_paths_are_refused_and_untouched, corpus_agrees_with_dash (scripts 021 to 032)
     links:
       - type: verifies
         target: REQ-KS-025
@@ -379,12 +379,12 @@ artifacts:
     title: Error corpus cases match their expect lines
     status: implemented
     release: v0.3.0
-    description: "All 25 cases in testdata/kapsel/errors/ci are read; the 22 refuse, warn and plan cases must match their expect line and the corpus size is pinned. A grep on ws/trace for home paths, host names, user names and tokens found nothing. PARTIAL: the 3 run-error cases are counted but their outcome is not asserted, and no test fails if a committed case contains a home path, host name, user name or token."
+    description: "All 25 cases in testdata/kapsel/errors/ci are read; the 22 refuse, warn and plan cases must match their expect line and the corpus size is pinned. The 3 run-error cases run through the real binary in an empty scratch directory and must exit with the code and print the message of their expect line (run-error exit N | MESSAGE). A privacy test scans every file under testdata/kapsel/errors and testdata/kapsel/corpus for home paths (/Users/, /home/, /Volumes/), host names ending in .local, email addresses, tokens (ghp_, github_pat_, sk-, hex runs of 32 or more, base64-like runs of 40 or more) and GitHub owners other than pulseengine, and has its own test that each class is detected. The expect lines of 007 and 018 changed to the observed outcome: 007 exits 1 where GNU sed exits 2, and kapsel's sed accepts the N,+M address of 018, so only the missing input fails."
     fields:
       method: automated-test
       steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked --workspace --no-fail-fast (or: cargo test --locked -p kapsel-check); local: exit 0 on ws/trace 533534a (macOS, 2026-11-28; crates/ and testdata/ identical to f2355247), 375 passed, 0 failed, every named test ok; ci: rust.yml run 46115737938 (job Rust workspace tests, step Test) on f2355247ca62aba5cb54471c7104b0e05a106b5b, success, every named test ok"
-      test-location: crates/kapsel-check/src/tests/security.rs
-      test-name: tests::security::error_corpus_matches_expectations
+      test-location: crates/kapsel-check/src/tests/security.rs; crates/kapsel-cli/tests/error_corpus.rs
+      test-name: tests::security::error_corpus_matches_expectations, run_error_cases_fail_through_the_binary_with_the_expected_code_and_message, no_committed_corpus_file_holds_a_home_path_host_name_user_name_or_token, the_scanner_detects_each_class_and_passes_clean_text
     links:
       - type: verifies
         target: REQ-KS-062
@@ -442,3 +442,18 @@ artifacts:
         target: REQ-KS-063
       - type: verifies
         target: FEAT-KS-022
+
+  - id: VER-KS-028
+    type: verification
+    title: The plan schema is published, generated from the types, and every plan validates
+    status: implemented
+    release: v0.3.0
+    description: "schemas/kapsel.plan.v0.json is the JSON Schema of CheckOutcome (Plan, Refusal, Finding), generated from the kapsel-plan types with schemars (feature schema). A test regenerates it and fails if the committed file differs (KAPSEL_BLESS=1 re-blesses). Every plan and refusal that kapsel check --json produces over the plant pack, the parse goldens, the error corpus and the dash corpus validates against it (jsonschema crate), and a second test shows the schema rejects a plan without grants, body or source_sha256, a refusal without findings or schema, an unknown severity or outcome and a non-string rule. Not covered: that a plan lists every grant or native tool the command needs; that is asserted by the grant tests, not by the schema."
+    fields:
+      method: automated-test
+      steps: "cmd: CARGO_BUILD_JOBS=2 nice -n 19 cargo test --locked -p kapsel-plan --test schema -p kapsel-cli --test plan_schema"
+      test-location: crates/kapsel-plan/tests/schema.rs; crates/kapsel-cli/tests/plan_schema.rs
+      test-name: committed_schema_matches_the_rust_types, schema_names_the_types_and_the_version_field, every_plan_and_refusal_validates_against_the_published_schema, the_schema_rejects_documents_that_break_the_contract
+    links:
+      - type: verifies
+        target: REQ-KS-013

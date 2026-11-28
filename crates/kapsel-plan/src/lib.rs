@@ -15,6 +15,7 @@ pub const PLAN_SCHEMA: &str = "kapsel.plan.v0";
 
 /// What `kapsel check` produces: a plan, or a refusal. Never both.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "outcome")]
 pub enum CheckOutcome {
     Plan(Plan),
@@ -22,6 +23,7 @@ pub enum CheckOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Refusal {
     pub schema: String,
     pub source_sha256: String,
@@ -30,6 +32,7 @@ pub struct Refusal {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Plan {
     pub schema: String,
     /// Hex sha256 of the exact source text the plan was made from.
@@ -43,6 +46,7 @@ pub struct Plan {
 
 /// A rule hit. Rule ids are stable, e.g. `KS-R001` (`|| true`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Finding {
     pub rule: String,
     pub severity: Severity,
@@ -62,12 +66,14 @@ pub struct Finding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Related {
     pub span: Span,
     pub label: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Refuse,
@@ -75,6 +81,7 @@ pub enum Severity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Grants {
     /// Paths read, as written in the source (literal paths only).
     pub read: Vec<String>,
@@ -88,18 +95,21 @@ pub struct Grants {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PAndOr {
     pub first: PPipeline,
     pub rest: Vec<(AndOrOp, PPipeline)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PPipeline {
     pub negated: bool,
     pub stages: Vec<PStage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PStage {
     Call(Call),
@@ -116,6 +126,7 @@ pub enum PStage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Call {
     /// `None` for an assignment-only command (`X=1`): the compiler emits
     /// `set-var` for each assignment and no call.
@@ -128,6 +139,7 @@ pub struct Call {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind", content = "name")]
 pub enum Tool {
     /// A command implemented by kapsel (REQ-KS-025), including the special
@@ -136,6 +148,7 @@ pub enum Tool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PRedirect {
     /// Resolved fd: the explicit one, or 0 for `<`/`<&`/heredoc, 1 otherwise.
     pub fd: u32,
@@ -144,6 +157,7 @@ pub struct PRedirect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PRedirectTarget {
     Word {
@@ -162,11 +176,13 @@ pub enum PRedirectTarget {
 /// which is what expansion needs (field splitting and globbing apply only to
 /// unquoted parts).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PWord {
     pub parts: Vec<PPart>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum PPart {
     Lit {

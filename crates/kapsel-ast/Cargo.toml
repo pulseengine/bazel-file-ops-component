@@ -8,3 +8,8 @@ repository.workspace = true
 
 [dependencies]
 serde.workspace = true
+schemars = { version = "1", optional = true }
+
+[features]
+# Derives `JsonSchema` for the types of the published plan schema (schemas/kapsel.plan.v0.json).
+schema = ["dep:schemars"]

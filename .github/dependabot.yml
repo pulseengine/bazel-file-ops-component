@@ -54,3 +54,9 @@ updates:
           - minor
           - patch
 
+    # Git dependencies pinned on purpose: rivet-yaml by rivet tag (DD-KS-014,
+    # rivet#1099) and the Miri-sound rowan fork by branch (DD-KS-018). Dependabot
+    # cannot resolve git tags for a workspace member and tried an older tag.
+    ignore:
+      - dependency-name: "rivet-yaml"
+      - dependency-name: "rowan"
