@@ -1209,11 +1209,13 @@ impl Cx<'_> {
                 self.check_empty_prefix(w, *span);
             }
             // KS-R016: a non-last stage's failure cannot change the status.
-            // The current directory (`ls`, `grep -r` with no operand) exists.
+            // The current directory (`ls`, `grep -r` with no operand) exists,
+            // and `-` is standard input, not a path.
             if !last_stage
                 && *access == Access::Read
                 && w.as_literal().is_some()
                 && w.as_literal().as_deref() != Some(".")
+                && w.as_literal().as_deref() != Some("-")
                 && matches!(
                     name.as_str(),
                     "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort"

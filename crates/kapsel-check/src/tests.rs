@@ -572,6 +572,32 @@ fn implicit_current_directory_reads_are_granted() {
     assert!(rules("ls d | head -n 1").contains(&"KS-R016".to_string()));
 }
 
+/// Second review, non-blocking 5: `-` is standard input, not a path, so
+/// KS-R016 names `nofile` and never `-`.
+#[test]
+fn r016_does_not_name_stdin() {
+    let src = "echo a | cat - nofile | wc -l";
+    let out = run(src);
+    let r016: Vec<&Finding> = findings(&out)
+        .into_iter()
+        .filter(|f| f.rule == "KS-R016")
+        .collect();
+    assert_eq!(r016.len(), 1, "{r016:?}");
+    assert_eq!(r016[0].excerpt, "nofile");
+    assert!(
+        r016[0].message.contains("`cat nofile`"),
+        "{}",
+        r016[0].message
+    );
+    assert!(
+        !r016
+            .iter()
+            .any(|f| f.excerpt == "-" || f.message.contains("`cat -`")),
+        "{r016:?}"
+    );
+    assert!(!rules("echo a | cat - | wc -l").contains(&"KS-R016".to_string()));
+}
+
 #[test]
 fn the_help_example_check_can_fail() {
     // The pre-review KS-R011 help: a brace group, refused with KS-R000.
