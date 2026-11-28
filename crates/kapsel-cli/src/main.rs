@@ -439,6 +439,7 @@ fn interactive(session: &mut Session, ctx: &Ctx) -> i32 {
         let mut prompt = "kapsel$ ";
         loop {
             if let Some(e) = ed.as_mut() {
+                e.set_cwd(session.cwd());
                 match e.read() {
                     editor::Read::Line(l) => buf = l,
                     editor::Read::Interrupted => continue,

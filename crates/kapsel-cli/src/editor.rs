@@ -41,6 +41,7 @@ pub enum Read {
 pub struct Editor {
     rl: Reedline,
     prompt: KapselPrompt,
+    cwd: std::sync::Arc<std::sync::Mutex<PathBuf>>,
 }
 
 impl Editor {
@@ -68,12 +69,15 @@ impl Editor {
             ]),
         );
         let color = std::env::var_os("NO_COLOR").is_none_or(|v| v.is_empty());
+        let cwd = std::sync::Arc::new(std::sync::Mutex::new(
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        ));
         let rl = Reedline::create()
             .with_history(history)
             .with_validator(Box::new(KapselValidator))
             .with_highlighter(Box::new(KapselHighlighter))
             .with_hinter(Box::new(RuleHinter))
-            .with_completer(Box::new(KapselCompleter))
+            .with_completer(Box::new(KapselCompleter { cwd: cwd.clone() }))
             .with_menu(ReedlineMenu::EngineCompleter(Box::new(
                 ColumnarMenu::default().with_name("completion_menu"),
             )))
@@ -82,7 +86,15 @@ impl Editor {
         Some(Editor {
             rl,
             prompt: KapselPrompt,
+            cwd,
         })
+    }
+
+    /// Tells the completer where the session is, before each prompt.
+    pub fn set_cwd(&mut self, dir: PathBuf) {
+        if let Ok(mut d) = self.cwd.lock() {
+            *d = dir;
+        }
     }
 
     pub fn read(&mut self) -> Read {
@@ -334,7 +346,11 @@ pub fn slot(prefix: &str) -> Slot<'_> {
     }
 }
 
-pub struct KapselCompleter;
+/// Completes against the session's working directory, which kapsel's `cd`
+/// changes without changing the process's.
+pub struct KapselCompleter {
+    cwd: std::sync::Arc<std::sync::Mutex<PathBuf>>,
+}
 
 /// Suggestions for the word ending at byte `pos` of `line`; `dir` is where
 /// file names come from.
@@ -385,6 +401,11 @@ pub fn complete_in(line: &str, pos: usize, dir: &std::path::Path) -> Vec<Suggest
                 .flatten()
                 .filter_map(|e| {
                     let n = e.file_name().into_string().ok()?;
+                    // A name with control characters would be printed raw in the
+                    // completion menu, where an escape sequence acts on the terminal.
+                    if n.chars().any(char::is_control) {
+                        return None;
+                    }
                     if !n.starts_with(name) || (n.starts_with('.') && !name.starts_with('.')) {
                         return None;
                     }
@@ -422,7 +443,11 @@ fn escape(name: &str) -> String {
 
 impl Completer for KapselCompleter {
     fn complete(&mut self, line: &str, pos: usize) -> CompletionResult {
-        let dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let dir = self
+            .cwd
+            .lock()
+            .map(|d| d.clone())
+            .unwrap_or_else(|_| PathBuf::from("."));
         CompletionResult::fresh(complete_in(line, pos, &dir))
     }
 }
@@ -561,6 +586,16 @@ mod tests {
         assert_eq!(values("cat my", d.path()), vec!["my\\ file"]);
         assert!(!values("cat ", d.path()).contains(&".hidden".to_string()));
         assert_eq!(values("cat .h", d.path()), vec![".hidden"]);
+    }
+
+    #[test]
+    fn file_names_with_control_characters_are_never_offered() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("bad\u{1b}]0;owned\u{7}name"), "").unwrap();
+        std::fs::write(d.path().join("bell\u{7}"), "").unwrap();
+        std::fs::write(d.path().join("good"), "").unwrap();
+        assert_eq!(values("cat ", d.path()), vec!["good"]);
+        assert!(values("cat b", d.path()).is_empty());
     }
 
     #[test]
