@@ -105,7 +105,7 @@ artifacts:
   - id: REQ-KS-012
     type: requirement
     title: "Constructs that destroy the error signal are refused"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
