@@ -256,6 +256,44 @@ fn p_capture_assign_redirect() -> Plan {
     call.assignments = vec![("X".into(), cap(seq(vec![c("echo v")])))];
     plan(seq(vec![PStage::Call(call)]))
 }
+/// `X=1 Y=$(echo v) > $(echo out); echo $X$Y`: assignments and a redirect
+/// but no command name (KC-R23). Captures run in expansion order
+/// (redirections, then assignments); the assignments persist.
+fn p_assign_redirect() -> Plan {
+    plan(seq(vec![
+        PStage::Call(Call {
+            tool: None,
+            argv: vec![],
+            assignments: vec![
+                ("X".into(), lit("1")),
+                ("Y".into(), cap(seq(vec![c("echo v")]))),
+            ],
+            redirects: vec![PRedirect {
+                fd: 1,
+                op: RedirectOp::Write,
+                target: PRedirectTarget::Word {
+                    word: cap(seq(vec![c("echo out")])),
+                },
+            }],
+            span: Span::new(0, 30),
+        }),
+        PStage::Call(callw(vec![
+            lit("echo"),
+            PWord {
+                parts: vec![
+                    PPart::Var {
+                        name: "X".into(),
+                        quoted: false,
+                    },
+                    PPart::Var {
+                        name: "Y".into(),
+                        quoted: false,
+                    },
+                ],
+            },
+        ])),
+    ]))
+}
 /// `X=$(false); echo $?`: the assignment's status is the substitution's.
 fn p_assign_capture() -> Plan {
     plan(seq(vec![
@@ -292,6 +330,7 @@ fn all_plans() -> Vec<(&'static str, Plan)> {
         ("sub_exit", p_sub_exit()),
         ("stage_exit", p_stage_exit()),
         ("assign_capture", p_assign_capture()),
+        ("assign_redirect", p_assign_redirect()),
         ("empty", plan(vec![])),
     ]
 }
@@ -1099,7 +1138,7 @@ fn known_md_counts_are_pinned() {
     // Pinned: a change in either direction must update this test, KNOWN.md
     // and the tables in lib.rs together.
     assert_eq!(KNOWN_WRONG.len(), 0);
-    assert_eq!(DECLINED.len(), 8);
+    assert_eq!(DECLINED.len(), 7);
     assert_eq!(header("Known-wrong count:"), KNOWN_WRONG.len());
     assert_eq!(header("Declined count:"), DECLINED.len());
     assert_eq!(count("### KW-"), KNOWN_WRONG.len());
@@ -1182,18 +1221,79 @@ fn kd5_no_tool_no_assignments() {
     assert_kc001(&raw_call(false, vec![], vec![], vec![]), "call", SPAN);
 }
 
+/// A redirect with no tool and no assignments stays KD-5: the check stage
+/// lowers a redirect-only `> f` to the `:` built-in, so this plan is malformed.
 #[test]
-fn kd6_redirect_only_command() {
+fn kd5_redirect_without_tool_or_assignments() {
     let r = PRedirect {
         fd: 1,
         op: RedirectOp::Write,
         target: PRedirectTarget::Word { word: lit("f") },
     };
-    assert_kc001(
-        &raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]),
-        "call",
-        SPAN,
+    assert_kc001(&raw_call(false, vec![], vec![], vec![r]), "call", SPAN);
+}
+
+/// KC-R23 (was KD-6): `X=1 > f` compiles; the assignment persists and `:`
+/// performs the redirect, with no assignments of its own.
+#[test]
+fn assign_with_redirect_persists_then_calls_colon() {
+    let r = PRedirect {
+        fd: 1,
+        op: RedirectOp::Write,
+        target: PRedirectTarget::Word { word: lit("f") },
+    };
+    let p = raw_call(false, vec![], vec![("X".into(), lit("1"))], vec![r]);
+    assert!(compile_report(&p).unwrap().rules_fired.contains(&"KC-R23"));
+    check(
+        &p,
+        &[],
+        &["set-var X=1", "call : <0 >0 1>[f]0", "set-status 0"],
+        0,
     );
+}
+
+#[test]
+fn assign_redirect_order_and_persistence() {
+    let (log, status, out) = run_out(&p_assign_redirect(), &[]);
+    assert_eq!(
+        log,
+        [
+            "pipe -> 1",
+            "scope-push",
+            "call echo out <0 >1",
+            "set-status 0",
+            "scope-pop",
+            "pipe -> 2",
+            "scope-push",
+            "call echo v <0 >2",
+            "set-status 0",
+            "scope-pop",
+            "set-var X=1",
+            "set-var Y=<cap2>",
+            "call : <0 >0 1>[<cap1>]0",
+            "set-status 0",
+            "call echo $X$Y <0 >0",
+            "set-status 0",
+        ]
+    );
+    assert_eq!(out, "1v\n");
+    assert_eq!(status, 0);
+}
+
+/// A failed redirect (`X=1 > /`): the status is `:`'s non-zero status and
+/// the assignment still holds.
+#[test]
+fn assign_redirect_failure_keeps_the_variable() {
+    let (_, status, out) = run_out(&p_assign_redirect(), &[(":", &[2])]);
+    assert_eq!(out, "1v\n");
+    // The plan's status is the last command's (echo); `:`'s 2 is `$?` before it.
+    assert_eq!(status, 0);
+    let p = plan(seq(vec![
+        p_assign_redirect().body[0].first.stages[0].clone(),
+        PStage::Call(callw(vec![lit("echo"), var("?"), var("X")])),
+    ]));
+    let (_, _, out) = run_out(&p, &[(":", &[2])]);
+    assert_eq!(out, "2 1\n");
 }
 
 #[test]
@@ -1398,6 +1498,7 @@ const RULE_TESTS: &[(&str, &str)] = &[
     ("KC-R20", "sub_exit"),
     ("KC-R21", "exit"),
     ("KC-R22", "single"),
+    ("KC-R23", "assign_redirect"),
 ];
 
 #[test]
@@ -1612,7 +1713,11 @@ fn every_call_names_its_command_by_pre_order_index() {
             let c = commands
                 .get(id as usize)
                 .unwrap_or_else(|| panic!("{name}: site {id} out of range"));
-            let want = c.argv[0].as_literal().unwrap_or_default();
+            // `X=1 > f` has no argv; its call is `:` (KC-R23).
+            let want = match c.argv.first() {
+                Some(w) => w.as_literal().unwrap_or_default(),
+                None => ":".to_string(),
+            };
             assert!(
                 argv0.trim_matches('"') == want,
                 "{name}: site {id} names `{want}`, the call is `{argv0}`"
