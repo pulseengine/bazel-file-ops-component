@@ -97,8 +97,8 @@ artifacts:
       phase: phase-2
       acceptance-criteria:
         - "The same command twice compiles to a byte-identical module, and the second run hits the cache"
-        - "Missing or invalid ZWINGER_GRANTS exits 78 and preopens nothing"
-        - "Every corpus script gives the same output and exit code on wasmtime and kiln"
+        - "An invalid --rw or --ro grant exits 78 and runs nothing"
+        - "Every corpus script gives the same stdout, exit status and files as dash on Linux"
     links:
       - type: satisfies
         target: REQ-KS-020
@@ -106,13 +106,6 @@ artifacts:
         target: REQ-KS-021
       - type: satisfies
         target: REQ-KS-022
-      - type: satisfies
-        target: REQ-KS-023
-      - type: satisfies
-        target: REQ-KS-024
-      - type: satisfies
-        target: REQ-KS-026
-
       - type: satisfies
         target: REQ-KS-019
   - id: FEAT-KS-021
@@ -199,3 +192,23 @@ artifacts:
         target: REQ-KS-040
       - type: satisfies
         target: REQ-KS-041
+
+  - id: FEAT-KS-023
+    type: feature
+    title: "kapsel run under zwinger's grants, on wasmtime and on kiln"
+    status: approved
+    release: v0.4.0
+    description: "Split from FEAT-KS-020 (2026-11-28): the grant handover from zwinger and the second runtime belong to v0.4.0."
+    fields:
+      phase: phase-2
+      acceptance-criteria:
+        - "Missing or invalid ZWINGER_GRANTS exits 78 and preopens nothing"
+        - "Every corpus script gives the same output and exit code on wasmtime and kiln"
+        - "Built-ins run as composed components behind the command WIT"
+    links:
+      - type: satisfies
+        target: REQ-KS-023
+      - type: satisfies
+        target: REQ-KS-024
+      - type: satisfies
+        target: REQ-KS-026

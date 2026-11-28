@@ -231,7 +231,7 @@ artifacts:
     type: design-decision
     title: "Bazel uses kapsel's JSON-config mode"
     status: implemented
-    release: v0.3.0
+    release: v0.4.0
     description: "The contract Bazel builds bind to."
     fields:
       decision: >

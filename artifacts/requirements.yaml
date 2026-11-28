@@ -306,7 +306,7 @@ artifacts:
     fields:
       priority: must
       category: constraint
-      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag, or the Rust fork-guard rule disagrees with the Python script on any workflow in the fixtures."
+      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag, or the Rust fork-guard rule passes a workflow the Python script fails, except for the pinned and reasoned cases where the script's verdict is a false positive (a guard it cannot parse, or runs-on text inside a run: block)."
       upstream-ref: "kapsel#140"
     links:
       - type: derives-from
@@ -317,16 +317,19 @@ artifacts:
   - id: REQ-KS-020
     type: requirement
     title: "A checked plan compiles to a WASM component that calls kapsel's interfaces"
-    status: proposed
+    status: approved
     release: v0.3.0
     description: >
-      The compiler turns a plan into a component that imports the `command` interface for each
-      built-in and native-exec for each native tool. The same plan and the same interface
-      versions produce a byte-identical module.
+      The compiler turns a plan into a component of world `kapsel:shell/plan` that imports only
+      `kapsel:shell/host@0.1.0` (wit/kapsel-shell.wit): built-ins, expansion and session state are
+      host calls, and all control flow is compiled in. The same plan and the same interface
+      versions produce a byte-identical module. Built-ins as composed `command` components and
+      native tools through native-exec replace host calls in v0.4.0 and v0.5.0 (REQ-KS-024,
+      REQ-KS-030); this text was narrowed to the first-shell design on 2026-11-28.
     fields:
       priority: must
       category: functional
-      verification-criteria: "Fails if one plan compiled twice with the same interface versions gives two different modules, or a compiled module calls anything other than the command and native-exec imports."
+      verification-criteria: "Fails if one plan compiled twice with the same interface versions gives two different modules, or a compiled module imports anything other than kapsel:shell/host@0.1.0."
 
   - id: REQ-KS-021
     type: requirement
