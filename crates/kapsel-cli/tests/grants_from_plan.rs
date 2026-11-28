@@ -122,22 +122,28 @@ impl Rig {
     /// Runs kapsel with `args` in a fresh scratch directory holding the
     /// input's files. Paths of the scratch directory are replaced by `<cwd>`.
     fn run(&self, input: &Input, args: &[&str]) -> Outcome {
+        self.run_as(input, args, true)
+    }
+
+    /// `testing`: set KAPSEL_TESTING=1, which the test-only flags need.
+    fn run_as(&self, input: &Input, args: &[&str], testing: bool) -> Outcome {
         self.n.set(self.n.get() + 1);
         let cwd = self.root.path().join(format!("run{}", self.n.get()));
         std::fs::create_dir_all(&cwd).unwrap();
         for (rel, text) in &input.files {
             std::fs::write(cwd.join(rel), text).unwrap();
         }
-        let o = Command::cargo_bin("kapsel")
-            .unwrap()
-            .current_dir(&cwd)
+        let mut cmd = Command::cargo_bin("kapsel").unwrap();
+        cmd.current_dir(&cwd)
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
             .env("LC_ALL", "C")
             .env("KAPSEL_HOME", self.home())
-            .args(args)
-            .output()
-            .unwrap();
+            .args(args);
+        if testing {
+            cmd.env("KAPSEL_TESTING", "1");
+        }
+        let o = cmd.output().unwrap();
         let logical = cwd.to_string_lossy().into_owned();
         let physical = cwd.canonicalize().unwrap().to_string_lossy().into_owned();
         let norm = |b: &[u8]| {
@@ -291,4 +297,79 @@ fn grants_from_plan_flag_errors() {
         assert_eq!(o.status, Some(code), "{args:?}: {}", o.stderr);
         assert!(o.stderr.contains(msg), "{args:?}: {}", o.stderr);
     }
+}
+
+/// BL-2 (second review): the test-only flags refuse to start without
+/// KAPSEL_TESTING=1, and the usage text does not offer them.
+#[test]
+fn testing_flags_need_kapsel_testing() {
+    let rig = Rig::new();
+    let input = Input {
+        name: "x".into(),
+        script: String::new(),
+        files: vec![("a", "a\n")],
+    };
+    for args in [
+        vec!["--grants-from-plan", "-c", "cat a"],
+        vec!["--grants-from-plan", "--drop-grant", "a", "-c", "cat a"],
+        vec!["--drop-grant", "a", "-c", "cat a"],
+    ] {
+        let o = rig.run_as(&input, &args, false);
+        assert_eq!(o.status, Some(64), "{args:?}: {}", o.stderr);
+        assert!(
+            o.stderr.contains("KAPSEL_TESTING=1"),
+            "{args:?}: {}",
+            o.stderr
+        );
+        assert_eq!(o.stdout, "", "{args:?}: nothing ran");
+    }
+    let help = rig.run_as(&input, &["--help"], false);
+    assert!(
+        !help.stdout.contains("grants-from-plan") && !help.stdout.contains("drop-grant"),
+        "{}",
+        help.stdout
+    );
+}
+
+/// BL-2: even under KAPSEL_TESTING=1, a plan grant that is absolute or
+/// climbs out of the current directory is refused (78) and nothing runs.
+#[test]
+fn plan_grants_outside_the_current_directory_are_refused() {
+    let rig = Rig::new();
+    let outside = rig.root.path().join("outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    let input = Input {
+        name: "x".into(),
+        script: String::new(),
+        files: vec![],
+    };
+    let abs_target = outside.join("g");
+    let abs_cmd = format!("echo x > {}", abs_target.display());
+    for script in [
+        "echo x > ../outside/f",
+        "echo x > d/../../outside/f",
+        "cat /etc/hosts",
+        abs_cmd.as_str(),
+    ] {
+        let o = rig.run(&input, &["--grants-from-plan", "-c", script]);
+        assert_eq!(o.status, Some(78), "{script:?}: {}", o.stderr);
+        assert!(
+            o.stderr
+                .contains("absolute or outside the current directory"),
+            "{script:?}: {}",
+            o.stderr
+        );
+        assert_eq!(o.stdout, "", "{script:?}");
+    }
+    assert!(
+        !outside.join("f").exists(),
+        "wrote outside the current directory"
+    );
+    assert!(!abs_target.exists(), "wrote to an absolute path");
+    // A `..` that stays inside is a plan grant like any other.
+    let o = rig.run(
+        &input,
+        &["--grants-from-plan", "-c", "mkdir -p d && echo x > d/../f"],
+    );
+    assert_ne!(o.status, Some(78), "{}", o.stderr);
 }

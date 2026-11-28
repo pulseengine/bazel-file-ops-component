@@ -324,3 +324,19 @@ fn run_error_help_examples_pass_kapsel_s_own_check() {
     }
     assert!(checked >= 2, "only {checked} fragments checked");
 }
+
+/// Second review, non-blocking 3: a file name holding ESC reaches the
+/// `error[run:…]` diagnostic escaped (`\x1b`), from the script name and the
+/// message alike. (The built-in's own stderr line before it is the file
+/// name as the built-in reports it.)
+#[test]
+fn control_characters_in_a_run_error_are_escaped() {
+    let e = Env::new();
+    e.write("s\u{1b}[2J.sh", "cat \"$(printf 'x\\033[2Jy')\"\n");
+    let o = e.run(&["s\u{1b}[2J.sh"]);
+    assert_eq!(o.code, Some(1), "{}", o.stderr);
+    let diag = &o.stderr[o.stderr.find("error[run:").expect("a run error")..];
+    assert!(!diag.contains('\u{1b}'), "{diag:?}");
+    assert!(diag.contains("x\\x1b[2Jy"), "{diag}");
+    assert!(diag.contains("s\\x1b[2J.sh"), "{diag}");
+}

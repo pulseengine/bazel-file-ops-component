@@ -397,25 +397,28 @@ fn r001_leaves_rhs_that_can_fail_alone() {
 }
 
 #[test]
-fn const_test_follows_posix_by_argument_count() {
-    let t = |a: &[&str]| {
-        crate::status::const_test(&a.iter().map(|s| s.to_string()).collect::<Vec<_>>())
-    };
-    assert_eq!(t(&[]), Some(false));
-    assert_eq!(t(&["1"]), Some(true));
-    assert_eq!(t(&[""]), Some(false));
-    assert_eq!(t(&["-n", "x"]), Some(true));
-    assert_eq!(t(&["-n", ""]), Some(false));
-    assert_eq!(t(&["-z", ""]), Some(true));
-    assert_eq!(t(&["!", "x"]), Some(false));
-    assert_eq!(t(&["a", "=", "a"]), Some(true));
-    assert_eq!(t(&["a", "!=", "a"]), Some(false));
-    assert_eq!(t(&["2", "-gt", "1"]), Some(true));
-    assert_eq!(t(&["x", "-gt", "1"]), None);
-    assert_eq!(t(&["!", "-n", "x"]), Some(false));
-    assert_eq!(t(&["!", "a", "=", "b"]), Some(true));
+fn const_test_follows_the_host_grammar() {
+    // The statuses come from `kapsel_plan::sem::eval_test`, the host's own code.
+    let t = crate::status::const_test;
+    assert_eq!(t(&[]), Some(1));
+    assert_eq!(t(&["1"]), Some(0));
+    assert_eq!(t(&[""]), Some(1));
+    assert_eq!(t(&["-n", "x"]), Some(0));
+    assert_eq!(t(&["-n", ""]), Some(1));
+    assert_eq!(t(&["-z", ""]), Some(0));
+    assert_eq!(t(&["!", "x"]), Some(1));
+    assert_eq!(t(&["a", "=", "a"]), Some(0));
+    assert_eq!(t(&["a", "!=", "a"]), Some(1));
+    assert_eq!(t(&["2", "-gt", "1"]), Some(0));
+    assert_eq!(t(&["x", "-gt", "1"]), Some(2));
+    assert_eq!(t(&["!", "-n", "x"]), Some(1));
+    assert_eq!(t(&["!", "a", "=", "b"]), Some(0));
     assert_eq!(t(&["-e", "a"]), None);
-    assert_eq!(t(&["-f", "a", "b", "c", "d"]), None);
+    assert_eq!(t(&["-f", "a", "b", "c", "d"]), Some(2));
+    assert_eq!(t(&["x", "-o", "y"]), Some(0));
+    assert_eq!(t(&["x", "-a", "y"]), Some(0));
+    assert_eq!(t(&["(", "x", ")"]), Some(0));
+    assert_eq!(t(&["a", "<", "b"]), Some(0));
 }
 
 /// KS-R018: a script's own `exit 64|65|70|78` (modulo 256) collides with
@@ -428,6 +431,10 @@ fn r018_warns_on_exit_codes_kapsel_uses() {
         ("false || exit 70", "70"),
         ("exit 78", "78"),
         ("exit 321", "65"),
+        // The operand is read as the host reads it (kapsel_plan::sem::exit_status).
+        ("exit +65", "65"),
+        ("exit -191", "65"),
+        ("exit \" 78\"", "78"),
     ] {
         let out = run(src);
         let f = findings(&out)
@@ -563,6 +570,32 @@ fn implicit_current_directory_reads_are_granted() {
     // `.` always exists: no KS-R016 for `ls | head`.
     assert!(!rules("ls | head -n 1").contains(&"KS-R016".to_string()));
     assert!(rules("ls d | head -n 1").contains(&"KS-R016".to_string()));
+}
+
+/// Second review, non-blocking 5: `-` is standard input, not a path, so
+/// KS-R016 names `nofile` and never `-`.
+#[test]
+fn r016_does_not_name_stdin() {
+    let src = "echo a | cat - nofile | wc -l";
+    let out = run(src);
+    let r016: Vec<&Finding> = findings(&out)
+        .into_iter()
+        .filter(|f| f.rule == "KS-R016")
+        .collect();
+    assert_eq!(r016.len(), 1, "{r016:?}");
+    assert_eq!(r016[0].excerpt, "nofile");
+    assert!(
+        r016[0].message.contains("`cat nofile`"),
+        "{}",
+        r016[0].message
+    );
+    assert!(
+        !r016
+            .iter()
+            .any(|f| f.excerpt == "-" || f.message.contains("`cat -`")),
+        "{r016:?}"
+    );
+    assert!(!rules("echo a | cat - | wc -l").contains(&"KS-R016".to_string()));
 }
 
 #[test]
@@ -1073,6 +1106,139 @@ fn findings_of(src: &str) -> Vec<(String, Severity)> {
         .iter()
         .map(|f| (f.rule.clone(), f.severity))
         .collect()
+}
+
+/// BL-1 (second review of v0.3.0): right-hand sides of `||` that exited 0
+/// through the real binary and got a plan. Each is now KS-R001.
+pub(crate) const REVIEW2_BYPASSES: &[&str] = &[
+    "for i in; do false; done",
+    "X=1",
+    "X=1 Y=2",
+    "export X=1",
+    "export X",
+    "exit -256",
+    "exit +0",
+    "exit -0",
+    "exit \" 0\"",
+    "test x -o y",
+    "test x -a y",
+    "test '(' x ')'",
+    "test a '<' b",
+    "test \"x$(false)\"",
+    "test x\"$(false)\"",
+    "for i in a; do X=1; exit; done",
+    "for i in a; do export Y=1; done",
+];
+
+#[test]
+fn r001_refuses_the_second_review_bypasses() {
+    for rhs in REVIEW2_BYPASSES {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            has(&src, "KS-R001", Severity::Refuse),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
+}
+
+/// Classes the generated search (kapsel-cli tests/r001_search.rs) found
+/// after the review's list was fixed: each exited 0 everywhere with a plan.
+#[test]
+fn r001_refuses_what_the_search_found() {
+    for rhs in [
+        // An `exit 0` reached for certain, also through a loop condition.
+        "while exit 0; do cat a; done",
+        "! while exit -256; do cat a; done",
+        "until exit 0; do cat a; done",
+        "test x && ! exit 0",
+        // The status of an assignment is the last substitution's.
+        "X=\"$(true)\" Y=1",
+        "X=$(false) Y=$(true)",
+        // `$(false)` prints nothing: no items, no word.
+        "for i in $(false); do cat a; done",
+        "test = $(false)",
+        "test -n \"-$V\" $(false)",
+        // Negation of what always fails.
+        "! export 1bad",
+        "! X=$(false)",
+        "! for i in \"\"; do cat a; [ ')' 1 1 ]; done",
+        "! for i in \"$V\"; do test -eq '<' || ! X=1; done",
+        "! cat a | while exit 1; do :; done",
+        "! cat a | exit -e",
+        // Every form the expansion can take gives the same answer.
+        "! [ \"!$V\" '<' ]",
+        "! [ \"-$V\" -z \"-$V\" ]",
+        "! [ +65 x\"$V\" ]",
+        "test '' != x\"$V\"",
+        // `export` of a valid name with a quoted value.
+        "export X=\"$V\"",
+        "export X=\"x$(false)\"",
+    ] {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            has(&src, "KS-R001", Severity::Refuse),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
+}
+
+/// A test with many expansions that may be operators: the number of forms
+/// to try (about 15 per word, 40 words) overflows usize. The check must cap
+/// it with a checked product, not panic or wrap, and return quickly.
+#[test]
+fn r001_test_fold_caps_the_forms_without_overflow() {
+    let words = vec!["\"-$V\""; 40].join(" ");
+    let src = format!("cat missing.txt || test {words}");
+    let start = std::time::Instant::now();
+    let r = rules(&src);
+    assert!(!r.contains(&"KS-R001".to_string()), "{r:?}");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// The controls of BL-1: these can fail, so they stay out of KS-R001.
+#[test]
+fn r001_leaves_failable_assignments_exports_and_tests_alone() {
+    for rhs in [
+        "X=$(false)",
+        "X=\"$(false)\"",
+        "X=1 Y=$(false)",
+        "export 1bad",
+        "export X=$(cat a)",
+        "export X=$V",
+        "export X 1bad",
+        "test \"$X\"",
+        "test x$Y",
+        "test \"$(false)x\" = y",
+        "test \"x$Y\" = xy",
+        "test \"-$Y\" x",
+        "[ \"x$Y\"",
+        "test -e a -a x",
+        "exit x",
+        "exit 1 2",
+        "for i in a; do X=$(false); exit; done",
+        "for i in $L; do export Y=1; false; done",
+        // An `exit` that may run can end the loop with any status.
+        "for i in a; do cat a || exit 1; true; done",
+        "while cat a || exit 3; do :; done",
+        // A `true` stage counts only at the top of the right-hand side.
+        "for i in a; do : | [ ')' 1 1 ]; done",
+        // A bare `exit` in a later iteration sees the body's status.
+        "for i in $V; do ! [ '' ] | exit; done",
+        "for i in $V; do :; done | test -e a",
+    ] {
+        let src = format!("cat missing.txt || {rhs}");
+        assert!(
+            !rules(&src).contains(&"KS-R001".to_string()),
+            "{src:?}: {:?}",
+            rules(&src)
+        );
+    }
 }
 
 mod quality;

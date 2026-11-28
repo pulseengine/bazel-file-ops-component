@@ -60,10 +60,13 @@ in the PR. A workstream that needs a breaking change stops and reports it instea
 - **Grants:** the session may read and write the current directory and nothing else unless
   `--rw DIR` / `--ro DIR` add more. A path outside every grant fails the built-in with exit 1 and a
   message; it never touches the file. `ZWINGER_GRANTS` (REQ-KS-023) replaces the flags in v0.4.
-  For testing REQ-KS-013, `--grants-from-plan` grants exactly the plan's read and write paths and
-  not the current directory (refused when the plan's grants are dynamic), and `--drop-grant PATH`
-  leaves one of them out; `crates/kapsel-cli/tests/grants_from_plan.rs` runs the dash corpus and
-  the acceptance lines both ways.
+  For testing REQ-KS-013 only, `--grants-from-plan` grants exactly the plan's read and write
+  paths and not the current directory (refused when the plan's grants are dynamic), and
+  `--drop-grant PATH` leaves one of them out. Both refuse to start (exit 64) unless
+  `KAPSEL_TESTING=1` is set, and the usage text does not list them; a plan grant that is
+  absolute or whose `..` leaves the current directory is refused with exit 78.
+  `crates/kapsel-cli/tests/grants_from_plan.rs` runs the dash corpus and the acceptance lines
+  both ways.
 - **Exit codes** (`kapsel_plan::exit`): command status 0 to 255 passes through; 64 usage,
   65 refused, 70 internal, 78 grants. Built-ins use only 0, 1 and 2.
   A script can still `exit 64`, `65`, `70` or `78` itself (KS-R018 warns when it does), so the
@@ -111,7 +114,7 @@ Each rule has a planted script and a control under `testdata/kapsel/rules/<id>/`
 
 | Id | Severity | Construct |
 |---|---|---|
-| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is always 0: a pipeline with a `true` or `:` stage, `! false`, `exit 0`, a constant-true `test`/`[`, a loop whose body always ends with status 0 |
+| KS-R001 | refuse | `\|\| true`, `\|\| :` (destroys the error signal), and any right-hand side of `\|\|` whose status is 0 by the definition of what it runs, judged with the host's own `test` and `exit` code (`kapsel_plan::sem`): a pipeline with a `true` or `:` stage; an `exit` that certainly runs with status 0 (`exit 0`, `exit -256`, `exit " 0"`, a bare `exit` after status 0 or `echo`/`printf`, also in a loop); `!` of what always fails (`false`, a false or malformed test, `export 1bad`, `X=$(false)`); a `test`/`[` that is true whatever its expansions are (`test x -o y`, `test "x$(cmd)"`); assignments with no `$(...)` or whose last `$(...)` always ends with 0; `export` of valid literal names with quoted values; a `for` loop with no items; a loop whose body never runs or always ends in one of these. Not refused: anything whose status the run decides (`X=$(cmd)`, `test -n "$X"`, `[ $X = y ]`, `[ -e f ]`), and `pwd`, `cd .`, `seq 0`, `echo` (0 in practice, but they can fail; `\|\| echo` is KS-R011) |
 | KS-R002 | warn | `2>/dev/null` on a command whose failure is not otherwise handled |
 | KS-R003 | refuse | `rm -r`/`-rf` whose path is `/`, `~`, `.`, `..`, empty, or begins with an unquoted or possibly-empty expansion (`rm -rf $X/`) |
 | KS-R004 | refuse | code from strings: `eval`, `sh -c`, `bash -c`, `source`, `.` |

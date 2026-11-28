@@ -116,6 +116,19 @@ pub fn seal(
     module: Vec<u8>,
     key: &SigningKey,
 ) -> Result<Vec<u8>, SealError> {
+    seal_as(plan, source, module, key, COMPILER_VERSION, WIT_VERSION)
+}
+
+/// [`seal`] with the attested tool version and `wit` parameter given (tests
+/// seal a module as another compiler would).
+pub(crate) fn seal_as(
+    plan: &Plan,
+    source: &str,
+    module: Vec<u8>,
+    key: &SigningKey,
+    tool_version: &str,
+    wit: &str,
+) -> Result<Vec<u8>, SealError> {
     if hex_sha256(source.as_bytes()) != plan.source_sha256 {
         return Err(SealError::SourceMismatch);
     }
@@ -123,16 +136,13 @@ pub fn seal(
     let norm = normalized_json(plan);
     debug_assert_eq!(hex_sha256(&norm), plan.normalized_sha256());
 
-    let attestation = TransformationAttestationBuilder::new(
-        TransformationType::Custom,
-        TOOL_NAME,
-        COMPILER_VERSION,
-    )
-    .add_parameter("wit", serde_json::Value::String(WIT_VERSION.into()))
-    .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
-    .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
-    .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
-    .map_err(SealError::Key)?;
+    let attestation =
+        TransformationAttestationBuilder::new(TransformationType::Custom, TOOL_NAME, tool_version)
+            .add_parameter("wit", serde_json::Value::String(wit.into()))
+            .add_input_unsigned(source.as_bytes(), INPUT_SOURCE)
+            .add_input_unsigned(&norm, INPUT_NORMALIZED_PLAN)
+            .build_and_sign_ed25519(&module, "module.wasm", key.pair.sk.sk.as_ref(), None)
+            .map_err(SealError::Key)?;
 
     let embedded = embed_transformation_attestation(parsed, &attestation)
         .map_err(|e| SealError::Malformed(e.to_string()))?;
@@ -175,6 +185,23 @@ pub fn verify(
             "tool is {}, not {TOOL_NAME}",
             att.tool.name
         )));
+    }
+    // A module from another compiler or for another interface is not this
+    // build's, even when it is signed by a trusted key.
+    if att.tool.version != COMPILER_VERSION {
+        return Err(SealError::Attestation(format!(
+            "tool version is {}, not {COMPILER_VERSION}",
+            att.tool.version
+        )));
+    }
+    match att.tool.parameters.get("wit") {
+        Some(serde_json::Value::String(w)) if w == WIT_VERSION => {}
+        other => {
+            return Err(SealError::Attestation(format!(
+                "wit parameter is {}, not {WIT_VERSION}",
+                other.map_or_else(|| "missing".to_string(), |v| v.to_string())
+            )));
+        }
     }
     let attested = att
         .inputs

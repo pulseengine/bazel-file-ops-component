@@ -12,7 +12,7 @@ error[KS-R001]: `|| true` turns any failure of the command before it into succes
   |       ^^^^^^^
   |
   = note: `|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)
-  = note: any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0
+  = note: refused alike, judged with the `test` and `exit` code the run uses: a right-hand side of `||` that is `true` or `:` or has one as a pipeline stage; an `exit` that certainly runs with status 0 (`exit 0`, `exit 256`, `exit -0`, `exit " 0"`, a bare `exit` after status 0 or after `echo`/`printf`), also in a loop's condition or body; `!` of something that always fails (`false`, a false or malformed test, `export 1bad`, `X=$(false)`); a `test`/`[` that is true whatever its expansions are (literal words, a quoted expansion next to literal text, `$(false)`, which prints nothing); assignments with no `$(...)`, or whose last `$(...)` always ends with status 0; `export` of valid literal names with quoted values; a `for` loop with no items; a loop whose body never runs or always ends in one of these
   = help: drop the `|| true` and let the command fail, or stop on the failure: `cmd || exit 1`; if the failure is expected, test for its cause first: `test -e stale.lock && rm stale.lock`
 
 warning[KS-R016]: `cat missing.txt` reads a path that may not exist in a pipeline stage that is not the last, so a failure here cannot change the pipeline's status

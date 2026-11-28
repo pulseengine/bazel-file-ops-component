@@ -84,7 +84,7 @@ fn notes_for(rule: &str) -> Vec<String> {
         ],
         R001 => &[
             "`|| true` hides the exit status the next step or the caller needs to know the work failed (REQ-KS-012)",
-            "any right-hand side of `||` whose status is always 0 does the same: `:`, `exit 0`, `! false`, a constant-true `test`, a pipeline with a `true` stage, a loop whose body always ends with status 0",
+            "refused alike, judged with the `test` and `exit` code the run uses: a right-hand side of `||` that is `true` or `:` or has one as a pipeline stage; an `exit` that certainly runs with status 0 (`exit 0`, `exit 256`, `exit -0`, `exit \" 0\"`, a bare `exit` after status 0 or after `echo`/`printf`), also in a loop's condition or body; `!` of something that always fails (`false`, a false or malformed test, `export 1bad`, `X=$(false)`); a `test`/`[` that is true whatever its expansions are (literal words, a quoted expansion next to literal text, `$(false)`, which prints nothing); assignments with no `$(...)`, or whose last `$(...)` always ends with status 0; `export` of valid literal names with quoted values; a `for` loop with no items; a loop whose body never runs or always ends in one of these",
         ],
         R002 => &[
             "2>/dev/null appears in 21% of measured agent shell calls and hides the error the next step needs",
@@ -409,7 +409,7 @@ impl Cx<'_> {
     /// `|| true | cat`, `|| ! false`, `|| exit 0`, `|| test 1`, a loop whose
     /// body ends in `:`) turns a failure into success. See `status`.
     fn check_or_true(&mut self, rhs: &ast::Pipeline, prev_end: u32) {
-        let Some(why) = status::pipeline_zero(rhs, false, self.source) else {
+        let Some(why) = status::rhs_zero(rhs, self.source) else {
             return;
         };
         let rhs_text = excerpt(self.source, rhs.span).trim().to_string();
@@ -711,13 +711,11 @@ impl Cx<'_> {
         let Some(n) = literal_of(word) else {
             return;
         };
-        if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
-            return;
-        }
-        let Ok(v) = n.parse::<u128>() else {
+        // Read the operand as the host does (`exit +65`, `exit -191`, `exit " 78"`).
+        let Some(status) = kapsel_plan::sem::exit_status(&n) else {
             return;
         };
-        let status = (v % 256) as i32;
+        let status = i32::from(status);
         let Some((code, what)) = KAPSEL_EXIT_CODES.iter().find(|(c, _)| *c == status) else {
             return;
         };
@@ -1211,11 +1209,13 @@ impl Cx<'_> {
                 self.check_empty_prefix(w, *span);
             }
             // KS-R016: a non-last stage's failure cannot change the status.
-            // The current directory (`ls`, `grep -r` with no operand) exists.
+            // The current directory (`ls`, `grep -r` with no operand) exists,
+            // and `-` is standard input, not a path.
             if !last_stage
                 && *access == Access::Read
                 && w.as_literal().is_some()
                 && w.as_literal().as_deref() != Some(".")
+                && w.as_literal().as_deref() != Some("-")
                 && matches!(
                     name.as_str(),
                     "ls" | "cat" | "head" | "tail" | "wc" | "grep" | "sort"

@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 pub use kapsel_ast::{AndOrOp, RedirectOp, Span};
 
+pub mod sem;
+
 pub const PLAN_SCHEMA: &str = "kapsel.plan.v0";
 
 /// What `kapsel check` produces: a plan, or a refusal. Never both.
