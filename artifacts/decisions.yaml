@@ -79,7 +79,7 @@ artifacts:
   - id: DD-KS-004
     type: design-decision
     title: "Harmful constructs: a named list, each refuse or warn, each with a planted test"
-    status: verified
+    status: implemented
     release: v0.3.0
     description: "How harmful constructs are listed, judged and tested."
     fields:
@@ -401,7 +401,7 @@ artifacts:
         reason (KC codes), never silent wrong code; lowering is a table of named rules, each with
         a test; every compile runs a translation validator that decodes the component and checks
         its call skeleton against the plan; frozen fixtures pin the output bytes; known-wrong
-        shapes are pinned by exact count, and a count that moves either way is red. Owner, 2026-11-28: ordeal (certificate-checked QF_BV) proves each lowering rule's status arithmetic and the data-layout bounds and alignment, with committed certificates re-checked in CI, as synth does for its rule table.
+        shapes are pinned by exact count, and a count that moves either way is red. Owner, 2026-11-28: ordeal (certificate-checked QF_BV) proves each lowering rule's status arithmetic on one fixture plan per rule, bounded to 3 executions per host call site, and the data-layout bounds and alignment over symbolic sizes. Only the SMT-LIB queries are committed; every test run re-solves them and re-checks the certificates, CI keeps them as an artifact, and each release attaches them as a cosign-signed bundle.
       rationale: >
         Verb: hand over a sealed artifact whose contents match its order. Borrowed from synth's
         honesty rule and per-compilation validators, which measured the cost of skipping them

@@ -105,7 +105,7 @@ artifacts:
   - id: REQ-KS-012
     type: requirement
     title: "Constructs that destroy the error signal are refused"
-    status: verified
+    status: implemented
     release: v0.3.0
     description: >
       `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
@@ -306,7 +306,7 @@ artifacts:
     fields:
       priority: must
       category: constraint
-      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag, or the Rust fork-guard rule passes a workflow the Python script fails, except for the pinned and reasoned cases where the script's verdict is a false positive (a guard it cannot parse, or runs-on text inside a run: block)."
+      verification-criteria: "Fails if a .py or .go file remains in the repository at the v0.3.0 tag (the fork-guard oracle is kept only as frozen test data, testdata/kapsel/scan/oracle/*.py.frozen), or the Rust fork-guard rule passes a workflow the Python script fails, except for the pinned, reasoned cases: the script's false positive on runs-on text inside a run: block, and the semantically guarded variants the owner approved on 2026-11-28 (hosted fallback other than ubuntu-24.04, trailing comment, nested selection, matrix guards whose self-hosted entries say self-hosted, matrix.os conditionals, anchors and aliases)."
       upstream-ref: "kapsel#140"
     links:
       - type: derives-from
@@ -555,7 +555,7 @@ artifacts:
     fields:
       priority: must
       category: constraint
-      verification-criteria: "Fails if the Rust implementation differs from the TinyGo artifact in files, errors or exit codes on any existing JSON config."
+      verification-criteria: "Fails if the Rust implementation differs from the TinyGo v0.2.2 artifact in files, errors or exit codes on any existing JSON config, outside the counted, owner-approved difference classes the equivalence test allowlists (relative workspace_dir per REQ-KS-017, the src_paths alias, the fixed same-path preopen walk, and TinyGo crashes), each class pinned by count."
 
   # --- Backlog: no release yet ---
 

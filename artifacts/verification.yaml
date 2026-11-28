@@ -170,7 +170,7 @@ artifacts:
   - id: VER-KS-011
     type: verification
     title: "|| true and || : are refused with a rule id and a reason"
-    status: verified
+    status: implemented
     release: v0.3.0
     description: Every placement of '|| true' and '|| :' (top level, after &&, inside $(...), in loops) is refused as KS-R001; the span covers operator and command; every finding of every rule's planted case has a rule id, a help line and a note; the CLI exits 65 with error[KS-R001] at -c:1:7.
     fields:
