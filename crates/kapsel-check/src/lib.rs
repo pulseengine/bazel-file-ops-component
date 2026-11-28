@@ -115,6 +115,9 @@ fn closest_builtin(name: &str) -> Option<&'static str> {
         .map(|(_, b)| b)
 }
 
+/// A positional argument and its span, as `split_args` returns them.
+type ArgRef<'a> = (&'a PWord, ast::Span);
+
 fn edit_distance(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
@@ -122,8 +125,8 @@ fn edit_distance(a: &str, b: &str) -> usize {
     for (i, row) in d.iter_mut().enumerate() {
         row[0] = i;
     }
-    for j in 0..=b.len() {
-        d[0][j] = j;
+    for (j, cell) in d[0].iter_mut().enumerate() {
+        *cell = j;
     }
     for i in 1..=a.len() {
         for j in 1..=b.len() {
@@ -260,8 +263,9 @@ impl Cx<'_> {
     fn lower_list(&mut self, items: &[ast::AndOrList], in_condition: bool) -> Vec<PAndOr> {
         let mut out = Vec::with_capacity(items.len());
         for (n, i) in items.iter().enumerate() {
-            if n + 1 < items.len() {
-                if let Some(span) = ends_with_cd(i) {
+            if n + 1 < items.len()
+                && let Some(span) = ends_with_cd(i)
+            {
                     self.warn(
                         R014,
                         "`cd` is followed by more commands that run in the old directory if the `cd` fails"
@@ -269,7 +273,6 @@ impl Cx<'_> {
                         span,
                     );
                     self.help(help_for(R014, ""));
-                }
             }
             out.push(self.lower_and_or(i, in_condition));
         }
@@ -831,7 +834,7 @@ impl Cx<'_> {
             }
             "cp" | "mv" => {
                 let target = sp.values.iter().find(|(k, _, _)| *k == 't');
-                let (sources, last): (&[(&PWord, ast::Span)], Option<(PWord, ast::Span)>) = match target {
+                let (sources, last): (&[ArgRef<'_>], Option<(PWord, ast::Span)>) = match target {
                     Some((_, w, span)) => (&sp.positional[..], Some((w.clone(), *span))),
                     None => match sp.positional.split_last() {
                         Some((l, srcs)) if !srcs.is_empty() => (srcs, Some(((*l.0).clone(), l.1))),
