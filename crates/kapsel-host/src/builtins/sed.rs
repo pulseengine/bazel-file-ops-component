@@ -441,14 +441,14 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
         supported: "-n -e SCRIPT -E (-r) -i[SUFFIX]",
     };
     let Ok(p) = getopt(ctx, a, &spec) else {
-        return 2;
+        return 1;
     };
     let mut operands = p.operands.clone();
     let mut script: Vec<String> = p.vals('e').iter().map(|s| s.to_string()).collect();
     if script.is_empty() {
         if operands.is_empty() {
             ctx.msg("no script specified; usage: sed [-n] [-E] [-i[SUFFIX]] [-e SCRIPT] SCRIPT [FILE...]");
-            return 2;
+            return 1;
         }
         script.push(operands.remove(0));
     }
@@ -458,14 +458,14 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
         Ok(c) => c,
         Err(e) => {
             ctx.msg(&format!("-e expression: {e}"));
-            return 2;
+            return 1;
         }
     };
     let quiet = p.has('n');
     let inplace = p.has('i');
     if inplace && operands.is_empty() {
         ctx.msg("no input files (-i needs file operands)");
-        return 2;
+        return 1;
     }
     let files = if operands.is_empty() {
         vec!["-".to_string()]
@@ -477,26 +477,26 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
         let mut status = 0;
         for f in &files {
             let Some(path) = ctx.wpath(f, true) else {
-                status = 1;
+                status = status.max(1);
                 continue;
             };
             let data = match std::fs::read(&path) {
                 Ok(d) => d,
                 Err(e) => {
                     ctx.msg(&format!("can't read {f}: {}", crate::shell::errstr(&e)));
-                    status = 1;
+                    status = 2;
                     continue;
                 }
             };
             if let Some(sfx) = &suffix {
                 let bname = format!("{f}{sfx}");
                 let Some(bp) = ctx.wpath(&bname, true) else {
-                    status = 1;
+                    status = status.max(1);
                     continue;
                 };
                 if let Err(e) = std::fs::write(&bp, &data) {
                     ctx.io_msg(&bname, &e);
-                    status = 1;
+                    status = status.max(1);
                     continue;
                 }
             }
@@ -506,7 +506,7 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
             let out = process(&mut cmds, quiet, &data);
             if let Err(e) = std::fs::write(&path, out) {
                 ctx.io_msg(f, &e);
-                status = 1;
+                status = status.max(1);
             }
         }
         return status;
@@ -514,19 +514,28 @@ pub fn sed(ctx: &mut Ctx, a: &[String]) -> i32 {
     let mut data = Vec::new();
     let mut status = 0;
     for f in &files {
-        match if f == "-" {
-            Some(ctx.stdin_all())
+        let d = if f == "-" {
+            ctx.stdin_all()
         } else {
-            ctx.read_input(f)
-        } {
-            Some(d) => {
-                if !data.is_empty() && !data.ends_with(b"\n") {
-                    data.push(b'\n');
+            // A path outside the grants is kapsel's refusal (exit 1); an
+            // input that cannot be opened is GNU's exit 2, in GNU's words.
+            let Some(path) = ctx.rpath(f) else {
+                status = status.max(1);
+                continue;
+            };
+            match std::fs::read(&path) {
+                Ok(d) => d,
+                Err(e) => {
+                    ctx.msg(&format!("can't read {f}: {}", crate::shell::errstr(&e)));
+                    status = 2;
+                    continue;
                 }
-                data.extend_from_slice(&d);
             }
-            None => status = 2,
+        };
+        if !data.is_empty() && !data.ends_with(b"\n") {
+            data.push(b'\n');
         }
+        data.extend_from_slice(&d);
     }
     let out = process(&mut cmds, quiet, &data);
     ctx.put(&out);
