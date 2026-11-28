@@ -376,7 +376,8 @@ fn looser_cases_are_exactly_the_documented_ones() {
         .map(|(c, _)| *c)
         .collect();
     assert_eq!(looser, vec!["block-scalar-text"]);
-    // Every Accepts case is one of the six variants the owner approved.
+    // Every Accepts case is one of the 12 cases listed here, the variants the
+    // owner approved; the count is pinned below.
     let accepts: BTreeSet<&str> = table()
         .iter()
         .filter(|(_, k)| matches!(k, Accepts(_)))
@@ -398,6 +399,7 @@ fn looser_cases_are_exactly_the_documented_ones() {
     ]
     .into_iter()
     .collect();
+    assert_eq!(expected.len(), 12, "the comment above names the count");
     assert_eq!(accepts, expected);
 }
 
