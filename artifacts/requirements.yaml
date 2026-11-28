@@ -90,7 +90,7 @@ artifacts:
   - id: REQ-KS-011
     type: requirement
     title: "Analysis is separate from execution"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       A check stage parses a command, applies the grammar and the policy, and names the grants,
@@ -105,7 +105,7 @@ artifacts:
   - id: REQ-KS-012
     type: requirement
     title: "Constructs that destroy the error signal are refused"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       `|| true` and `|| :` are refused, and the check stage reports each harmful construct with
@@ -121,7 +121,7 @@ artifacts:
   - id: REQ-KS-013
     type: requirement
     title: "The check stage's plan is a versioned JSON document"
-    status: proposed
+    status: verified
     release: v0.3.0
     description: >
       The plan lists each pipeline stage, the built-in or native tool it uses, the read and
@@ -135,7 +135,7 @@ artifacts:
   - id: REQ-KS-014
     type: requirement
     title: "kapsel takes a command with -c or from a script file, with defined exit codes"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       `kapsel check` and `kapsel run` accept `-c <command>` and a script-file argument (GitHub
@@ -149,7 +149,7 @@ artifacts:
   - id: REQ-KS-015
     type: requirement
     title: "The workflow scanner checks every run: block of a repository's workflows offline"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Phase 0 of the dogfooding rollout (owner, 2026-11-27): `kapsel check` over GitHub
@@ -193,7 +193,7 @@ artifacts:
   - id: REQ-KS-018
     type: requirement
     title: "Rust components follow the fleet exit-code rule"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       Rust 1.100 or later pinned, std::process::exit on WASI, and every exit code asserted
@@ -207,7 +207,7 @@ artifacts:
   - id: REQ-KS-019
     type: requirement
     title: "Interactive mode compiles and runs each line, and the session state persists"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       With no command and no script, kapsel reads lines from a terminal. Each complete line goes
@@ -260,7 +260,7 @@ artifacts:
   - id: REQ-KS-062
     type: requirement
     title: "Real mistakes from CI and agent sessions form a regression corpus"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       testdata/kapsel/errors/ holds minimized, scrubbed cases from CI failures and failed agent
@@ -276,7 +276,7 @@ artifacts:
   - id: REQ-KS-063
     type: requirement
     title: "Built-ins for file edits and structured data make python, perl and awk unnecessary for basic work"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Measured on this machine (80,836 agent shell calls, 2026-11-27): 19.1% used python, perl,
@@ -296,7 +296,7 @@ artifacts:
   - id: REQ-KS-064
     type: requirement
     title: "The repository has no Python, and no Go once the JSON-config mode is Rust"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       scripts/check_selfhosted_fork_guard.py becomes the first rule of kapsel's workflow scanner
@@ -317,7 +317,7 @@ artifacts:
   - id: REQ-KS-020
     type: requirement
     title: "A checked plan compiles to a WASM component that calls kapsel's interfaces"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       The compiler turns a plan into a component of world `kapsel:shell/plan` that imports only
@@ -394,7 +394,7 @@ artifacts:
   - id: REQ-KS-025
     type: requirement
     title: "The most-used commands are built in"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: >
       First batch, ranked by measured agent use: cat, echo, printf, head, tail, wc, ls, mkdir,

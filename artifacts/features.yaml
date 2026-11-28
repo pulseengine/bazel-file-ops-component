@@ -111,7 +111,7 @@ artifacts:
   - id: FEAT-KS-021
     type: feature
     title: "Built-in commands, first batch"
-    status: implemented
+    status: verified
     release: v0.3.0
     description: "The most-used commands run inside kapsel without leaving the WASM sandbox."
     fields:
@@ -126,7 +126,7 @@ artifacts:
   - id: FEAT-KS-022
     type: feature
     title: "Edit files and structured data without an interpreter"
-    status: approved
+    status: verified
     release: v0.3.0
     description: >
       Built-ins for what python, perl, node and awk were measured to do in agent shell calls:
