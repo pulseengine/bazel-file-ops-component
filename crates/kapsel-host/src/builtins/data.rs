@@ -1033,7 +1033,7 @@ pub fn yaml(ctx: &mut Ctx, a: &[String]) -> i32 {
         ));
         return 1;
     }
-    match rivet_yaml::from_str::<Y>(&out) {
+    match rivet_yaml::from_str::<Y>(super::readback_text(&out)) {
         Ok(got) if got == want => {}
         Ok(_) | Err(_) => {
             ctx.msg(&format!(
@@ -1300,7 +1300,7 @@ pub fn toml(ctx: &mut Ctx, a: &[String]) -> i32 {
     }
     let out = doc.to_string();
     // Read back: the file parses and the path holds the new value.
-    let back = out.parse::<DocumentMut>().ok().and_then(|d| {
+    let back = super::readback_text(&out).parse::<DocumentMut>().ok().and_then(|d| {
         let mut got = Vec::new();
         t_get(d.as_item(), &cmd.path, &[], &mut got).ok()?;
         got.pop()
