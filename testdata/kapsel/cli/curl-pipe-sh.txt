@@ -10,6 +10,6 @@ error[KS-R006]: `curl ... | sh` runs code fetched from the network without anyon
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: piping the network into an interpreter runs code nobody reviewed, with the session's grants
-  = help: download to a file, read it, then run it as a reviewed script: `curl -o install.sh URL`, then `cat install.sh`
+  = help: download the script to a file outside kapsel (it has no network built-in in v0.3), read it with `cat install.sh`, and run it only as a reviewed, checked script: `kapsel install.sh`
 
 error: refused: 1 error
