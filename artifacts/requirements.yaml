@@ -420,6 +420,25 @@ artifacts:
       category: non-functional
       verification-criteria: "Fails if wasmtime and kiln differ in output, exit code or errno on any corpus script."
 
+  - id: REQ-KS-027
+    type: requirement
+    title: "The subset widens to if, parameter operators, brace groups, arithmetic and case"
+    status: approved
+    release: v0.4.0
+    description: >
+      The v0.3.0 workflow scan read 2,977 run: blocks across the fleet with no parser crash, and
+      kapsel accepted 56. The five most-refused constructs were `if` (886), `${x:-y}`-style
+      parameter operators (519), `{ }` brace groups (401), `$(( ))` arithmetic (162) and `case`
+      (94). v0.4.0 adds all five to the parser, check stage and compiler (owner, 2026-11-28).
+      `${x:?message}` becomes the fix KS-R017 suggests, and arithmetic is 64-bit, proven with
+      ordeal against shell semantics as the compiler's other rules are. Refusal rules that apply
+      inside the new constructs keep their planted tests.
+    fields:
+      priority: must
+      category: functional
+      verification-criteria: "Fails if any of the five constructs is refused, a refusal rule stops firing inside one of them, an arithmetic lowering has no ordeal certificate, or the scanner's accepted-block count on the v0.3.0 fleet snapshot does not rise."
+      upstream-ref: "kapsel#140"
+
   # --- v0.5.0: native tools ---
 
   - id: REQ-KS-030

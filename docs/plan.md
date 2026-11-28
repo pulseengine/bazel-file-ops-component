@@ -46,12 +46,13 @@ Owner decision 2026-11-27: every line, script and `-c` command is compiled and r
 **Stretch target:** kapsel check classifies every `run:` block in every pulseengine workflow with no parser crash, and every refusal rule has a planted script and control. The measure is the scanner report's crash count and the plant pack's rule coverage.
 
 ### v0.4.0: sealed and composed
+- **Wider subset** (REQ-KS-027, owner 2026-11-28): `if`, `${x:-y}` operators, `{ }`, `$(( ))` proven with ordeal, and `case`, the five most-refused constructs in the v0.3.0 fleet scan (2,977 run: blocks, 56 accepted).
 - **Cache** (REQ-KS-021): keyed and signed; grants never compiled in.
 - **Executor and host** (REQ-KS-022, REQ-KS-023, DD-KS-007): ZWINGER_GRANTS, identity preopens, exit 78.
 - **The `command` WIT** (REQ-KS-024, DD-KS-006): built-ins move out of the host into composed components.
 - **Differential wasmtime and kiln** over a pinned corpus (REQ-KS-026, DD-KS-015).
 
-**Stretch target:** zero wasmtime/kiln disagreements on the whole corpus, and a cached `kapsel run` of a corpus pipeline starts in under 5 ms at p50. The measure is the differential job's mismatch count and a hyperfine run on the release build.
+**Stretch target:** the workflow scanner accepts at least half of the fleet's run: blocks that use no native tool, up from 56 of 2,977 in v0.3.0, with zero wasmtime/kiln disagreements on the corpus. The measure is the scanner report on the v0.3.0 snapshot and the differential job's mismatch count.
 
 ### v0.5.0: native
 - **native-exec on wasmtime** (REQ-KS-030), matching kiln's SR-130, plus the per-tool host profile schema (REQ-KS-031, DD-KS-008, DD-KS-009).
