@@ -500,11 +500,7 @@ fn real_parse_error() {
 
 #[test]
 fn every_check_rule_has_an_explanation() {
-    use kapsel_check::*;
-    for id in [
-        R000, R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013, R014,
-        R015, R016, R017,
-    ] {
+    for id in kapsel_check::RULES {
         assert!(
             kapsel_diag::explain(id).is_some(),
             "{id} has no explanation"

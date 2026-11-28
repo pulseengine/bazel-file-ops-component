@@ -327,3 +327,17 @@ fn large_script_and_session_stay_bounded() {
         t.elapsed()
     );
 }
+
+/// REQ-KS-016: every KS-S rule in the registry has a planted and a control
+/// unit test in this file (the pair is the plant pack for the session rules).
+#[test]
+fn every_registered_rule_has_a_planted_and_a_control_test() {
+    let src = include_str!("tests.rs");
+    for id in crate::RULES {
+        let n = id.to_ascii_lowercase().replace("ks-", "");
+        for kind in ["planted", "control"] {
+            let needle = format!("fn {n}_{kind}");
+            assert!(src.contains(&needle), "{id}: no test starting `{needle}`");
+        }
+    }
+}

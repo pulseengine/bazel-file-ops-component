@@ -12,7 +12,8 @@ Each file starts with `# expect:` and then one of:
 - `refuse <rule>`: the check stage refuses it;
 - `warn <rule>`: the check stage warns;
 - `plan`: the check stage accepts it;
-- `run-error ...`: the check stage accepts it and the run fails with a named error.
+- `run-error exit N | MESSAGE`: the check stage accepts it and the run, in an empty scratch
+  directory, exits with status N and prints MESSAGE on stderr (asserted through the real binary).
 
 A test in kapsel-check reads these lines and fails on any case whose outcome differs. The
 rendered diagnostics are golden-tested by kapsel-diag. A message must say what is wrong,

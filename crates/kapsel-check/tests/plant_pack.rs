@@ -17,9 +17,8 @@ fn run(src: &str) -> CheckOutcome {
 
 fn plant_pack_through_the_real_parser() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/kapsel/rules");
-    for n in 0..=17 {
-        let id = format!("KS-R{n:03}");
-        let dir = root.join(&id);
+    for id in kapsel_check::RULES {
+        let dir = root.join(id);
         let planted = std::fs::read_to_string(dir.join("planted.sh")).unwrap();
         let control = std::fs::read_to_string(dir.join("control.sh")).unwrap();
         let found: Vec<kapsel_plan::Finding> = match run(&planted) {
@@ -27,7 +26,7 @@ fn plant_pack_through_the_real_parser() {
             CheckOutcome::Refused(r) => r.findings,
         };
         assert!(
-            found.iter().any(|f| f.rule == id),
+            found.iter().any(|f| f.rule == *id),
             "{id} planted not caught: {found:?}"
         );
         for f in &found {
@@ -36,7 +35,7 @@ fn plant_pack_through_the_real_parser() {
                 &planted[f.span.start as usize..f.span.end as usize]
             );
         }
-        if id != "KS-R000" {
+        if *id != "KS-R000" {
             let want: Vec<kapsel_plan::Finding> =
                 serde_json::from_str(&std::fs::read_to_string(dir.join("expected.json")).unwrap())
                     .unwrap();
@@ -44,7 +43,7 @@ fn plant_pack_through_the_real_parser() {
         }
         match run(&control) {
             CheckOutcome::Plan(p) => assert!(
-                p.warnings.iter().all(|f| f.rule != id),
+                p.warnings.iter().all(|f| f.rule != *id),
                 "{id} control warns: {:?}",
                 p.warnings
             ),
