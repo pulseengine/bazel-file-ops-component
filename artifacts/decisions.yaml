@@ -421,8 +421,10 @@ artifacts:
     fields:
       decision: >
         An edit names its place (a pattern with an expected count, a line range, or a path) and
-        changes that place and nothing else. JSON keeps key order (serde_json preserve_order) and
-        the file's indentation. YAML is spliced into rivet-yaml's lossless rowan CST (the same
+        changes that place and nothing else. JSON is read by kapsel's own lossless reader, which
+        keeps every value's byte range and every number's text (1.10, 1e400 and integers past
+        u64 are never sent through a float); set and del splice that range, a new key copies its
+        siblings' separator and indentation, and only merge rewrites the layout. YAML is spliced into rivet-yaml's lossless rowan CST (the same
         rivet tag as kapsel-scan): rivet-yaml has no edit API, but every node carries
         its byte range, so set and del replace or remove that range and the text around it is
         untouched; flow collections, anchors and aliases are refused rather than rewritten. TOML

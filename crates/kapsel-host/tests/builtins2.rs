@@ -324,8 +324,137 @@ fn json_get_paths_and_flags() {
         "{",
         1,
         "",
-        "json: -: invalid JSON: EOF while parsing an object at line 1 column 1\n",
+        "json: -: invalid JSON: expected a key at line 1 column 2\n",
     );
+    t.check(
+        &["json", "get", ".a"],
+        "{\"a\": 01}",
+        1,
+        "",
+        "json: -: invalid JSON: expected `,` or `}` at line 1 column 8\n",
+    );
+}
+
+/// Numbers are printed as written, never through a float.
+#[test]
+fn json_get_keeps_number_text() {
+    let mut t = T::new();
+    t.write("n.json", NUMS_JSON);
+    for (path, out) in [
+        (".version", "1.10\n"),
+        (".ratio", "0.1000\n"),
+        (".huge", "123456789012345678901234567890\n"),
+        (".big", "1e400\n"),
+        (".negzero", "-0\n"),
+    ] {
+        t.check(&["json", "get", path, "n.json"], "", 0, out, "");
+    }
+    t.check(
+        &["json", "get", "-c", ".", "n.json"],
+        "",
+        0,
+        "{\"version\":1.10,\"ratio\":0.1000,\"huge\":123456789012345678901234567890,\"big\":1e400,\"negzero\":-0,\"n\":1}\n",
+        "",
+    );
+}
+
+const NUMS_JSON: &str = "{\"version\": 1.10, \"ratio\": 0.1000, \"huge\": 123456789012345678901234567890, \"big\": 1e400, \"negzero\": -0, \"n\": 1}\n";
+
+/// The coordinator's reproduction: `json set .n 2` changes `1` to `2` and
+/// not one other byte.
+#[test]
+fn json_set_changes_only_the_node() {
+    let mut t = T::new();
+    let src = "{\"version\": 1.10, \"ratio\": 0.1000, \"huge\": 123456789012345678901234567890, \"n\": 1}\n";
+    t.write("f.json", src);
+    t.check(&["json", "set", ".n", "2", "f.json"], "", 0, "", "");
+    assert_eq!(t.read("f.json"), src.replace("\"n\": 1", "\"n\": 2"));
+    // The same with every unusual number, across set, insert and del.
+    t.write("n.json", NUMS_JSON);
+    t.check(&["json", "set", ".n", "2", "n.json"], "", 0, "", "");
+    assert_eq!(t.read("n.json"), NUMS_JSON.replace("\"n\": 1", "\"n\": 2"));
+    t.check(&["json", "set", ".x", "1.50", "n.json"], "", 0, "", "");
+    assert_eq!(
+        t.read("n.json"),
+        NUMS_JSON.replace("\"n\": 1}", "\"n\": 2, \"x\": 1.50}")
+    );
+    t.check(&["json", "del", ".x", "n.json"], "", 0, "", "");
+    t.check(&["json", "del", ".n", "n.json"], "", 0, "", "");
+    assert_eq!(t.read("n.json"), NUMS_JSON.replace(", \"n\": 1", ""));
+    t.check(&["json", "del", ".version", "n.json"], "", 0, "", "");
+    assert_eq!(
+        t.read("n.json"),
+        "{\"ratio\": 0.1000, \"huge\": 123456789012345678901234567890, \"big\": 1e400, \"negzero\": -0}\n"
+    );
+}
+
+#[test]
+fn json_del_first_middle_last() {
+    let mut t = T::new();
+    let src = "{\n  \"a\": 1,\n  \"b\": [1, 2, 3],\n  \"c\": {\"x\": 1.10}\n}\n";
+    for (path, want) in [
+        (".a", "{\n  \"b\": [1, 2, 3],\n  \"c\": {\"x\": 1.10}\n}\n"),
+        (".b", "{\n  \"a\": 1,\n  \"c\": {\"x\": 1.10}\n}\n"),
+        (".c", "{\n  \"a\": 1,\n  \"b\": [1, 2, 3]\n}\n"),
+        (
+            ".b[0]",
+            "{\n  \"a\": 1,\n  \"b\": [2, 3],\n  \"c\": {\"x\": 1.10}\n}\n",
+        ),
+        (
+            ".b[1]",
+            "{\n  \"a\": 1,\n  \"b\": [1, 3],\n  \"c\": {\"x\": 1.10}\n}\n",
+        ),
+        (
+            ".b[-1]",
+            "{\n  \"a\": 1,\n  \"b\": [1, 2],\n  \"c\": {\"x\": 1.10}\n}\n",
+        ),
+        (
+            ".c.x",
+            "{\n  \"a\": 1,\n  \"b\": [1, 2, 3],\n  \"c\": {}\n}\n",
+        ),
+    ] {
+        t.write("d.json", src);
+        t.check(&["json", "del", path, "d.json"], "", 0, "", "");
+        assert_eq!(t.read("d.json"), want, "del {path}");
+    }
+}
+
+#[test]
+fn json_insert_and_nested_index() {
+    let mut t = T::new();
+    // Into an empty object, multi-line file: the siblings' indent.
+    t.write("e.json", "{\n  \"deps\": {},\n  \"v\": 1.10\n}\n");
+    t.check(&["json", "set", ".deps.a", "1", "e.json"], "", 0, "", "");
+    assert_eq!(
+        t.read("e.json"),
+        "{\n  \"deps\": {\n    \"a\": 1\n  },\n  \"v\": 1.10\n}\n"
+    );
+    // Into an empty object, one-line file; and an empty document object.
+    t.write("o.json", "{}");
+    t.check(&["json", "set", ".a", "[1, 2]", "o.json"], "", 0, "", "");
+    assert_eq!(t.read("o.json"), "{\"a\":[1,2]}");
+    // A nested array index, and an append at the length.
+    t.write("a.json", "{\"m\": [[1, 2], [3, 1e400]]}\n");
+    t.check(&["json", "set", ".m[1][0]", "-0", "a.json"], "", 0, "", "");
+    t.check(&["json", "set", ".m[0][2]", "9", "a.json"], "", 0, "", "");
+    assert_eq!(t.read("a.json"), "{\"m\": [[1, 2, 9], [-0, 1e400]]}\n");
+    // A new key with a nested value takes the file's indent below the sibling.
+    t.write("n.json", "{\n    \"a\": 1\n}\n");
+    t.check(
+        &["json", "set", ".b.c", "{\"d\": 0.50}", "n.json"],
+        "",
+        0,
+        "",
+        "",
+    );
+    assert_eq!(
+        t.read("n.json"),
+        "{\n    \"a\": 1,\n    \"b\": {\n        \"c\": {\n            \"d\": 0.50\n        }\n    }\n}\n"
+    );
+    // A tab-indented file and a null that becomes an object.
+    t.write("t.json", "{\n\t\"a\": null\n}\n");
+    t.check(&["json", "set", ".a.b", "true", "t.json"], "", 0, "", "");
+    assert_eq!(t.read("t.json"), "{\n\t\"a\": {\"b\": true}\n}\n");
 }
 
 #[test]
@@ -356,7 +485,7 @@ fn json_set_keeps_order_and_layout() {
     t.check(&["json", "set", ".new.deep", "-1", "d.json"], "", 0, "", "");
     assert_eq!(
         t.read("d.json"),
-        "{\n  \"name\": \"shell\",\n  \"tags\": [\n    \"a\",\n    \"b\",\n    \"c\"\n  ],\n  \"deps\": {\n    \"x y\": 1,\n    \"z\": \"2.0\"\n  },\n  \"new\": {\n    \"deep\": -1\n  }\n}\n"
+        "{\n  \"name\": \"shell\",\n  \"tags\": [\"a\", \"b\", \"c\"],\n  \"deps\": {\"x y\": 1, \"z\": \"2.0\"},\n  \"new\": {\n    \"deep\": -1\n  }\n}\n"
     );
     // A one-line file stays one line; four-space indent stays four.
     t.write("c.json", "{\"b\":1,\"a\":2}");
@@ -373,7 +502,7 @@ fn json_set_keeps_order_and_layout() {
         "",
         2,
         "",
-        "json: VALUE 'shell' is not JSON (expected value at line 1 column 1); use --str to set it as a string\n",
+        "json: VALUE 'shell' is not JSON (expected a value at line 1 column 1); use --str to set it as a string\n",
     );
     t.check(
         &["json", "set", ".b[5]", "1", "w.json"],
@@ -392,7 +521,7 @@ fn json_del_and_merge() {
     t.check(&["json", "del", ".deps.\"x y\"", "d.json"], "", 0, "", "");
     assert_eq!(
         t.read("d.json"),
-        "{\n  \"name\": \"kapsel\",\n  \"tags\": [\n    \"b\"\n  ],\n  \"deps\": {\n    \"z\": null\n  }\n}\n"
+        "{\n  \"name\": \"kapsel\",\n  \"tags\": [\"b\"],\n  \"deps\": {\"z\": null}\n}\n"
     );
     t.check(
         &["json", "del", ".nope", "d.json"],
@@ -401,18 +530,22 @@ fn json_del_and_merge() {
         "",
         "json: d.json: .nope: no such key; file unchanged\n",
     );
-    t.write("o.json", "{\"deps\": {\"w\": true}, \"name\": \"n\"}");
+    // merge rewrites the layout (its usage says so) but keeps number text.
+    t.write(
+        "o.json",
+        "{\"deps\": {\"w\": 1.10}, \"name\": \"n\", \"big\": 1e400}",
+    );
     t.check(&["json", "merge", "d.json", "o.json"], "", 0, "", "");
     assert_eq!(
         t.read("d.json"),
-        "{\n  \"name\": \"n\",\n  \"tags\": [\n    \"b\"\n  ],\n  \"deps\": {\n    \"z\": null,\n    \"w\": true\n  }\n}\n"
+        "{\n  \"name\": \"n\",\n  \"tags\": [\n    \"b\"\n  ],\n  \"deps\": {\n    \"z\": null,\n    \"w\": 1.10\n  },\n  \"big\": 1e400\n}\n"
     );
     t.check(
         &["json", "frob", ".a", "d.json"],
         "",
         2,
         "",
-        "json: unknown subcommand 'frob'; usage: json get PATH [FILE] | json set PATH VALUE FILE | json del PATH FILE | json merge FILE OTHER\n",
+        "json: unknown subcommand 'frob'; usage: json get PATH [FILE] | json set PATH VALUE FILE | json del PATH FILE | json merge FILE OTHER (rewrites FILE in a normal layout)\n",
     );
     t.check(
         &["json", "set", ".a[]", "1", "d.json"],
@@ -1234,4 +1367,47 @@ fn yaml_edge_layouts() {
     t.check(&["yaml", "set", ".\"a b\"", "3", "h.yaml"], "", 0, "", "");
     t.check(&["yaml", "set", ".c", "4", "h.yaml"], "", 0, "", "");
     assert_eq!(t.read("h.yaml"), "---\n\"a b\": 3\n'c': 4\n");
+}
+
+/// Values outside the edited node stay byte-identical, unusual numbers
+/// included; the edited value is written as typed.
+#[test]
+fn yaml_unusual_numbers_survive() {
+    let mut t = T::new();
+    let src =
+        "v: 1.10\nhex: 0x1F\nsep: 1_000\noct: 0o17\nexp: 1e400\nneg: -0\nn: 1\nl:\n  - 1.10\n";
+    t.write("n.yaml", src);
+    t.check(&["yaml", "set", ".n", "2.50", "n.yaml"], "", 0, "", "");
+    assert_eq!(t.read("n.yaml"), src.replace("n: 1\n", "n: 2.50\n"));
+    t.check(&["yaml", "set", ".x", "0x10", "n.yaml"], "", 0, "", "");
+    t.check(&["yaml", "set", ".l[1]", "1.20", "n.yaml"], "", 0, "", "");
+    t.check(&["yaml", "del", ".n", "n.yaml"], "", 0, "", "");
+    assert_eq!(
+        t.read("n.yaml"),
+        "v: 1.10\nhex: 0x1F\nsep: 1_000\noct: 0o17\nexp: 1e400\nneg: -0\nl:\n  - 1.10\n  - 1.20\nx: 0x10\n"
+    );
+    t.check(&["yaml", "get", ".v", "n.yaml"], "", 0, "1.1\n", "");
+    // rivet-yaml v0.43.3 cannot read an integer past u64: refused, untouched.
+    let huge = "huge: 123456789012345678901234567890\nn: 1\n";
+    t.write("h.yaml", huge);
+    let (st, _, err) = t.run(&["yaml", "set", ".n", "2", "h.yaml"]);
+    assert_eq!(st, 1, "{err}");
+    assert!(err.starts_with("yaml: h.yaml: invalid YAML: "), "{err}");
+    assert_eq!(t.read("h.yaml"), huge);
+}
+
+#[test]
+fn toml_unusual_numbers_survive() {
+    let mut t = T::new();
+    let src = "v = 1.10\nhex = 0x1F\nsep = 1_000\noct = 0o17\nexp = 1e300\nneg = -0.0\nn = 1\n\n[t]\nx = [1.10, 0x1F] # keep\n";
+    t.write("n.toml", src);
+    t.check(&["toml", "set", ".n", "2.50", "n.toml"], "", 0, "", "");
+    assert_eq!(t.read("n.toml"), src.replace("n = 1\n", "n = 2.50\n"));
+    t.check(&["toml", "set", ".t.y", "1_000", "n.toml"], "", 0, "", "");
+    t.check(&["toml", "set", ".t.x[2]", "0b11", "n.toml"], "", 0, "", "");
+    assert_eq!(
+        t.read("n.toml"),
+        "v = 1.10\nhex = 0x1F\nsep = 1_000\noct = 0o17\nexp = 1e300\nneg = -0.0\nn = 2.50\n\n[t]\nx = [1.10, 0x1F, 0b11] # keep\ny = 1_000\n"
+    );
+    t.check(&["toml", "get", ".hex", "n.toml"], "", 0, "0x1F\n", "");
 }

@@ -11,6 +11,7 @@ mod basic;
 mod data;
 mod edit;
 mod files;
+mod jsonedit;
 mod regex_conv;
 mod sed;
 mod text;
@@ -455,7 +456,7 @@ pub fn run(sh: &mut Shell, args: &[String], stdin: Box<dyn Read>, out: Sink, err
         "date" => timefmt::date(&mut ctx, a),
         "sleep" => timefmt::sleep(&mut ctx, a),
         "edit" => edit::edit(&mut ctx, a),
-        "json" => data::json(&mut ctx, a),
+        "json" => jsonedit::json(&mut ctx, a),
         "yaml" => data::yaml(&mut ctx, a),
         "toml" => data::toml(&mut ctx, a),
         "field" => text3::field(&mut ctx, a),
