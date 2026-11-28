@@ -70,7 +70,7 @@ artifacts:
     type: feature
     title: "Bazel's file_ops toolchain runs on kapsel (Phase 1)"
     status: approved
-    release: v0.3.0
+    release: v0.4.0
     description: "rules_wasm_component's file operations run on kapsel instead of a separate Go wrapper."
     fields:
       phase: phase-1
